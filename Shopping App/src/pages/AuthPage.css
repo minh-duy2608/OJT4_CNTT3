@@ -1,0 +1,342 @@
+/* ==========================================================================
+   Figma Exact Login Page Styles
+   ========================================================================== */
+
+.auth-container-wrapper {
+  padding: 4rem 1rem 5rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 200px);
+}
+
+.auth-card-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4.5rem;
+  max-width: 960px;
+  width: 100%;
+  align-items: center;
+}
+
+/* --------------------------------------------------------------------------
+   Left Card: Image + Dark Info Card
+   -------------------------------------------------------------------------- */
+.auth-left-card {
+  border-radius: 16px;
+  overflow: hidden;
+  background-color: #191c1a;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-image-box {
+  width: 100%;
+  height: 380px;
+  overflow: hidden;
+}
+
+.auth-desk-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.auth-info-box {
+  background-color: #191c1a;
+  padding: 2.25rem 2.25rem 2.5rem;
+  color: #ffffff;
+}
+
+.auth-tagline {
+  font-family: 'SF Mono', Consolas, Monaco, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  color: #8c938f;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+.auth-info-heading {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #ffffff;
+  margin-bottom: 0.85rem;
+  letter-spacing: -0.02em;
+}
+
+.auth-info-desc {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: #9ba19d;
+  margin: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Right Column: Form Section
+   -------------------------------------------------------------------------- */
+.auth-right-col {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 440px;
+}
+
+.auth-top-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #2563eb;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.auth-main-title {
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: #191c1a;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.5rem;
+  line-height: 1.2;
+}
+
+.auth-main-subtitle {
+  font-size: 0.875rem;
+  color: #6b7280;
+  line-height: 1.5;
+  margin-bottom: 1.75rem;
+}
+
+/* Form Groups */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.auth-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.auth-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #191c1a;
+}
+
+.auth-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.auth-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 0.9375rem;
+  color: #191c1a;
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.auth-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+
+.password-toggle-btn:hover {
+  color: #4b5563;
+}
+
+/* Options Row: Remember Me & Forgot Password */
+.auth-options-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem;
+  margin-top: -0.25rem;
+}
+
+.auth-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #4b5563;
+  cursor: pointer;
+  user-select: none;
+}
+
+.auth-checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.auth-forgot-link {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+  transition: opacity 0.2s ease;
+}
+
+.auth-forgot-link:hover {
+  text-decoration: underline;
+}
+
+/* Submit Button */
+.auth-submit-btn {
+  width: 100%;
+  background-color: #2563eb;
+  color: #ffffff;
+  padding: 0.85rem 1.25rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  margin-top: 0.25rem;
+}
+
+.auth-submit-btn:hover {
+  background-color: #1d4ed8;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+
+.auth-submit-btn:active {
+  transform: translateY(1px);
+}
+
+.auth-submit-arrow {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.5px;
+}
+
+/* Switch Auth Mode */
+.auth-switch-text {
+  text-align: center;
+  font-size: 0.875rem;
+  color: #4b5563;
+  margin: 1.25rem 0 1.5rem;
+}
+
+.auth-switch-link {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: none;
+  margin-left: 0.35rem;
+  cursor: pointer;
+}
+
+.auth-switch-link:hover {
+  text-decoration: underline;
+}
+
+/* --------------------------------------------------------------------------
+   Bottom Info Card ("Chỉ muốn xem thêm?")
+   -------------------------------------------------------------------------- */
+.auth-guest-box {
+  background-color: #f2efea; /* Warm light beige/gray from Figma */
+  border-radius: 10px;
+  padding: 1.25rem 1.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.guest-box-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #191c1a;
+}
+
+.guest-box-icon {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2px;
+  color: #191c1a;
+}
+
+.guest-box-text {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: #6b7280;
+  margin: 0;
+}
+
+.guest-box-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #2563eb;
+  text-decoration: none;
+  margin-top: 0.25rem;
+  transition: transform 0.2s ease;
+}
+
+.guest-box-link:hover {
+  transform: translateX(-2px);
+}
+
+/* --------------------------------------------------------------------------
+   Responsive Breakpoints
+   -------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  .auth-card-layout {
+    grid-template-columns: 1fr;
+    gap: 3rem;
+    max-width: 480px;
+  }
+
+  .auth-image-box {
+    height: 260px;
+  }
+}
+
+@media (max-width: 480px) {
+  .auth-container-wrapper {
+    padding: 2rem 1rem 3rem;
+  }
+
+  .auth-main-title {
+    font-size: 1.85rem;
+  }
+
+  .auth-info-box {
+    padding: 1.5rem;
+  }
+}
+

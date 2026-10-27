@@ -1,0 +1,330 @@
+/* ==========================================================================
+   Cyber Dynamic Hero Banner Styles (Figma Exact with Smooth Next/Prev)
+   ========================================================================== */
+
+.cyber-hero-banner {
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  background-color: #211c24;
+  color: #ffffff;
+  min-height: 500px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  outline: none;
+}
+
+.hero-banner-inner {
+  position: relative;
+  width: 100%;
+  padding: 3.5rem 2.5rem 4.5rem;
+  display: flex;
+  align-items: center;
+}
+
+/* Slide Content Layout */
+.hero-slide-content {
+  display: grid;
+  grid-template-columns: 1.15fr 0.95fr;
+  align-items: center;
+  gap: 3rem;
+  width: 100%;
+  animation: heroSlideFadeIn 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes heroSlideFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Left Text Column (Figma Exact)
+   -------------------------------------------------------------------------- */
+.hero-text-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  z-index: 2;
+}
+
+.hero-kicker {
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: #908d96;
+  margin-bottom: 0.65rem;
+  letter-spacing: -0.01em;
+}
+
+.hero-title {
+  font-size: 4.5rem;
+  line-height: 1.05;
+  color: #ffffff;
+  margin-bottom: 1.15rem;
+  letter-spacing: -0.03em;
+}
+
+.hero-title-light {
+  font-weight: 300;
+  color: #ffffff;
+}
+
+.hero-title-bold {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.hero-description {
+  font-size: 1.1rem;
+  color: #908d96;
+  line-height: 1.55;
+  max-width: 480px;
+  margin-bottom: 2.25rem;
+  font-weight: 400;
+}
+
+.hero-action-row {
+  display: flex;
+  align-items: center;
+}
+
+/* Nút Mua ngay chuẩn mẫu Figma: Nền trong suốt, viền trắng, chữ trắng */
+.hero-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #ffffff;
+  background-color: transparent;
+  color: #ffffff;
+  padding: 0.85rem 3.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  border-radius: 6px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.hero-cta-btn:hover {
+  background-color: #ffffff;
+  color: #000000;
+  box-shadow: 0 4px 20px rgba(255, 255, 255, 0.25);
+  transform: translateY(-2px);
+}
+
+.hero-cta-btn:active {
+  transform: translateY(0);
+}
+
+/* --------------------------------------------------------------------------
+   Right Image Column
+   -------------------------------------------------------------------------- */
+.hero-image-col {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  position: relative;
+  z-index: 2;
+}
+
+.hero-img-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+}
+
+.hero-product-img {
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hero-product-img.hero-img-dual-phone {
+  max-height: 440px;
+  filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.5));
+}
+
+.hero-product-img.hero-img-standard {
+  max-height: 380px;
+  filter: drop-shadow(0 25px 45px rgba(0, 0, 0, 0.6));
+}
+
+.hero-image-col:hover .hero-product-img {
+  transform: scale(1.03);
+}
+
+/* --------------------------------------------------------------------------
+   Navigation Arrows (Next / Prev) - Đặt ở sát mép ngoài, không che chữ
+   -------------------------------------------------------------------------- */
+.hero-nav-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10;
+  backdrop-filter: blur(8px);
+  opacity: 0.65;
+}
+
+.cyber-hero-banner:hover .hero-nav-arrow {
+  opacity: 1;
+}
+
+.hero-nav-arrow.prev {
+  left: 1.5rem;
+}
+
+.hero-nav-arrow.next {
+  right: 1.5rem;
+}
+
+.hero-nav-arrow:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-50%) scale(1.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.hero-nav-arrow:active {
+  transform: translateY(-50%) scale(0.96);
+}
+
+/* --------------------------------------------------------------------------
+   Bottom Indicator Pills (Dots)
+   -------------------------------------------------------------------------- */
+.hero-dots-container {
+  position: absolute;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  z-index: 10;
+}
+
+.hero-dot-pill {
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background-color: rgba(255, 255, 255, 0.32);
+  border-radius: 9999px;
+  height: 6px;
+  width: 6px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hero-dot-pill:hover {
+  background-color: rgba(255, 255, 255, 0.65);
+}
+
+.hero-dot-pill.is-active {
+  background-color: #ffffff;
+  width: 26px;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
+}
+
+/* --------------------------------------------------------------------------
+   Responsive Breakpoints
+   -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .hero-title {
+    font-size: 3.5rem;
+  }
+  
+  .hero-product-img.hero-img-dual-phone {
+    max-height: 380px;
+  }
+
+  .hero-nav-arrow.prev {
+    left: 0.75rem;
+  }
+
+  .hero-nav-arrow.next {
+    right: 0.75rem;
+  }
+}
+
+@media (max-width: 868px) {
+  .hero-slide-content {
+    grid-template-columns: 1fr;
+    text-align: center;
+    gap: 2rem;
+  }
+
+  .hero-text-col {
+    align-items: center;
+  }
+
+  .hero-title {
+    font-size: 2.75rem;
+  }
+
+  .hero-description {
+    margin-bottom: 1.75rem;
+  }
+
+  .hero-action-row {
+    justify-content: center;
+  }
+
+  .hero-image-col {
+    justify-content: center;
+  }
+
+  .hero-product-img.hero-img-dual-phone,
+  .hero-product-img.hero-img-standard {
+    max-height: 280px;
+  }
+
+  .hero-nav-arrow {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-banner-inner {
+    padding: 2.5rem 1rem 3.5rem;
+  }
+
+  .hero-title {
+    font-size: 2.15rem;
+  }
+
+  .hero-kicker {
+    font-size: 1rem;
+  }
+
+  .hero-cta-btn {
+    padding: 0.75rem 2rem;
+    font-size: 0.925rem;
+  }
+
+  .hero-product-img.hero-img-dual-phone,
+  .hero-product-img.hero-img-standard {
+    max-height: 220px;
+  }
+}

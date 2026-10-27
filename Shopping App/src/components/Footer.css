@@ -1,0 +1,131 @@
+/* ==========================================================================
+   Cyber Footer Styles (Exact Replica)
+   ========================================================================== */
+
+.cyber-footer {
+  background-color: #000000;
+  color: #cfcfcf;
+  padding: 5rem 0 4rem;
+  font-family: inherit;
+  border-top: none;
+}
+
+.cyber-footer-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1.2fr;
+  gap: 4rem;
+  align-items: start;
+}
+
+/* --------------------------------------------------------------------------
+   Column 1: Brand Info & Socials
+   -------------------------------------------------------------------------- */
+.cyber-footer-brand {
+  display: flex;
+  flex-direction: column;
+}
+
+.cyber-footer-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #ffffff;
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  text-decoration: none;
+  line-height: 1;
+  margin-bottom: 1.5rem;
+}
+
+.cyber-footer-logo-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.cyber-footer-desc {
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: #a0a0a0;
+  max-width: 330px;
+  margin: 0 0 2.25rem 0;
+}
+
+.cyber-footer-socials {
+  display: flex;
+  align-items: center;
+  gap: 1.75rem;
+}
+
+.cyber-social-link {
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  text-decoration: none;
+}
+
+.cyber-social-link:hover {
+  transform: translateY(-2px);
+  opacity: 0.8;
+}
+
+/* --------------------------------------------------------------------------
+   Columns 2 & 3: Link Groups
+   -------------------------------------------------------------------------- */
+.cyber-footer-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.cyber-footer-heading {
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.01em;
+}
+
+.cyber-footer-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.95rem;
+}
+
+.cyber-footer-link {
+  color: #a0a0a0;
+  font-size: 0.875rem;
+  text-decoration: none;
+  transition: color 0.2s ease;
+  display: inline-block;
+  line-height: 1.4;
+}
+
+.cyber-footer-link:hover {
+  color: #ffffff;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive Breakpoints
+   -------------------------------------------------------------------------- */
+@media (max-width: 960px) {
+  .cyber-footer-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 3rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .cyber-footer {
+    padding: 3.5rem 0 3rem;
+  }
+
+  .cyber-footer-grid {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+}

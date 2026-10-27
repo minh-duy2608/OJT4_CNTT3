@@ -1,0 +1,57 @@
+/* ==========================================================================
+   Figma Exact Discount Products Section Styles ("Sản phẩm giảm giá")
+   ========================================================================== */
+
+.discount-products-section {
+  margin-top: 4.5rem;
+  margin-bottom: 4.5rem;
+  width: 100%;
+}
+
+.discount-products-header {
+  margin-bottom: 2rem;
+}
+
+.discount-products-title {
+  font-size: 1.65rem;
+  font-weight: 600;
+  color: #000000;
+  letter-spacing: -0.02em;
+}
+
+.discount-products-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+}
+
+/* Responsive Grid */
+@media (max-width: 1100px) {
+  .discount-products-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .discount-products-section {
+    margin-top: 3rem;
+    margin-bottom: 3rem;
+  }
+
+  .discount-products-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .discount-products-title {
+    font-size: 1.35rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .discount-products-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

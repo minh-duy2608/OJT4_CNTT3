@@ -1,0 +1,214 @@
+/* ==========================================================================
+   Figma Exact Banner 2 Styles ("Ưu đãi mùa hè")
+   ========================================================================== */
+
+.cyber-summer-banner-wrapper {
+  width: 100%;
+  min-height: 448px;
+  background: linear-gradient(90deg, #2e2e2e 0%, #000000 100%);
+  color: #ffffff;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4.5rem;
+  margin-bottom: 0; /* Liền mạch trực tiếp vào Footer đen, không có khoảng trắng */
+}
+
+.summer-banner-container {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 1.15fr;
+  align-items: center;
+  width: 100%;
+  padding: 3rem 1.5rem;
+  position: relative;
+  gap: 1.5rem;
+}
+
+/* --------------------------------------------------------------------------
+   Left Image: Tablet iPad
+   -------------------------------------------------------------------------- */
+.summer-banner-left {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  position: relative;
+}
+
+.summer-banner-tablet-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.summer-banner-tablet-img {
+  max-height: 380px;
+  width: auto;
+  object-fit: contain;
+  transform: rotate(-12deg) scale(1.05);
+  filter: drop-shadow(0 20px 35px rgba(0, 0, 0, 0.7));
+  transition: transform 0.4s ease;
+}
+
+.cyber-summer-banner-wrapper:hover .summer-banner-tablet-img {
+  transform: rotate(-9deg) scale(1.08);
+}
+
+/* --------------------------------------------------------------------------
+   Center Text & Button
+   -------------------------------------------------------------------------- */
+.summer-banner-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  z-index: 2;
+}
+
+.summer-banner-title {
+  font-size: 3.5rem;
+  font-weight: 300;
+  color: #ffffff;
+  margin-bottom: 0.65rem;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+/* Đường nét đứt màu xanh ngọc chuẩn thiết kế Figma */
+.summer-banner-divider-line {
+  width: 140px;
+  height: 2px;
+  border-top: 2px dashed rgba(56, 189, 248, 0.7);
+  margin-bottom: 1.15rem;
+}
+
+.summer-banner-subtitle {
+  font-size: 1.05rem;
+  color: #a1a1aa;
+  line-height: 1.5;
+  margin-bottom: 2rem;
+  max-width: 440px;
+}
+
+.summer-banner-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #ffffff;
+  background: transparent;
+  color: #ffffff;
+  padding: 0.85rem 3.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  border-radius: 6px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.summer-banner-btn:hover {
+  background: #ffffff;
+  color: #000000;
+  box-shadow: 0 4px 20px rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+/* --------------------------------------------------------------------------
+   Right Image Cluster: iPhone + Apple Watch
+   -------------------------------------------------------------------------- */
+.summer-banner-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  position: relative;
+  min-height: 320px;
+}
+
+.summer-banner-cluster {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.summer-banner-phone-img {
+  max-height: 360px;
+  width: auto;
+  object-fit: contain;
+  transform: rotate(14deg);
+  filter: drop-shadow(0 20px 35px rgba(0, 0, 0, 0.7));
+  position: relative;
+  z-index: 2;
+  transition: transform 0.4s ease;
+}
+
+.summer-banner-watch-img {
+  max-height: 210px;
+  position: absolute;
+  bottom: -20px;
+  right: 140px;
+  z-index: 3;
+  filter: drop-shadow(0 15px 30px rgba(0, 0, 0, 0.85));
+  transition: transform 0.4s ease;
+}
+
+.cyber-summer-banner-wrapper:hover .summer-banner-phone-img {
+  transform: rotate(11deg) scale(1.05);
+}
+
+.cyber-summer-banner-wrapper:hover .summer-banner-watch-img {
+  transform: translateY(-5px) scale(1.08);
+}
+
+/* --------------------------------------------------------------------------
+   Responsive Layout
+   -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .summer-banner-title {
+    font-size: 2.8rem;
+  }
+
+  .summer-banner-container {
+    grid-template-columns: 1fr 1.6fr 1fr;
+    gap: 1rem;
+  }
+
+  .summer-banner-tablet-img {
+    max-height: 280px;
+  }
+
+  .summer-banner-phone-img {
+    max-height: 280px;
+  }
+
+  .summer-banner-watch-img {
+    max-height: 160px;
+    right: 80px;
+  }
+}
+
+@media (max-width: 868px) {
+  .cyber-summer-banner-wrapper {
+    min-height: auto;
+    margin-top: 3rem;
+  }
+
+  .summer-banner-container {
+    grid-template-columns: 1fr;
+    text-align: center;
+    padding: 3.5rem 1rem;
+    gap: 2rem;
+  }
+
+  .summer-banner-left,
+  .summer-banner-right {
+    display: none;
+  }
+
+  .summer-banner-title {
+    font-size: 2.25rem;
+    white-space: normal;
+  }
+}
