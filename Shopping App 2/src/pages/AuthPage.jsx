@@ -725,14 +725,23 @@ export const AuthPage = () => {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginTop: '0.5rem' }}>
           <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>Mã Token khôi phục:</label>
+            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>Mã xác thực OTP (6 chữ số từ son666727@gmail.com):</label>
             <input
               type="text"
+              maxLength={6}
               value={resetToken}
-              onChange={(e) => setResetToken(e.target.value)}
-              placeholder="Dán mã reset token tại đây"
+              onChange={(e) => setResetToken(e.target.value.replace(/[^0-9]/g, ''))}
+              placeholder="••••••"
               className="form-input"
-              style={{ width: '100%', marginTop: '0.25rem' }}
+              style={{
+                width: '100%',
+                marginTop: '0.25rem',
+                fontSize: '22px',
+                letterSpacing: '8px',
+                textAlign: 'center',
+                fontFamily: 'monospace',
+                fontWeight: 700
+              }}
             />
           </div>
           <div>

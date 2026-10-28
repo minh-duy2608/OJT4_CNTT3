@@ -21,7 +21,9 @@ import {
   Home,
   Briefcase,
   Package,
-  X
+  X,
+  KeyRound,
+  RotateCcw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { uploadToCloudinary } from '../services/cloudinary';
@@ -42,6 +44,8 @@ export const ProfilePage = () => {
     isAuthenticated,
     updateProfile,
     changePassword,
+    forgotPassword,
+    resetPassword,
     resendVerification,
     verifyEmail,
     addresses,
@@ -68,6 +72,16 @@ export const ProfilePage = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState({ current: false, new: false, confirm: false });
   const [passwordErrors, setPasswordErrors] = useState({});
+
+  // 2.1. Trạng thái Quên mật khẩu & Xác minh OTP 6 số (API 8 & API 9)
+  const [showForgotOtpModal, setShowForgotOtpModal] = useState(false);
+  const [forgotOtpCode, setForgotOtpCode] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [showForgotNewPassword, setShowForgotNewPassword] = useState(false);
+  const [isSendingForgotOtp, setIsSendingForgotOtp] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [forgotCountdown, setForgotCountdown] = useState(0);
 
   // 3. Trạng thái Thêm / Sửa địa chỉ nhận hàng
   const [isAddressFormOpen, setIsAddressFormOpen] = useState(false);
@@ -232,6 +246,89 @@ export const ProfilePage = () => {
       showAlert(err.message || 'Đổi mật khẩu thất bại. Vui lòng kiểm tra lại mật khẩu hiện tại.', 'error');
     } finally {
       setIsSavingPassword(false);
+    }
+  };
+
+  // Đếm ngược thời gian gửi lại mã OTP
+  useEffect(() => {
+    let timer;
+    if (forgotCountdown > 0) {
+      timer = setTimeout(() => setForgotCountdown((prev) => prev - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [forgotCountdown]);
+
+  // Gửi mã OTP xác minh qua Email khi bấm "Quên mật khẩu" (API 8)
+  const handleTriggerForgotPassword = async () => {
+    const targetEmail = user?.email || email;
+    if (!targetEmail) {
+      showAlert('Không tìm thấy email của tài khoản để gửi mã xác thực.', 'error');
+      return;
+    }
+    try {
+      setIsSendingForgotOtp(true);
+      const res = await forgotPassword(targetEmail);
+      setShowForgotOtpModal(true);
+      setForgotCountdown(60);
+      setForgotOtpCode('');
+      setForgotNewPassword('');
+      setForgotConfirmPassword('');
+      showAlert(res?.message || `Mã OTP 6 số đã được gửi từ son666727@gmail.com đến ${targetEmail}`, 'info');
+    } catch (err) {
+      showAlert(err.message || 'Không thể gửi mã OTP đặt lại mật khẩu. Vui lòng thử lại sau.', 'error');
+    } finally {
+      setIsSendingForgotOtp(false);
+    }
+  };
+
+  // Gửi lại mã OTP qua email (API 8)
+  const handleResendForgotOtp = async () => {
+    const targetEmail = user?.email || email;
+    if (forgotCountdown > 0 || !targetEmail) return;
+    try {
+      const res = await forgotPassword(targetEmail);
+      setForgotCountdown(60);
+      showAlert(res?.message || 'Đã gửi lại mã OTP 6 số thành công!', 'info');
+    } catch (err) {
+      showAlert(err.message || 'Lỗi khi gửi lại mã OTP.', 'error');
+    }
+  };
+
+  // Xác nhận đặt lại mật khẩu mới bằng mã OTP 6 số (API 9)
+  const handleConfirmResetPassword = async () => {
+    if (!forgotOtpCode || forgotOtpCode.trim().length !== 6) {
+      showAlert('Vui lòng nhập đầy đủ mã xác minh OTP gồm 6 chữ số.', 'error');
+      return;
+    }
+    if (!forgotNewPassword || forgotNewPassword.length < 6) {
+      showAlert('Mật khẩu mới phải có ít nhất 6 ký tự.', 'error');
+      return;
+    }
+    if (forgotNewPassword !== forgotConfirmPassword) {
+      showAlert('Xác nhận mật khẩu mới không khớp.', 'error');
+      return;
+    }
+
+    try {
+      setIsResettingPassword(true);
+      await resetPassword({
+        token: forgotOtpCode.trim(),
+        newPassword: forgotNewPassword,
+        confirmPassword: forgotConfirmPassword
+      });
+      setShowForgotOtpModal(false);
+      setForgotOtpCode('');
+      setForgotNewPassword('');
+      setForgotConfirmPassword('');
+      // Xóa form đổi mật khẩu hiện tại
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      showAlert('Đặt lại mật khẩu thành công! Bạn có thể sử dụng mật khẩu mới ngay từ bây giờ.', 'success');
+    } catch (err) {
+      showAlert(err.message || 'Mã xác thực OTP không chính xác hoặc đã hết hạn.', 'error');
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
@@ -706,21 +803,71 @@ export const ProfilePage = () => {
 
           {/* 3. Form đổi mật khẩu */}
           <div className="profile-form-box">
-            <div className="form-box-title">
+            <div className="form-box-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div className="form-box-title-left">
                 <ShieldCheck size={20} />
                 <span>Bảo mật &amp; Mật khẩu</span>
               </div>
+              <button
+                type="button"
+                onClick={handleTriggerForgotPassword}
+                disabled={isSendingForgotOtp}
+                style={{
+                  background: 'none',
+                  border: '1px solid #bfdbfe',
+                  backgroundColor: '#eff6ff',
+                  color: '#1d4ed8',
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                  cursor: isSendingForgotOtp ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '5px 10px',
+                  borderRadius: '6px',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {isSendingForgotOtp ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    <span>Đang gửi mã...</span>
+                  </>
+                ) : (
+                  <>
+                    <KeyRound size={14} />
+                    <span>Quên mật khẩu? (Nhận OTP)</span>
+                  </>
+                )}
+              </button>
             </div>
             <p className="form-box-subtitle">
-              Đổi mật khẩu định kỳ để bảo vệ tài khoản mua sắm của bạn an toàn nhất.
+              Đổi mật khẩu định kỳ để bảo vệ tài khoản mua sắm của bạn. Nếu quên mật khẩu cũ, bạn có thể bấm <strong>"Quên mật khẩu?"</strong> để nhận mã OTP 6 số qua email.
             </p>
 
             <form onSubmit={handleChangePassword} className="profile-form-grid" noValidate>
               <div className="form-group profile-form-full">
-                <label className="form-label" htmlFor="current-pwd">
-                  Mật khẩu hiện tại <span className="form-label-required">*</span>
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                  <label className="form-label" htmlFor="current-pwd" style={{ margin: 0 }}>
+                    Mật khẩu hiện tại <span className="form-label-required">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleTriggerForgotPassword}
+                    disabled={isSendingForgotOtp}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#2563eb',
+                      fontSize: '0.8125rem',
+                      fontWeight: 600,
+                      cursor: isSendingForgotOtp ? 'not-allowed' : 'pointer',
+                      padding: 0
+                    }}
+                  >
+                    {isSendingForgotOtp ? 'Đang gửi mã...' : 'Bạn quên mật khẩu hiện tại?'}
+                  </button>
+                </div>
                 <div className="input-with-icon">
                   <Lock size={18} className="input-icon-left" />
                   <input
@@ -850,6 +997,134 @@ export const ProfilePage = () => {
           }
         }}
       />
+
+      {/* ========================================================================= */}
+      {/* MODAL QUÊN MẬT KHẨU & XÁC MINH OTP 6 SỐ TRÊN PROFILE (API 8 & 9) */}
+      {/* ========================================================================= */}
+      <ConfirmModal
+        isOpen={showForgotOtpModal}
+        onClose={() => setShowForgotOtpModal(false)}
+        type="info"
+        title="Xác minh OTP để đặt lại mật khẩu"
+        confirmText={isResettingPassword ? "Đang xử lý..." : "Xác nhận đổi mật khẩu"}
+        cancelText="Hủy bỏ"
+        showCancel={true}
+        onConfirm={handleConfirmResetPassword}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
+          <div style={{
+            backgroundColor: '#eff6ff',
+            border: '1px solid #bfdbfe',
+            borderRadius: '8px',
+            padding: '0.85rem',
+            fontSize: '0.875rem',
+            color: '#1e3a8a',
+            lineHeight: 1.5
+          }}>
+            Hệ thống đã gửi mã xác minh gồm <strong>6 chữ số</strong> từ <code>son666727@gmail.com</code> đến:
+            <div style={{ fontWeight: 700, color: '#1d4ed8', marginTop: '0.25rem', fontSize: '0.95rem' }}>
+              {user?.email || email}
+            </div>
+            <p style={{ margin: '0.35rem 0 0', fontSize: '0.8rem', color: '#64748b' }}>
+              Vui lòng kiểm tra Hộp thư đến (Inbox) hoặc Thư rác (Spam) để lấy mã.
+            </p>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1e293b', display: 'block', marginBottom: '0.4rem' }}>
+              Nhập mã OTP 6 chữ số: <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <input
+              type="text"
+              maxLength={6}
+              value={forgotOtpCode}
+              onChange={(e) => setForgotOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+              placeholder="••••••"
+              autoFocus
+              className="form-input"
+              style={{
+                width: '100%',
+                fontSize: '26px',
+                letterSpacing: '10px',
+                textAlign: 'center',
+                fontFamily: 'monospace',
+                fontWeight: 700,
+                color: '#1e293b',
+                padding: '0.6rem 0.5rem'
+              }}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1e293b', display: 'block', marginBottom: '0.35rem' }}>
+              Mật khẩu mới (tối thiểu 6 ký tự): <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <div className="input-with-icon">
+              <Lock size={18} className="input-icon-left" />
+              <input
+                type={showForgotNewPassword ? 'text' : 'password'}
+                value={forgotNewPassword}
+                onChange={(e) => setForgotNewPassword(e.target.value)}
+                placeholder="Nhập mật khẩu mới"
+                className="form-input"
+                style={{ width: '100%' }}
+              />
+              <div className="input-icon-right">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotNewPassword(!showForgotNewPassword)}
+                  style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', display: 'flex' }}
+                >
+                  {showForgotNewPassword ? <Eye size={18} /> : <EyeOff size={18} />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1e293b', display: 'block', marginBottom: '0.35rem' }}>
+              Xác nhận mật khẩu mới: <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <div className="input-with-icon">
+              <Lock size={18} className="input-icon-left" />
+              <input
+                type={showForgotNewPassword ? 'text' : 'password'}
+                value={forgotConfirmPassword}
+                onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                placeholder="Nhập lại mật khẩu mới"
+                className="form-input"
+                style={{ width: '100%' }}
+              />
+              {forgotConfirmPassword && forgotNewPassword === forgotConfirmPassword && (
+                <div className="input-icon-right"><Check size={18} color="#10b981" strokeWidth={2.5} /></div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem' }}>
+            <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>Chưa nhận được mã?</span>
+            <button
+              type="button"
+              onClick={handleResendForgotOtp}
+              disabled={forgotCountdown > 0}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: forgotCountdown > 0 ? '#94a3b8' : '#2563eb',
+                fontWeight: 600,
+                cursor: forgotCountdown > 0 ? 'not-allowed' : 'pointer',
+                fontSize: '0.8125rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem'
+              }}
+            >
+              <RotateCcw size={13} />
+              {forgotCountdown > 0 ? `Gửi lại sau (${forgotCountdown}s)` : 'Gửi lại mã OTP'}
+            </button>
+          </div>
+        </div>
+      </ConfirmModal>
 
       {/* MODEL BOX: THÊM / CHỈNH SỬA ĐỊA CHỈ NHẬN HÀNG */}
       {isAddressFormOpen && (

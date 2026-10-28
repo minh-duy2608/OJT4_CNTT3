@@ -108,20 +108,40 @@ public class EmailServiceImpl implements EmailService {
 
             helper.setFrom(fromEmail, "Cyber Tech Shop");
             helper.setTo(toEmail);
-            helper.setSubject("[Cyber Tech Shop] Yêu cầu khôi phục mật khẩu");
+            helper.setSubject("[Cyber Tech Shop] Mã xác minh đặt lại mật khẩu: " + resetToken);
 
             String htmlBody = """
-                    <div style="font-family: Arial, sans-serif; max-width: 580px; margin: auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 8px;">
-                        <h2 style="color: #111827; text-align: center;">Khôi phục mật khẩu</h2>
-                        <p>Xin chào,</p>
-                        <p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản liên kết với email: <strong>%s</strong>.</p>
-                        <p>Mã token khôi phục mật khẩu của bạn là:</p>
-                        <div style="text-align: center; margin: 20px 0;">
-                            <span style="font-size: 20px; font-weight: bold; color: #2563eb; background: #eff6ff; padding: 8px 18px; border-radius: 4px; word-break: break-all;">%s</span>
+                    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px 24px; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+                        <div style="text-align: center; margin-bottom: 24px;">
+                            <h1 style="color: #111827; font-size: 24px; font-weight: 700; margin: 0; letter-spacing: -0.025em;">Cyber Tech Shop</h1>
+                            <p style="color: #6b7280; font-size: 14px; margin-top: 6px;">Yêu cầu đặt lại mật khẩu tài khoản</p>
                         </div>
-                        <p style="font-size: 13px; color: #6b7280;">Mã có hiệu lực trong vòng 15 phút.</p>
+                        
+                        <div style="padding: 24px 0; border-top: 1px solid #f3f4f6; border-bottom: 1px solid #f3f4f6;">
+                            <p style="font-size: 15px; color: #374151; margin-bottom: 16px;">Xin chào,</p>
+                            <p style="font-size: 15px; color: #4b5563; line-height: 1.6; margin-bottom: 24px;">
+                                Hệ thống nhận được yêu cầu đặt lại mật khẩu cho tài khoản liên kết với email: <strong>%s</strong>.<br>
+                                Vui lòng sử dụng mã xác minh (OTP) gồm 6 chữ số dưới đây để hoàn tất việc đổi mật khẩu mới:
+                            </p>
+                            
+                            <div style="text-align: center; margin: 28px 0;">
+                                <div style="display: inline-block; background-color: #eff6ff; border: 2px dashed #2563eb; border-radius: 10px; padding: 14px 32px;">
+                                    <span style="font-family: 'SF Mono', Consolas, Monaco, monospace; font-size: 34px; font-weight: 700; color: #1d4ed8; letter-spacing: 8px;">%s</span>
+                                </div>
+                                <p style="font-size: 12px; color: #9ca3af; margin-top: 10px;">Mã xác minh này có hiệu lực trong vòng 15 phút</p>
+                            </div>
+                            
+                            <p style="font-size: 13px; color: #6b7280; line-height: 1.5;">
+                                Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này. Mật khẩu hiện tại của bạn vẫn an toàn tuyệt đối.
+                            </p>
+                        </div>
+                        
+                        <div style="text-align: center; margin-top: 24px; font-size: 12px; color: #9ca3af;">
+                            <p style="margin: 0;">Email gửi tự động từ hệ thống: <strong>%s</strong></p>
+                            <p style="margin: 4px 0 0 0;">&copy; 2026 Cyber Tech Shop. All rights reserved.</p>
+                        </div>
                     </div>
-                    """.formatted(toEmail, resetToken);
+                    """.formatted(toEmail, resetToken, fromEmail);
 
             helper.setText(htmlBody, true);
             mailSender.send(message);
@@ -132,3 +152,4 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 }
+

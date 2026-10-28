@@ -312,8 +312,8 @@ public class AuthServiceImpl implements AuthService {
             // Invalidate existing unused tokens for this user
             passwordResetTokenRepository.invalidateAllByUser(user);
 
-            // Create new reset token
-            String resetTokenString = UUID.randomUUID().toString();
+            // Create new reset token as 6-digit OTP
+            String resetTokenString = generatePasswordResetOtp();
             PasswordResetToken resetToken = PasswordResetToken.builder()
                     .token(resetTokenString)
                     .user(user)
@@ -325,7 +325,7 @@ public class AuthServiceImpl implements AuthService {
             // Publish domain event for notification/email microservice
             eventPublisher.publishEvent(new PasswordResetRequestedEvent(user.getId(), user.getEmail(), resetTokenString));
 
-            response.put("message", "Hướng dẫn đặt lại mật khẩu đã được gửi đến email của bạn.");
+            response.put("message", "Mã xác minh đặt lại mật khẩu gồm 6 chữ số đã được gửi đến email của bạn.");
             response.put("resetToken", resetTokenString);
         } else {
             // Consistent response message to prevent email enumeration
@@ -459,6 +459,21 @@ public class AuthServiceImpl implements AuthService {
                 break;
             }
         } while (emailVerificationTokenRepository.findByToken(code).isPresent());
+        return code;
+    }
+
+    private String generatePasswordResetOtp() {
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        String code;
+        int attempts = 0;
+        do {
+            code = String.format("%06d", random.nextInt(1000000));
+            attempts++;
+            if (attempts > 50) {
+                code = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+                break;
+            }
+        } while (passwordResetTokenRepository.findByToken(code).isPresent());
         return code;
     }
 
