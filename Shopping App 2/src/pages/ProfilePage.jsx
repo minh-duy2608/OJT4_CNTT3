@@ -82,6 +82,16 @@ export const ProfilePage = () => {
   const [isSendingForgotOtp, setIsSendingForgotOtp] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [forgotCountdown, setForgotCountdown] = useState(0);
+  const [forgotModalType, setForgotModalType] = useState('confirm'); // 'confirm' (?) -> 'success' (✓)
+  const [forgotResetSuccess, setForgotResetSuccess] = useState(false);
+
+  // 2.2. Trạng thái Xác minh Email qua mã OTP 6 số dưới Avatar (API 10 & API 11)
+  const [showVerifyEmailModal, setShowVerifyEmailModal] = useState(false);
+  const [verifyEmailOtpCode, setVerifyEmailOtpCode] = useState('');
+  const [isVerifyingEmailOtp, setIsVerifyingEmailOtp] = useState(false);
+  const [verifyEmailCountdown, setVerifyEmailCountdown] = useState(0);
+  const [verifyEmailModalType, setVerifyEmailModalType] = useState('confirm'); // 'confirm' (?) -> 'success' (✓)
+  const [verifyEmailSuccess, setVerifyEmailSuccess] = useState(false);
 
   // 3. Trạng thái Thêm / Sửa địa chỉ nhận hàng
   const [isAddressFormOpen, setIsAddressFormOpen] = useState(false);
@@ -249,7 +259,7 @@ export const ProfilePage = () => {
     }
   };
 
-  // Đếm ngược thời gian gửi lại mã OTP
+  // Đếm ngược thời gian gửi lại mã OTP (Quên mật khẩu)
   useEffect(() => {
     let timer;
     if (forgotCountdown > 0) {
@@ -257,6 +267,15 @@ export const ProfilePage = () => {
     }
     return () => clearTimeout(timer);
   }, [forgotCountdown]);
+
+  // Đếm ngược thời gian gửi lại mã OTP (Xác minh email)
+  useEffect(() => {
+    let timer;
+    if (verifyEmailCountdown > 0) {
+      timer = setTimeout(() => setVerifyEmailCountdown((prev) => prev - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [verifyEmailCountdown]);
 
   // Gửi mã OTP xác minh qua Email khi bấm "Quên mật khẩu" (API 8)
   const handleTriggerForgotPassword = async () => {
@@ -268,6 +287,8 @@ export const ProfilePage = () => {
     try {
       setIsSendingForgotOtp(true);
       const res = await forgotPassword(targetEmail);
+      setForgotModalType('confirm');
+      setForgotResetSuccess(false);
       setShowForgotOtpModal(true);
       setForgotCountdown(60);
       setForgotOtpCode('');
@@ -316,19 +337,99 @@ export const ProfilePage = () => {
         newPassword: forgotNewPassword,
         confirmPassword: forgotConfirmPassword
       });
-      setShowForgotOtpModal(false);
-      setForgotOtpCode('');
-      setForgotNewPassword('');
-      setForgotConfirmPassword('');
-      // Xóa form đổi mật khẩu hiện tại
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      showAlert('Đặt lại mật khẩu thành công! Bạn có thể sử dụng mật khẩu mới ngay từ bây giờ.', 'success');
+
+      // Thành công: chuyển dấu hỏi chấm (?) thành dấu tích (✓)
+      setForgotModalType('success');
+      setForgotResetSuccess(true);
+      showAlert('Đặt lại mật khẩu thành công! Mật khẩu mới đã được cập nhật.', 'success');
+
+      // Tự động đóng modal sau 1.5 giây
+      setTimeout(() => {
+        setShowForgotOtpModal(false);
+        setForgotResetSuccess(false);
+        setForgotModalType('confirm');
+        setForgotOtpCode('');
+        setForgotNewPassword('');
+        setForgotConfirmPassword('');
+        // Xóa form đổi mật khẩu hiện tại
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      }, 1500);
     } catch (err) {
       showAlert(err.message || 'Mã xác thực OTP không chính xác hoặc đã hết hạn.', 'error');
     } finally {
       setIsResettingPassword(false);
+    }
+  };
+
+  // =========================================================================
+  // XÁC MINH EMAIL DƯỚI AVATAR (API 10 & API 11)
+  // =========================================================================
+
+  // Mở modal xác minh Email và tự động gửi mã OTP nếu cần
+  const handleOpenVerifyEmailModal = async () => {
+    const targetEmail = user?.email || email;
+    if (!targetEmail) {
+      showAlert('Không tìm thấy địa chỉ email tài khoản để xác minh.', 'error');
+      return;
+    }
+    setVerifyEmailOtpCode('');
+    setVerifyEmailModalType('confirm');
+    setVerifyEmailSuccess(false);
+    setShowVerifyEmailModal(true);
+
+    if (verifyEmailCountdown === 0) {
+      try {
+        const res = await resendVerification(targetEmail);
+        setVerifyEmailCountdown(60);
+        showAlert(res?.message || `Mã xác minh 6 chữ số đã được gửi từ son666727@gmail.com đến ${targetEmail}`, 'info');
+      } catch (err) {
+        console.warn('Gửi mã OTP xác minh email:', err.message);
+      }
+    }
+  };
+
+  // Gửi lại mã OTP xác minh email
+  const handleResendVerifyEmailOtp = async () => {
+    const targetEmail = user?.email || email;
+    if (verifyEmailCountdown > 0 || !targetEmail) return;
+    try {
+      const res = await resendVerification(targetEmail);
+      setVerifyEmailCountdown(60);
+      showAlert(res?.message || 'Đã gửi lại mã OTP 6 số thành công!', 'info');
+    } catch (err) {
+      showAlert(err.message || 'Lỗi khi gửi lại mã xác minh email.', 'error');
+    }
+  };
+
+  // Xác nhận mã OTP để kích hoạt Email (API 10)
+  const handleConfirmVerifyEmail = async () => {
+    if (!verifyEmailOtpCode || verifyEmailOtpCode.trim().length !== 6) {
+      showAlert('Vui lòng nhập đầy đủ mã OTP 6 chữ số.', 'error');
+      return;
+    }
+
+    try {
+      setIsVerifyingEmailOtp(true);
+      await verifyEmail(verifyEmailOtpCode.trim());
+
+      // Thành công: chuyển dấu hỏi chấm (?) thành dấu tích (✓)
+      setVerifyEmailModalType('success');
+      setVerifyEmailSuccess(true);
+      showAlert('Xác minh tài khoản email thành công (API 10)!', 'success');
+
+      // Tự động đóng modal sau 1.5 giây
+      setTimeout(() => {
+        setShowVerifyEmailModal(false);
+        setVerifyEmailSuccess(false);
+        setVerifyEmailModalType('confirm');
+        setVerifyEmailOtpCode('');
+      }, 1500);
+    } catch (err) {
+      showAlert(err.message || 'Mã xác minh OTP không chính xác hoặc đã hết hạn.', 'error');
+    } finally {
+      setIsVerifyingEmailOtp(false);
     }
   };
 
@@ -487,43 +588,70 @@ export const ProfilePage = () => {
               {user.role === 'ROLE_ADMIN' ? 'Quản trị viên' : 'Khách hàng'}
             </span>
 
-            <span style={{
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              padding: '0.2rem 0.5rem',
-              borderRadius: '9999px',
-              backgroundColor: user.emailVerifiedAt ? '#dcfce7' : '#fef3c7',
-              color: user.emailVerifiedAt ? '#166534' : '#92400e'
-            }}>
+            <span
+              onClick={!user.emailVerifiedAt ? handleOpenVerifyEmailModal : undefined}
+              title={!user.emailVerifiedAt ? 'Bấm để xác minh email ngay' : 'Email đã xác minh'}
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                padding: '0.2rem 0.5rem',
+                borderRadius: '9999px',
+                backgroundColor: user.emailVerifiedAt ? '#dcfce7' : '#fef3c7',
+                color: user.emailVerifiedAt ? '#166534' : '#92400e',
+                cursor: !user.emailVerifiedAt ? 'pointer' : 'default',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
               {user.emailVerifiedAt ? '✓ Email đã xác minh' : 'Chưa xác minh email'}
             </span>
           </div>
 
           {!user.emailVerifiedAt && (
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  const res = await resendVerification(user.email);
-                  showAlert(res?.message || 'Đã gửi lại email xác minh thành công! Vui lòng kiểm tra email.', 'success');
-                } catch (e) {
-                  showAlert(e.message || 'Không thể gửi lại email xác minh.', 'error');
-                }
-              }}
-              style={{
-                background: 'none',
-                border: '1px solid #d1d5db',
-                padding: '0.4rem 0.75rem',
-                borderRadius: '6px',
-                fontSize: '0.75rem',
-                color: '#2563eb',
-                fontWeight: 600,
-                cursor: 'pointer',
-                marginBottom: '1rem'
-              }}
-            >
-              Gửi lại email xác minh (API 11)
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', width: '100%', marginBottom: '1rem' }}>
+              <button
+                type="button"
+                onClick={handleOpenVerifyEmailModal}
+                style={{
+                  background: '#2563eb',
+                  border: 'none',
+                  color: '#ffffff',
+                  padding: '0.55rem 0.85rem',
+                  borderRadius: '7px',
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  boxShadow: '0 1px 2px rgba(37, 99, 235, 0.2)',
+                  transition: 'background-color 0.15s ease'
+                }}
+              >
+                <CheckCircle2 size={15} />
+                <span>Xác minh email ngay (Nhập OTP)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResendVerifyEmailOtp}
+                disabled={verifyEmailCountdown > 0}
+                style={{
+                  background: 'none',
+                  border: '1px solid #d1d5db',
+                  padding: '0.35rem 0.65rem',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  color: verifyEmailCountdown > 0 ? '#9ca3af' : '#4b5563',
+                  fontWeight: 500,
+                  cursor: verifyEmailCountdown > 0 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {verifyEmailCountdown > 0 ? `Gửi lại sau (${verifyEmailCountdown}s)` : 'Gửi lại email xác minh (API 11)'}
+              </button>
+            </div>
           )}
 
           {/* Trạng thái Cloudinary */}
@@ -1004,126 +1132,230 @@ export const ProfilePage = () => {
       <ConfirmModal
         isOpen={showForgotOtpModal}
         onClose={() => setShowForgotOtpModal(false)}
-        type="info"
-        title="Xác minh OTP để đặt lại mật khẩu"
+        type={forgotModalType}
+        title={forgotResetSuccess ? 'Đặt lại mật khẩu thành công!' : 'Xác minh OTP để đặt lại mật khẩu'}
         confirmText={isResettingPassword ? "Đang xử lý..." : "Xác nhận đổi mật khẩu"}
         cancelText="Hủy bỏ"
-        showCancel={true}
-        onConfirm={handleConfirmResetPassword}
+        showCancel={!forgotResetSuccess}
+        onConfirm={forgotResetSuccess ? null : handleConfirmResetPassword}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
-          <div style={{
-            backgroundColor: '#eff6ff',
-            border: '1px solid #bfdbfe',
-            borderRadius: '8px',
-            padding: '0.85rem',
-            fontSize: '0.875rem',
-            color: '#1e3a8a',
-            lineHeight: 1.5
-          }}>
-            Hệ thống đã gửi mã xác minh gồm <strong>6 chữ số</strong> từ <code>son666727@gmail.com</code> đến:
-            <div style={{ fontWeight: 700, color: '#1d4ed8', marginTop: '0.25rem', fontSize: '0.95rem' }}>
-              {user?.email || email}
+        {forgotResetSuccess ? (
+          <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem' }}>
+            <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#15803d', marginBottom: '0.4rem' }}>
+              ✓ Mật khẩu mới đã được cập nhật thành công!
             </div>
-            <p style={{ margin: '0.35rem 0 0', fontSize: '0.8rem', color: '#64748b' }}>
-              Vui lòng kiểm tra Hộp thư đến (Inbox) hoặc Thư rác (Spam) để lấy mã.
+            <p style={{ color: '#64748b', fontSize: '0.875rem', margin: 0 }}>
+              Cửa sổ xác minh sẽ tự động đóng lại...
             </p>
           </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
+            <div style={{
+              backgroundColor: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              borderRadius: '8px',
+              padding: '0.85rem',
+              fontSize: '0.875rem',
+              color: '#1e3a8a',
+              lineHeight: 1.5
+            }}>
+              Hệ thống đã gửi mã xác minh gồm <strong>6 chữ số</strong> từ <code>son666727@gmail.com</code> đến:
+              <div style={{ fontWeight: 700, color: '#1d4ed8', marginTop: '0.25rem', fontSize: '0.95rem' }}>
+                {user?.email || email}
+              </div>
+              <p style={{ margin: '0.35rem 0 0', fontSize: '0.8rem', color: '#64748b' }}>
+                Vui lòng kiểm tra Hộp thư đến (Inbox) hoặc Thư rác (Spam) để lấy mã.
+              </p>
+            </div>
 
-          <div>
-            <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1e293b', display: 'block', marginBottom: '0.4rem' }}>
-              Nhập mã OTP 6 chữ số: <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <input
-              type="text"
-              maxLength={6}
-              value={forgotOtpCode}
-              onChange={(e) => setForgotOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
-              placeholder="••••••"
-              autoFocus
-              className="form-input"
-              style={{
-                width: '100%',
-                fontSize: '26px',
-                letterSpacing: '10px',
-                textAlign: 'center',
-                fontFamily: 'monospace',
-                fontWeight: 700,
-                color: '#1e293b',
-                padding: '0.6rem 0.5rem'
-              }}
-            />
-          </div>
-
-          <div>
-            <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1e293b', display: 'block', marginBottom: '0.35rem' }}>
-              Mật khẩu mới (tối thiểu 6 ký tự): <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <div className="input-with-icon">
-              <Lock size={18} className="input-icon-left" />
+            <div>
+              <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1e293b', display: 'block', marginBottom: '0.4rem' }}>
+                Nhập mã OTP 6 chữ số: <span style={{ color: '#ef4444' }}>*</span>
+              </label>
               <input
-                type={showForgotNewPassword ? 'text' : 'password'}
-                value={forgotNewPassword}
-                onChange={(e) => setForgotNewPassword(e.target.value)}
-                placeholder="Nhập mật khẩu mới"
+                type="text"
+                maxLength={6}
+                value={forgotOtpCode}
+                onChange={(e) => setForgotOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                placeholder="••••••"
+                autoFocus
                 className="form-input"
-                style={{ width: '100%' }}
+                style={{
+                  width: '100%',
+                  fontSize: '26px',
+                  letterSpacing: '10px',
+                  textAlign: 'center',
+                  fontFamily: 'monospace',
+                  fontWeight: 700,
+                  color: '#1e293b',
+                  padding: '0.6rem 0.5rem'
+                }}
               />
-              <div className="input-icon-right">
-                <button
-                  type="button"
-                  onClick={() => setShowForgotNewPassword(!showForgotNewPassword)}
-                  style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', display: 'flex' }}
-                >
-                  {showForgotNewPassword ? <Eye size={18} /> : <EyeOff size={18} />}
-                </button>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1e293b', display: 'block', marginBottom: '0.35rem' }}>
+                Mật khẩu mới (tối thiểu 6 ký tự): <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <div className="input-with-icon">
+                <Lock size={18} className="input-icon-left" />
+                <input
+                  type={showForgotNewPassword ? 'text' : 'password'}
+                  value={forgotNewPassword}
+                  onChange={(e) => setForgotNewPassword(e.target.value)}
+                  placeholder="Nhập mật khẩu mới"
+                  className="form-input"
+                  style={{ width: '100%' }}
+                />
+                <div className="input-icon-right">
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotNewPassword(!showForgotNewPassword)}
+                    style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', display: 'flex' }}
+                  >
+                    {showForgotNewPassword ? <Eye size={18} /> : <EyeOff size={18} />}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div>
-            <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1e293b', display: 'block', marginBottom: '0.35rem' }}>
-              Xác nhận mật khẩu mới: <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <div className="input-with-icon">
-              <Lock size={18} className="input-icon-left" />
-              <input
-                type={showForgotNewPassword ? 'text' : 'password'}
-                value={forgotConfirmPassword}
-                onChange={(e) => setForgotConfirmPassword(e.target.value)}
-                placeholder="Nhập lại mật khẩu mới"
-                className="form-input"
-                style={{ width: '100%' }}
-              />
-              {forgotConfirmPassword && forgotNewPassword === forgotConfirmPassword && (
-                <div className="input-icon-right"><Check size={18} color="#10b981" strokeWidth={2.5} /></div>
-              )}
+            <div>
+              <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1e293b', display: 'block', marginBottom: '0.35rem' }}>
+                Xác nhận mật khẩu mới: <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <div className="input-with-icon">
+                <Lock size={18} className="input-icon-left" />
+                <input
+                  type={showForgotNewPassword ? 'text' : 'password'}
+                  value={forgotConfirmPassword}
+                  onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                  placeholder="Nhập lại mật khẩu mới"
+                  className="form-input"
+                  style={{ width: '100%' }}
+                />
+                {forgotConfirmPassword && forgotNewPassword === forgotConfirmPassword && (
+                  <div className="input-icon-right"><Check size={18} color="#10b981" strokeWidth={2.5} /></div>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem' }}>
+              <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>Chưa nhận được mã?</span>
+              <button
+                type="button"
+                onClick={handleResendForgotOtp}
+                disabled={forgotCountdown > 0}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: forgotCountdown > 0 ? '#94a3b8' : '#2563eb',
+                  fontWeight: 600,
+                  cursor: forgotCountdown > 0 ? 'not-allowed' : 'pointer',
+                  fontSize: '0.8125rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}
+              >
+                <RotateCcw size={13} />
+                {forgotCountdown > 0 ? `Gửi lại sau (${forgotCountdown}s)` : 'Gửi lại mã OTP'}
+              </button>
             </div>
           </div>
+        )}
+      </ConfirmModal>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem' }}>
-            <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>Chưa nhận được mã?</span>
-            <button
-              type="button"
-              onClick={handleResendForgotOtp}
-              disabled={forgotCountdown > 0}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: forgotCountdown > 0 ? '#94a3b8' : '#2563eb',
-                fontWeight: 600,
-                cursor: forgotCountdown > 0 ? 'not-allowed' : 'pointer',
-                fontSize: '0.8125rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem'
-              }}
-            >
-              <RotateCcw size={13} />
-              {forgotCountdown > 0 ? `Gửi lại sau (${forgotCountdown}s)` : 'Gửi lại mã OTP'}
-            </button>
+      {/* ========================================================================= */}
+      {/* MODAL XÁC MINH EMAIL TÀI KHOẢN DƯỚI AVATAR (API 10 & 11) */}
+      {/* ========================================================================= */}
+      <ConfirmModal
+        isOpen={showVerifyEmailModal}
+        onClose={() => setShowVerifyEmailModal(false)}
+        type={verifyEmailModalType}
+        title={verifyEmailSuccess ? 'Xác minh email thành công!' : 'Xác minh tài khoản qua Email'}
+        confirmText={isVerifyingEmailOtp ? "Đang kiểm tra..." : "Xác nhận mã OTP"}
+        cancelText="Đóng"
+        showCancel={!verifyEmailSuccess}
+        onConfirm={verifyEmailSuccess ? null : handleConfirmVerifyEmail}
+      >
+        {verifyEmailSuccess ? (
+          <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem' }}>
+            <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#15803d', marginBottom: '0.4rem' }}>
+              ✓ Email tài khoản của bạn đã được kích hoạt thành công!
+            </div>
+            <p style={{ color: '#64748b', fontSize: '0.875rem', margin: 0 }}>
+              Hồ sơ của bạn đã được cập nhật huy hiệu xác minh...
+            </p>
           </div>
-        </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
+            <div style={{
+              backgroundColor: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              borderRadius: '8px',
+              padding: '0.85rem',
+              fontSize: '0.875rem',
+              color: '#1e3a8a',
+              lineHeight: 1.5
+            }}>
+              Hệ thống đã gửi một mã xác minh gồm <strong>6 chữ số</strong> từ <code>son666727@gmail.com</code> đến:
+              <div style={{ fontWeight: 700, color: '#1d4ed8', marginTop: '0.25rem', fontSize: '0.95rem' }}>
+                {user?.email || email}
+              </div>
+              <p style={{ margin: '0.35rem 0 0', fontSize: '0.8rem', color: '#64748b' }}>
+                Vui lòng kiểm tra Hộp thư đến (Inbox) hoặc Thư rác (Spam) để lấy mã kích hoạt.
+              </p>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1e293b', display: 'block', marginBottom: '0.4rem' }}>
+                Nhập mã OTP 6 chữ số: <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                type="text"
+                maxLength={6}
+                value={verifyEmailOtpCode}
+                onChange={(e) => setVerifyEmailOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                placeholder="••••••"
+                autoFocus
+                className="form-input"
+                style={{
+                  width: '100%',
+                  fontSize: '26px',
+                  letterSpacing: '10px',
+                  textAlign: 'center',
+                  fontFamily: 'monospace',
+                  fontWeight: 700,
+                  color: '#1e293b',
+                  padding: '0.6rem 0.5rem'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem' }}>
+              <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>Chưa nhận được mã?</span>
+              <button
+                type="button"
+                onClick={handleResendVerifyEmailOtp}
+                disabled={verifyEmailCountdown > 0}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: verifyEmailCountdown > 0 ? '#94a3b8' : '#2563eb',
+                  fontWeight: 600,
+                  cursor: verifyEmailCountdown > 0 ? 'not-allowed' : 'pointer',
+                  fontSize: '0.8125rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}
+              >
+                <RotateCcw size={13} />
+                {verifyEmailCountdown > 0 ? `Gửi lại sau (${verifyEmailCountdown}s)` : 'Gửi lại mã OTP'}
+              </button>
+            </div>
+          </div>
+        )}
       </ConfirmModal>
 
       {/* MODEL BOX: THÊM / CHỈNH SỬA ĐỊA CHỈ NHẬN HÀNG */}
