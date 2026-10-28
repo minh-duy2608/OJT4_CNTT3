@@ -140,7 +140,7 @@ export const CheckoutPage = () => {
   };
 
   // Lưu địa chỉ mới nhanh
-  const handleQuickSaveAddress = (e) => {
+  const handleQuickSaveAddress = async (e) => {
     e.preventDefault();
     if (!newFullName.trim() || !newPhone.trim() || !newDetail.trim()) {
       showToast('Vui lòng điền họ tên, số điện thoại và địa chỉ chi tiết.', 'warning');
@@ -155,21 +155,25 @@ export const CheckoutPage = () => {
       return;
     }
 
-    const newAddr = addAddress({
-      fullName: newFullName.trim(),
-      phone: newPhone.trim(),
-      detailAddress: newDetail.trim(),
-      city: newCity.trim(),
-      type: newType,
-      isDefault: addresses.length === 0
-    });
+    try {
+      const newAddr = await addAddress({
+        fullName: newFullName.trim(),
+        phone: newPhone.trim(),
+        detailAddress: newDetail.trim(),
+        city: newCity.trim(),
+        type: newType,
+        isDefault: addresses.length === 0
+      });
 
-    if (newAddr) {
-      setSelectedAddressId(newAddr.id);
+      if (newAddr) {
+        setSelectedAddressId(newAddr.id);
+      }
+      setNewPhoneError('');
+      setShowQuickAddAddress(false);
+      showToast('Đã thêm địa chỉ giao hàng mới!', 'success');
+    } catch (err) {
+      showToast(err.message || 'Lỗi thêm địa chỉ.', 'error');
     }
-    setNewPhoneError('');
-    setShowQuickAddAddress(false);
-    showToast('Đã thêm địa chỉ giao hàng mới!', 'success');
   };
 
   // Mở Model Box xác nhận đặt hàng

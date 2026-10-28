@@ -440,7 +440,7 @@ export const ProfilePage = () => {
   // Mở form thêm địa chỉ
   const handleOpenAddAddress = () => {
     setEditingAddressId(null);
-    setAddrFullName(user?.name || '');
+    setAddrFullName(user?.fullName || user?.name || '');
     setAddrPhone(user?.phone || '');
     setAddrDetail('');
     setAddrCity('TP. Hồ Chí Minh');
@@ -453,18 +453,18 @@ export const ProfilePage = () => {
   // Mở form sửa địa chỉ
   const handleOpenEditAddress = (addr) => {
     setEditingAddressId(addr.id);
-    setAddrFullName(addr.fullName);
-    setAddrPhone(addr.phone);
-    setAddrDetail(addr.detailAddress);
-    setAddrCity(addr.city);
+    setAddrFullName(addr.fullName || addr.recipientName || '');
+    setAddrPhone(addr.phone || '');
+    setAddrDetail(addr.detailAddress || addr.addressDetail || '');
+    setAddrCity(addr.city || addr.province || 'TP. Hồ Chí Minh');
     setAddrType(addr.type || 'home');
-    setAddrIsDefault(addr.isDefault || false);
+    setAddrIsDefault(Boolean(addr.isDefault));
     setAddrPhoneError('');
     setIsAddressFormOpen(true);
   };
 
   // Lưu địa chỉ (Thêm mới hoặc Cập nhật)
-  const handleSaveAddress = (e) => {
+  const handleSaveAddress = async (e) => {
     e.preventDefault();
     if (!addrFullName.trim() || !addrPhone.trim() || !addrDetail.trim()) {
       showAlert('Vui lòng điền đầy đủ họ tên, SĐT và địa chỉ chi tiết.', 'error');
@@ -485,18 +485,21 @@ export const ProfilePage = () => {
       detailAddress: addrDetail.trim(),
       city: addrCity.trim(),
       type: addrType,
-      isDefault: addrIsDefault
+      isDefault: addresses.length === 0 ? true : addrIsDefault
     };
 
-    if (editingAddressId) {
-      updateAddress(editingAddressId, addrData);
-      showAlert('Đã cập nhật địa chỉ thành công!', 'success');
-    } else {
-      addAddress(addrData);
-      showAlert('Đã thêm địa chỉ nhận hàng mới!', 'success');
+    try {
+      if (editingAddressId) {
+        await updateAddress(editingAddressId, addrData);
+        showAlert('Đã cập nhật địa chỉ thành công!', 'success');
+      } else {
+        await addAddress(addrData);
+        showAlert('Đã thêm địa chỉ nhận hàng mới!', 'success');
+      }
+      setIsAddressFormOpen(false);
+    } catch (err) {
+      showAlert(err.message || 'Lỗi lưu thông tin địa chỉ.', 'error');
     }
-
-    setIsAddressFormOpen(false);
   };
 
   if (!user) return null;
@@ -875,9 +878,13 @@ export const ProfilePage = () => {
                         <button
                           type="button"
                           className="address-action-btn set-default"
-                          onClick={() => {
-                            setDefaultAddress(addr.id);
-                            showAlert('Đã đặt làm địa chỉ giao hàng mặc định!', 'success');
+                          onClick={async () => {
+                            try {
+                              await setDefaultAddress(addr.id);
+                              showAlert('Đã đặt làm địa chỉ giao hàng mặc định duy nhất!', 'success');
+                            } catch (err) {
+                              showAlert(err.message || 'Lỗi thiết lập mặc định.', 'error');
+                            }
                           }}
                         >
                           Thiết lập mặc định
@@ -890,15 +897,13 @@ export const ProfilePage = () => {
                       >
                         <Edit3 size={14} /> Chỉnh sửa
                       </button>
-                      {addresses.length > 1 && (
-                        <button
-                          type="button"
-                          className="address-action-btn delete"
-                          onClick={() => setAddressToDelete(addr)}
-                        >
-                          <Trash2 size={14} /> Xóa
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        className="address-action-btn delete"
+                        onClick={() => setAddressToDelete(addr)}
+                      >
+                        <Trash2 size={14} /> Xóa
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -1121,11 +1126,15 @@ export const ProfilePage = () => {
         message={addressToDelete ? `Bạn có chắc chắn muốn xóa địa chỉ của "${addressToDelete.fullName}" (${addressToDelete.detailAddress}, ${addressToDelete.city}) khỏi sổ địa chỉ không?` : ''}
         confirmText="Xóa địa chỉ"
         cancelText="Hủy bỏ"
-        onConfirm={() => {
+        onConfirm={async () => {
           if (addressToDelete) {
-            deleteAddress(addressToDelete.id);
-            setAddressToDelete(null);
-            showAlert('Đã xóa địa chỉ thành công.', 'info');
+            try {
+              await deleteAddress(addressToDelete.id);
+              setAddressToDelete(null);
+              showAlert('Đã xóa địa chỉ thành công.', 'info');
+            } catch (err) {
+              showAlert(err.message || 'Lỗi xóa địa chỉ.', 'error');
+            }
           }
         }}
       />
@@ -1573,14 +1582,17 @@ export const ProfilePage = () => {
                 </div>
 
                 <div style={{ marginTop: '0.75rem' }}>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.875rem' }}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: addresses.length === 0 ? 'not-allowed' : 'pointer', fontSize: '0.875rem' }}>
                     <input
                       type="checkbox"
-                      checked={addrIsDefault}
+                      checked={addrIsDefault || addresses.length === 0}
+                      disabled={addresses.length === 0}
                       onChange={(e) => setAddrIsDefault(e.target.checked)}
-                      style={{ width: '18px', height: '18px', accentColor: '#000', cursor: 'pointer' }}
+                      style={{ width: '18px', height: '18px', accentColor: '#000', cursor: addresses.length === 0 ? 'not-allowed' : 'pointer' }}
                     />
-                    <span style={{ fontWeight: 600, color: '#18181b' }}>Đặt làm địa chỉ nhận hàng mặc định</span>
+                    <span style={{ fontWeight: 600, color: '#18181b' }}>
+                      Đặt làm địa chỉ nhận hàng mặc định {addresses.length === 0 ? '(Mặc định cho địa chỉ đầu tiên)' : ''}
+                    </span>
                   </label>
                 </div>
               </div>

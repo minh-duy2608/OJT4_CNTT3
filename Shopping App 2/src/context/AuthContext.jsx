@@ -5,34 +5,20 @@ import {
   getStoredRefreshToken, 
   clearStoredTokens 
 } from '../services/authApi';
+import { addressApi } from '../services/addressApi';
 
 const AuthContext = createContext();
 
 const AUTH_STORAGE_KEY = 'CYBER_AUTH_USER_V1';
 
-const INITIAL_ADDRESSES = [
-  {
-    id: 'addr-1',
-    fullName: 'Hoàng Sơn',
-    phone: '0362490374',
-    detailAddress: 'Số 12, Đường Nguyễn Văn Cừ, Phường 4, Quận 5',
-    city: 'TP. Hồ Chí Minh',
-    type: 'home',
-    isDefault: true
-  },
-  {
-    id: 'addr-2',
-    fullName: 'Hoàng Sơn (Văn phòng)',
-    phone: '0362490374',
-    detailAddress: 'Tòa nhà Cyber Tower, Tầng 8, 285 Cách Mạng Tháng Tám, Phường 12, Quận 10',
-    city: 'TP. Hồ Chí Minh',
-    type: 'office',
-    isDefault: false
-  }
-];
+const filterOutMockAddresses = (addrs) => {
+  if (!Array.isArray(addrs)) return [];
+  return addrs.filter((a) => a && a.id !== 'addr-1' && a.id !== 'addr-2');
+};
 
-const formatUserResponse = (apiUser, existingAddresses = null) => {
+const formatUserResponse = (apiUser, existingAddresses = []) => {
   if (!apiUser) return null;
+  const cleanAddresses = filterOutMockAddresses(existingAddresses);
   return {
     id: apiUser.id,
     username: apiUser.username,
@@ -47,7 +33,7 @@ const formatUserResponse = (apiUser, existingAddresses = null) => {
     emailVerifiedAt: apiUser.emailVerifiedAt,
     lastLoginAt: apiUser.lastLoginAt,
     createdAt: apiUser.createdAt,
-    addresses: existingAddresses && existingAddresses.length > 0 ? existingAddresses : INITIAL_ADDRESSES
+    addresses: cleanAddresses
   };
 };
 
@@ -57,9 +43,7 @@ export const AuthProvider = ({ children }) => {
       const savedUser = localStorage.getItem(AUTH_STORAGE_KEY);
       if (savedUser) {
         const parsed = JSON.parse(savedUser);
-        if (!parsed.addresses || parsed.addresses.length === 0) {
-          parsed.addresses = INITIAL_ADDRESSES;
-        }
+        parsed.addresses = filterOutMockAddresses(parsed.addresses);
         return parsed;
       }
       return null;
@@ -68,9 +52,20 @@ export const AuthProvider = ({ children }) => {
     }
   });
 
+  const [addresses, setAddresses] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        return filterOutMockAddresses(parsed.addresses);
+      }
+    } catch {}
+    return [];
+  });
+
   const [isLoading, setIsLoading] = useState(true);
 
-  // Synchronize authenticated session with backend API on mount
+  // Synchronize authenticated session and address book with backend API on mount
   useEffect(() => {
     const syncCurrentUser = async () => {
       const token = getStoredAccessToken();
@@ -78,11 +73,18 @@ export const AuthProvider = ({ children }) => {
         try {
           const apiUser = await authApi.getMe();
           if (apiUser) {
-            setUser((prev) => formatUserResponse(apiUser, prev?.addresses));
+            let addrList = [];
+            try {
+              addrList = await addressApi.getAll();
+            } catch (err) {
+              console.warn('Could not load user addresses from server:', err.message);
+            }
+            const cleanAddrs = filterOutMockAddresses(addrList);
+            setAddresses(cleanAddrs);
+            setUser(formatUserResponse(apiUser, cleanAddrs));
           }
         } catch (e) {
           console.warn('Could not sync user session from backend:', e.message);
-          // If token expired and cannot refresh, logout
           if (e.status === 401 && !getStoredRefreshToken()) {
             logout();
           }
@@ -98,14 +100,15 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     try {
       if (user) {
-        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+        const toSave = { ...user, addresses };
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(toSave));
       } else {
         localStorage.removeItem(AUTH_STORAGE_KEY);
       }
     } catch (e) {
       console.error('Failed to sync auth state to localStorage:', e);
     }
-  }, [user]);
+  }, [user, addresses]);
 
   // 1. POST /auth/register
   const register = async ({ username, email, password, fullName, phone }) => {
@@ -116,7 +119,8 @@ export const AuthProvider = ({ children }) => {
       fullName: fullName || null,
       phone: phone || null
     });
-    const formatted = formatUserResponse(apiUser, INITIAL_ADDRESSES);
+    setAddresses([]);
+    const formatted = formatUserResponse(apiUser, []);
     setUser(formatted);
     return formatted;
   };
@@ -124,7 +128,15 @@ export const AuthProvider = ({ children }) => {
   // 2. POST /auth/login
   const login = async ({ username, password }) => {
     const loginData = await authApi.login({ username, password });
-    const formatted = formatUserResponse(loginData.user, user?.addresses || INITIAL_ADDRESSES);
+    let addrList = [];
+    try {
+      addrList = await addressApi.getAll();
+    } catch (e) {
+      console.warn('Could not fetch addresses on login:', e.message);
+    }
+    const cleanAddrs = filterOutMockAddresses(addrList);
+    setAddresses(cleanAddrs);
+    const formatted = formatUserResponse(loginData.user, cleanAddrs);
     setUser(formatted);
     return formatted;
   };
@@ -138,6 +150,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       clearStoredTokens();
       setUser(null);
+      setAddresses([]);
     }
   };
 
@@ -154,7 +167,7 @@ export const AuthProvider = ({ children }) => {
         phone: newPhone,
         avatarUrl: newAvatar
       });
-      setUser((prev) => formatUserResponse(updatedApiUser, prev?.addresses));
+      setUser((prev) => formatUserResponse(updatedApiUser, addresses));
       return true;
     }
 
@@ -195,7 +208,7 @@ export const AuthProvider = ({ children }) => {
     if (getStoredAccessToken()) {
       const apiUser = await authApi.getMe().catch(() => null);
       if (apiUser) {
-        setUser((prev) => formatUserResponse(apiUser, prev?.addresses));
+        setUser((prev) => formatUserResponse(apiUser, addresses));
       }
     }
     return result;
@@ -206,73 +219,112 @@ export const AuthProvider = ({ children }) => {
     return await authApi.resendVerification(email || user?.email);
   };
 
-  // Quản lý Địa chỉ nhận hàng (Client-side & Cart storage)
-  const addAddress = (newAddress) => {
-    let createdItem = null;
-    setUser((prev) => {
-      if (!prev) return null;
-      const currentList = prev.addresses || [];
-      const isFirst = currentList.length === 0;
-      const shouldBeDefault = newAddress.isDefault || isFirst;
+  // Load all addresses from backend
+  const loadAddresses = useCallback(async () => {
+    if (!getStoredAccessToken()) return [];
+    try {
+      const list = await addressApi.getAll();
+      const cleanList = filterOutMockAddresses(list);
+      setAddresses(cleanList);
+      setUser((prev) => (prev ? { ...prev, addresses: cleanList } : null));
+      return cleanList;
+    } catch (err) {
+      console.warn('Could not reload addresses:', err.message);
+      return [];
+    }
+  }, []);
 
-      const formattedNew = {
+  // Quản lý Địa chỉ nhận hàng (CRUD Microservice Endpoint /api/v1/addresses)
+  const addAddress = async (newAddress) => {
+    if (getStoredAccessToken()) {
+      const created = await addressApi.create(newAddress);
+      const list = await addressApi.getAll();
+      const cleanList = filterOutMockAddresses(list);
+      setAddresses(cleanList);
+      setUser((prev) => (prev ? { ...prev, addresses: cleanList } : null));
+      return created;
+    }
+
+    let createdItem = null;
+    setAddresses((prev) => {
+      const isFirst = prev.length === 0;
+      const shouldBeDefault = newAddress.isDefault || isFirst;
+      createdItem = {
         ...newAddress,
         id: `addr-${Date.now()}`,
         isDefault: shouldBeDefault
       };
-      createdItem = formattedNew;
-
       const updatedList = shouldBeDefault
-        ? currentList.map((a) => ({ ...a, isDefault: false })).concat(formattedNew)
-        : currentList.concat(formattedNew);
-
-      return { ...prev, addresses: updatedList };
+        ? prev.map((a) => ({ ...a, isDefault: false })).concat(createdItem)
+        : prev.concat(createdItem);
+      setUser((u) => (u ? { ...u, addresses: updatedList } : null));
+      return updatedList;
     });
     return createdItem;
   };
 
-  const updateAddress = (addrId, updatedData) => {
-    setUser((prev) => {
-      if (!prev) return null;
-      const currentList = prev.addresses || [];
-      let updatedList = currentList.map((addr) =>
+  const updateAddress = async (addrId, updatedData) => {
+    if (getStoredAccessToken()) {
+      const updated = await addressApi.update(addrId, updatedData);
+      const list = await addressApi.getAll();
+      const cleanList = filterOutMockAddresses(list);
+      setAddresses(cleanList);
+      setUser((prev) => (prev ? { ...prev, addresses: cleanList } : null));
+      return updated;
+    }
+
+    setAddresses((prev) => {
+      let updatedList = prev.map((addr) =>
         addr.id === addrId ? { ...addr, ...updatedData } : addr
       );
-
       if (updatedData.isDefault) {
         updatedList = updatedList.map((addr) =>
           addr.id === addrId ? { ...addr, isDefault: true } : { ...addr, isDefault: false }
         );
       }
-
-      return { ...prev, addresses: updatedList };
+      setUser((u) => (u ? { ...u, addresses: updatedList } : null));
+      return updatedList;
     });
   };
 
-  const deleteAddress = (addrId) => {
-    setUser((prev) => {
-      if (!prev) return null;
-      const currentList = prev.addresses || [];
-      const itemToDelete = currentList.find((a) => a.id === addrId);
-      let updatedList = currentList.filter((a) => a.id !== addrId);
+  const deleteAddress = async (addrId) => {
+    if (getStoredAccessToken()) {
+      await addressApi.delete(addrId);
+      const list = await addressApi.getAll();
+      const cleanList = filterOutMockAddresses(list);
+      setAddresses(cleanList);
+      setUser((prev) => (prev ? { ...prev, addresses: cleanList } : null));
+      return true;
+    }
 
+    setAddresses((prev) => {
+      const itemToDelete = prev.find((a) => a.id === addrId);
+      let updatedList = prev.filter((a) => a.id !== addrId);
       if (itemToDelete?.isDefault && updatedList.length > 0) {
         updatedList[0].isDefault = true;
       }
-
-      return { ...prev, addresses: updatedList };
+      setUser((u) => (u ? { ...u, addresses: updatedList } : null));
+      return updatedList;
     });
   };
 
-  const setDefaultAddress = (addrId) => {
-    setUser((prev) => {
-      if (!prev) return null;
-      const currentList = prev.addresses || [];
-      const updatedList = currentList.map((addr) => ({
+  const setDefaultAddress = async (addrId) => {
+    if (getStoredAccessToken()) {
+      const updated = await addressApi.setDefault(addrId);
+      const list = await addressApi.getAll();
+      const cleanList = filterOutMockAddresses(list);
+      setAddresses(cleanList);
+      setUser((prev) => (prev ? { ...prev, addresses: cleanList } : null));
+      return updated;
+    }
+
+    setAddresses((prev) => {
+      const updatedList = prev.map((addr) => ({
         ...addr,
         isDefault: addr.id === addrId
       }));
-      return { ...prev, addresses: updatedList };
+      setUser((u) => (u ? { ...u, addresses: updatedList } : null));
+      return updatedList;
     });
   };
 
@@ -291,7 +343,8 @@ export const AuthProvider = ({ children }) => {
         resetPassword,
         verifyEmail,
         resendVerification,
-        addresses: user?.addresses || [],
+        addresses,
+        loadAddresses,
         addAddress,
         updateAddress,
         deleteAddress,
