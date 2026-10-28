@@ -26,6 +26,12 @@ application:
     secret-key: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
     # 24 hours in milliseconds (86400000)
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+    # Refresh token expiration (7 days = 604800000 ms)
+    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
+    # Password reset token expiration (15 minutes = 900000 ms)
+    reset-password-expiration-ms: ${JWT_RESET_PASSWORD_EXPIRATION_MS:900000}
+    # Email verification token expiration (24 hours = 86400000 ms)
+    email-verification-expiration-ms: ${JWT_EMAIL_VERIFICATION_EXPIRATION_MS:86400000}
 
 logging:
   level:

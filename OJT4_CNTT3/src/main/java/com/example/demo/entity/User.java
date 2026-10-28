@@ -31,20 +31,26 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 50)
+    @Column(nullable = false, unique = true, length = 100)
     private String username;
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(nullable = false, unique = true, length = 255)
     private String email;
 
-    @Column(nullable = false, length = 255)
+    @Column(name = "password_hash", nullable = false, length = 255)
     private String password;
 
-    @Column(name = "full_name", length = 100)
+    @Column(name = "full_name", length = 150)
     private String fullName;
 
+    @Column(name = "phone", length = 20)
+    private String phone;
+
+    @Column(name = "avatar_url", length = 500)
+    private String avatarUrl;
+
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 50)
     @Builder.Default
     private Role role = Role.ROLE_USER;
 
@@ -52,6 +58,12 @@ public class User {
     @Column(nullable = false, length = 20)
     @Builder.Default
     private UserStatus status = UserStatus.ACTIVE;
+
+    @Column(name = "email_verified_at")
+    private LocalDateTime emailVerifiedAt;
+
+    @Column(name = "last_login_at")
+    private LocalDateTime lastLoginAt;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

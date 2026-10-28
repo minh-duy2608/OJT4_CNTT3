@@ -55,14 +55,28 @@ public class SecurityConfig {
                         .accessDeniedHandler(customAccessDeniedHandler)
                 )
                 .authorizeHttpRequests(auth -> auth
+                        // Public Authentication Endpoints
                         .requestMatchers(
-                                "/api/v1/auth/**",
+                                "/auth/register", "/api/v1/auth/register",
+                                "/auth/login", "/api/v1/auth/login",
+                                "/auth/refresh", "/api/v1/auth/refresh",
+                                "/auth/forgot-password", "/api/v1/auth/forgot-password",
+                                "/auth/reset-password", "/api/v1/auth/reset-password",
+                                "/auth/verify-email", "/api/v1/auth/verify-email",
+                                "/auth/resend-verification", "/api/v1/auth/resend-verification",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/error"
                         ).permitAll()
-                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        // Authenticated User Profile & Logout Endpoints
+                        .requestMatchers(
+                                "/auth/me", "/api/v1/auth/me",
+                                "/auth/me/**", "/api/v1/auth/me/**",
+                                "/auth/logout", "/api/v1/auth/logout"
+                        ).authenticated()
+                        // Admin Endpoints
+                        .requestMatchers("/api/v1/admin/**", "/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

@@ -19,7 +19,9 @@ public class CustomUserDetails implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return Collections.singletonList(new SimpleGrantedAuthority(user.getRole().name()));
+        String roleName = user.getRole() != null ? user.getRole().name() : "ROLE_USER";
+        String authority = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;
+        return Collections.singletonList(new SimpleGrantedAuthority(authority));
     }
 
     @Override
@@ -39,7 +41,9 @@ public class CustomUserDetails implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return user.getStatus() != UserStatus.BLOCKED;
+        return user.getStatus() != UserStatus.LOCKED 
+                && user.getStatus() != UserStatus.BLOCKED 
+                && user.getStatus() != UserStatus.DELETED;
     }
 
     @Override
@@ -49,6 +53,6 @@ public class CustomUserDetails implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return user.getStatus() == UserStatus.ACTIVE;
+        return user.getStatus() != UserStatus.DELETED && user.getStatus() != UserStatus.INACTIVE;
     }
 }

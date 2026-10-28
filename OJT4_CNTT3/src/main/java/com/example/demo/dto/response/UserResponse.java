@@ -23,11 +23,22 @@ public class UserResponse {
     private String username;
     private String email;
     private String fullName;
+    private String phone;
+    private String avatarUrl;
     private Role role;
     private UserStatus status;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime emailVerifiedAt;
+
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime lastLoginAt;
+
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdAt;
+
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime updatedAt;
 
     public static UserResponse fromEntity(User user) {
         if (user == null) {
@@ -38,9 +49,14 @@ public class UserResponse {
                 .username(user.getUsername())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
+                .phone(user.getPhone())
+                .avatarUrl(user.getAvatarUrl())
                 .role(user.getRole())
                 .status(user.getStatus())
+                .emailVerifiedAt(user.getEmailVerifiedAt())
+                .lastLoginAt(user.getLastLoginAt())
                 .createdAt(user.getCreatedAt())
+                .updatedAt(user.getUpdatedAt())
                 .build();
     }
 }
