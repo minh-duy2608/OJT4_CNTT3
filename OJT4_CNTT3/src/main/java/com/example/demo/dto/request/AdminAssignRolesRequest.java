@@ -19,3 +19,4 @@ public class AdminAssignRolesRequest {
     @NotEmpty(message = "Tập vai trò không được để trống")
     private Set<String> roles;
 }
+

@@ -18,6 +18,7 @@ import com.example.demo.entity.UserStatus;
 import com.example.demo.exception.ConflictException;
 import com.example.demo.exception.GlobalExceptionHandler;
 import com.example.demo.service.AuthService;
+import com.example.demo.service.RolePermissionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.security.Principal;
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -52,6 +54,9 @@ class AuthControllerTest {
 
     @Mock
     private AuthService authService;
+
+    @Mock
+    private RolePermissionService rolePermissionService;
 
     @InjectMocks
     private AuthController authController;
@@ -381,5 +386,19 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.verificationToken").value("new-verify-token"));
+    }
+
+    @Test
+    @DisplayName("API 26: GET /auth/me/permissions lấy danh sách quyền của người dùng hiện tại")
+    void getMyPermissions_success() throws Exception {
+        when(rolePermissionService.getCurrentUserPermissions("nguyenvan_a"))
+                .thenReturn(Set.of("PRODUCT_VIEW", "CART_MANAGE_OWN"));
+
+        mockMvc.perform(get("/auth/me/permissions")
+                        .principal(mockPrincipal)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data[0]").exists());
     }
 }

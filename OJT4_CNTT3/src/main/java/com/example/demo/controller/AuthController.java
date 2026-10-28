@@ -15,6 +15,7 @@ import com.example.demo.dto.response.LoginResponse;
 import com.example.demo.dto.response.TokenRefreshResponse;
 import com.example.demo.dto.response.UserResponse;
 import com.example.demo.service.AuthService;
+import com.example.demo.service.RolePermissionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping({"/auth", "/api/v1/auth"})
@@ -37,6 +39,7 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final RolePermissionService rolePermissionService;
 
     /**
      * 1. POST /auth/register - Đăng ký tài khoản khách hàng (Public)
@@ -165,5 +168,14 @@ public class AuthController {
         Map<String, String> response = authService.resendVerification(request);
         return ResponseEntity
                 .ok(ApiResponse.success("Yêu cầu gửi lại email xác minh thành công", response));
+    }
+
+    /**
+     * STT 26: GET /auth/me/permissions - Danh sách quyền của người dùng hiện tại (Authenticated)
+     */
+    @GetMapping({"/me/permissions", "/permissions"})
+    public ResponseEntity<ApiResponse<Set<String>>> getMyPermissions(Principal principal) {
+        Set<String> permissions = rolePermissionService.getCurrentUserPermissions(principal.getName());
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách quyền của người dùng hiện tại thành công", permissions));
     }
 }

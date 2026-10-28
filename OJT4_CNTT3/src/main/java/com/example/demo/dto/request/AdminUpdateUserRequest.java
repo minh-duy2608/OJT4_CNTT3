@@ -26,3 +26,4 @@ public class AdminUpdateUserRequest {
 
     private Boolean emailVerified;
 }
+

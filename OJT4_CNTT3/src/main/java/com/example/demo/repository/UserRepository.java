@@ -33,4 +33,7 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
             @Param("roleAdmin") Role roleAdmin,
             @Param("admin") Role admin
     );
+
+    @Query("SELECT COUNT(u) FROM User u JOIN u.roles r WHERE r.id = :roleId")
+    long countUsersWithRoleId(@Param("roleId") Long roleId);
 }

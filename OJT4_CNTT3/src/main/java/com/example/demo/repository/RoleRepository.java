@@ -19,3 +19,4 @@ public interface RoleRepository extends JpaRepository<RoleEntity, Long> {
 
     boolean existsByCode(String code);
 }
+

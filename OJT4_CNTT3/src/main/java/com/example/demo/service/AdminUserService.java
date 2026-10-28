@@ -51,3 +51,4 @@ public interface AdminUserService {
      */
     List<RoleResponse> assignUserRoles(String currentAdminUsername, Long userId, AdminAssignRolesRequest request);
 }
+
