@@ -1,5 +1,6 @@
 package com.example.demo.config.security;
 
+import com.example.demo.entity.RoleEntity;
 import com.example.demo.entity.User;
 import com.example.demo.entity.UserStatus;
 import lombok.AllArgsConstructor;
@@ -10,6 +11,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 @Getter
 @AllArgsConstructor
@@ -19,9 +22,22 @@ public class CustomUserDetails implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        String roleName = user.getRole() != null ? user.getRole().name() : "ROLE_USER";
-        String authority = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;
-        return Collections.singletonList(new SimpleGrantedAuthority(authority));
+        Set<GrantedAuthority> authorities = new HashSet<>();
+        if (user.getRole() != null) {
+            String roleName = user.getRole().name();
+            authorities.add(new SimpleGrantedAuthority(roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName));
+        }
+        if (user.getRoles() != null && !user.getRoles().isEmpty()) {
+            for (RoleEntity roleEntity : user.getRoles()) {
+                String code = roleEntity.getCode();
+                if (code != null && !code.isBlank()) {
+                    authorities.add(new SimpleGrantedAuthority(code.startsWith("ROLE_") ? code : "ROLE_" + code));
+                }
+            }
+        }
+        return authorities.isEmpty()
+                ? Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
+                : authorities;
     }
 
     @Override

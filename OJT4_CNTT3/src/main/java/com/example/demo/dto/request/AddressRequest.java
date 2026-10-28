@@ -36,3 +36,4 @@ public class AddressRequest {
 
     private Boolean isDefault;
 }
+

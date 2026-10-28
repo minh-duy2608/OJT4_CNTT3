@@ -28,3 +28,4 @@ public interface AddressRepository extends JpaRepository<Address, Long> {
     @Query("UPDATE Address a SET a.isDefault = false WHERE a.user = :user")
     int resetDefaultByUser(@Param("user") User user);
 }
+
