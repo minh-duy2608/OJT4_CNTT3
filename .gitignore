@@ -1,0 +1,28 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# IDE and Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Backend Gradle build artifacts
+OJT4_CNTT3/.gradle/
+OJT4_CNTT3/build/
+OJT4_CNTT3/out/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Frontend Node build artifacts
+Shopping App 2/node_modules/
+Shopping App 2/dist/
+Shopping App 2/.vite/
+Shopping App 2/npm-debug.log*
+Shopping App 2/yarn-debug.log*
+Shopping App 2/yarn-error.log*

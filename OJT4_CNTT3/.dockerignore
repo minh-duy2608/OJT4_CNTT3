@@ -1,0 +1,10 @@
+.gradle/
+build/
+.git/
+.github/
+docs/
+*.md
+.DS_Store
+.env*
+docker-compose.yml
+docker/
