@@ -378,18 +378,22 @@ public class AuthServiceImpl implements AuthService {
     public void verifyEmail(VerifyEmailRequest request) {
         log.info("Processing email verification request");
 
-        EmailVerificationToken verificationToken = emailVerificationTokenRepository.findByToken(request.getToken().trim())
-                .orElseThrow(() -> new BadRequestException("Mã token xác minh email không hợp lệ"));
+        String tokenInput = request.getToken().trim();
+        log.info("Processing email verification request with token: {}", tokenInput);
 
-        if (verificationToken.isUsed()) {
-            throw new BadRequestException("Mã token xác minh email đã được sử dụng");
+        EmailVerificationToken verificationToken = emailVerificationTokenRepository.findByToken(tokenInput)
+                .orElseThrow(() -> new BadRequestException("Mã xác minh OTP không chính xác. Vui lòng kiểm tra lại email."));
+
+        User user = verificationToken.getUser();
+        if (user.getEmailVerifiedAt() != null) {
+            log.info("User {} is already verified", user.getUsername());
+            return;
         }
 
         if (verificationToken.isExpired()) {
-            throw new BadRequestException("Mã token xác minh email đã hết hạn");
+            throw new BadRequestException("Mã xác minh OTP đã hết hạn. Vui lòng bấm 'Gửi lại mã' để nhận mã mới.");
         }
 
-        User user = verificationToken.getUser();
         user.setEmailVerifiedAt(LocalDateTime.now());
         if (user.getStatus() == UserStatus.PENDING) {
             user.setStatus(UserStatus.ACTIVE);
@@ -398,6 +402,9 @@ public class AuthServiceImpl implements AuthService {
 
         verificationToken.setUsed(true);
         emailVerificationTokenRepository.save(verificationToken);
+
+        // Vô hiệu hóa các mã OTP còn lại của user này sau khi đã xác minh thành công
+        emailVerificationTokenRepository.invalidateAllByUser(user);
 
         log.info("Email verified successfully for user: {}", user.getUsername());
     }
@@ -421,10 +428,7 @@ public class AuthServiceImpl implements AuthService {
             return response;
         }
 
-        // Invalidate old tokens
-        emailVerificationTokenRepository.invalidateAllByUser(user);
-
-        // Create new 6-digit OTP token
+        // Tạo mã OTP 6 số mới (không xóa mã cũ để nếu mail đến trễ user vẫn nhập được)
         String tokenString = generateSixDigitOtp();
         EmailVerificationToken verificationToken = EmailVerificationToken.builder()
                 .token(tokenString)

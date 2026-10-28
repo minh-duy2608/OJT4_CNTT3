@@ -84,6 +84,7 @@ export const ProfilePage = () => {
   const [forgotCountdown, setForgotCountdown] = useState(0);
   const [forgotModalType, setForgotModalType] = useState('confirm'); // 'confirm' (?) -> 'success' (✓)
   const [forgotResetSuccess, setForgotResetSuccess] = useState(false);
+  const [forgotResetError, setForgotResetError] = useState(null);
 
   // 2.2. Trạng thái Xác minh Email qua mã OTP 6 số dưới Avatar (API 10 & API 11)
   const [showVerifyEmailModal, setShowVerifyEmailModal] = useState(false);
@@ -92,6 +93,7 @@ export const ProfilePage = () => {
   const [verifyEmailCountdown, setVerifyEmailCountdown] = useState(0);
   const [verifyEmailModalType, setVerifyEmailModalType] = useState('confirm'); // 'confirm' (?) -> 'success' (✓)
   const [verifyEmailSuccess, setVerifyEmailSuccess] = useState(false);
+  const [verifyEmailError, setVerifyEmailError] = useState(null);
 
   // 3. Trạng thái Thêm / Sửa địa chỉ nhận hàng
   const [isAddressFormOpen, setIsAddressFormOpen] = useState(false);
@@ -289,6 +291,7 @@ export const ProfilePage = () => {
       const res = await forgotPassword(targetEmail);
       setForgotModalType('confirm');
       setForgotResetSuccess(false);
+      setForgotResetError(null);
       setShowForgotOtpModal(true);
       setForgotCountdown(60);
       setForgotOtpCode('');
@@ -307,33 +310,36 @@ export const ProfilePage = () => {
     const targetEmail = user?.email || email;
     if (forgotCountdown > 0 || !targetEmail) return;
     try {
+      setForgotResetError(null);
       const res = await forgotPassword(targetEmail);
       setForgotCountdown(60);
       showAlert(res?.message || 'Đã gửi lại mã OTP 6 số thành công!', 'info');
     } catch (err) {
-      showAlert(err.message || 'Lỗi khi gửi lại mã OTP.', 'error');
+      setForgotResetError(err.message || 'Lỗi khi gửi lại mã OTP.');
     }
   };
 
   // Xác nhận đặt lại mật khẩu mới bằng mã OTP 6 số (API 9)
   const handleConfirmResetPassword = async () => {
-    if (!forgotOtpCode || forgotOtpCode.trim().length !== 6) {
-      showAlert('Vui lòng nhập đầy đủ mã xác minh OTP gồm 6 chữ số.', 'error');
+    setForgotResetError(null);
+    const code = forgotOtpCode.trim();
+    if (!code || code.length !== 6) {
+      setForgotResetError('Vui lòng nhập đầy đủ mã xác minh OTP gồm 6 chữ số.');
       return;
     }
     if (!forgotNewPassword || forgotNewPassword.length < 6) {
-      showAlert('Mật khẩu mới phải có ít nhất 6 ký tự.', 'error');
+      setForgotResetError('Mật khẩu mới phải có ít nhất 6 ký tự.');
       return;
     }
     if (forgotNewPassword !== forgotConfirmPassword) {
-      showAlert('Xác nhận mật khẩu mới không khớp.', 'error');
+      setForgotResetError('Xác nhận mật khẩu mới không khớp.');
       return;
     }
 
     try {
       setIsResettingPassword(true);
       await resetPassword({
-        token: forgotOtpCode.trim(),
+        token: code,
         newPassword: forgotNewPassword,
         confirmPassword: forgotConfirmPassword
       });
@@ -341,6 +347,7 @@ export const ProfilePage = () => {
       // Thành công: chuyển dấu hỏi chấm (?) thành dấu tích (✓)
       setForgotModalType('success');
       setForgotResetSuccess(true);
+      setForgotResetError(null);
       showAlert('Đặt lại mật khẩu thành công! Mật khẩu mới đã được cập nhật.', 'success');
 
       // Tự động đóng modal sau 1.5 giây
@@ -357,7 +364,7 @@ export const ProfilePage = () => {
         setConfirmPassword('');
       }, 1500);
     } catch (err) {
-      showAlert(err.message || 'Mã xác thực OTP không chính xác hoặc đã hết hạn.', 'error');
+      setForgotResetError(err.message || 'Mã xác thực OTP không chính xác hoặc đã hết hạn.');
     } finally {
       setIsResettingPassword(false);
     }
@@ -367,56 +374,51 @@ export const ProfilePage = () => {
   // XÁC MINH EMAIL DƯỚI AVATAR (API 10 & API 11)
   // =========================================================================
 
-  // Mở modal xác minh Email và tự động gửi mã OTP nếu cần
-  const handleOpenVerifyEmailModal = async () => {
+  // Mở modal xác minh Email
+  const handleOpenVerifyEmailModal = () => {
     const targetEmail = user?.email || email;
     if (!targetEmail) {
       showAlert('Không tìm thấy địa chỉ email tài khoản để xác minh.', 'error');
       return;
     }
     setVerifyEmailOtpCode('');
+    setVerifyEmailError(null);
     setVerifyEmailModalType('confirm');
     setVerifyEmailSuccess(false);
     setShowVerifyEmailModal(true);
-
-    if (verifyEmailCountdown === 0) {
-      try {
-        const res = await resendVerification(targetEmail);
-        setVerifyEmailCountdown(60);
-        showAlert(res?.message || `Mã xác minh 6 chữ số đã được gửi từ son666727@gmail.com đến ${targetEmail}`, 'info');
-      } catch (err) {
-        console.warn('Gửi mã OTP xác minh email:', err.message);
-      }
-    }
   };
 
-  // Gửi lại mã OTP xác minh email
+  // Gửi lại mã OTP xác minh email (API 11)
   const handleResendVerifyEmailOtp = async () => {
     const targetEmail = user?.email || email;
     if (verifyEmailCountdown > 0 || !targetEmail) return;
     try {
+      setVerifyEmailError(null);
       const res = await resendVerification(targetEmail);
       setVerifyEmailCountdown(60);
       showAlert(res?.message || 'Đã gửi lại mã OTP 6 số thành công!', 'info');
     } catch (err) {
-      showAlert(err.message || 'Lỗi khi gửi lại mã xác minh email.', 'error');
+      setVerifyEmailError(err.message || 'Lỗi khi gửi lại mã xác minh email.');
     }
   };
 
   // Xác nhận mã OTP để kích hoạt Email (API 10)
   const handleConfirmVerifyEmail = async () => {
-    if (!verifyEmailOtpCode || verifyEmailOtpCode.trim().length !== 6) {
-      showAlert('Vui lòng nhập đầy đủ mã OTP 6 chữ số.', 'error');
+    setVerifyEmailError(null);
+    const code = verifyEmailOtpCode.trim();
+    if (!code || code.length !== 6) {
+      setVerifyEmailError('Vui lòng nhập đầy đủ mã OTP 6 chữ số.');
       return;
     }
 
     try {
       setIsVerifyingEmailOtp(true);
-      await verifyEmail(verifyEmailOtpCode.trim());
+      await verifyEmail(code);
 
       // Thành công: chuyển dấu hỏi chấm (?) thành dấu tích (✓)
       setVerifyEmailModalType('success');
       setVerifyEmailSuccess(true);
+      setVerifyEmailError(null);
       showAlert('Xác minh tài khoản email thành công (API 10)!', 'success');
 
       // Tự động đóng modal sau 1.5 giây
@@ -427,7 +429,9 @@ export const ProfilePage = () => {
         setVerifyEmailOtpCode('');
       }, 1500);
     } catch (err) {
-      showAlert(err.message || 'Mã xác minh OTP không chính xác hoặc đã hết hạn.', 'error');
+      console.error('Verify email failed:', err);
+      const msg = err.message || 'Mã xác minh OTP không chính xác hoặc đã hết hạn.';
+      setVerifyEmailError(msg);
     } finally {
       setIsVerifyingEmailOtp(false);
     }
@@ -1150,6 +1154,23 @@ export const ProfilePage = () => {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
+            {forgotResetError && (
+              <div style={{
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fecaca',
+                color: '#dc2626',
+                borderRadius: '8px',
+                padding: '0.65rem 0.85rem',
+                fontSize: '0.8125rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <AlertCircle size={16} />
+                <span>{forgotResetError}</span>
+              </div>
+            )}
+
             <div style={{
               backgroundColor: '#eff6ff',
               border: '1px solid #bfdbfe',
@@ -1176,7 +1197,13 @@ export const ProfilePage = () => {
                 type="text"
                 maxLength={6}
                 value={forgotOtpCode}
-                onChange={(e) => setForgotOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                onChange={(e) => {
+                  setForgotOtpCode(e.target.value.replace(/[^0-9]/g, ''));
+                  if (forgotResetError) setForgotResetError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleConfirmResetPassword();
+                }}
                 placeholder="••••••"
                 autoFocus
                 className="form-input"
@@ -1289,6 +1316,23 @@ export const ProfilePage = () => {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
+            {verifyEmailError && (
+              <div style={{
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fecaca',
+                color: '#dc2626',
+                borderRadius: '8px',
+                padding: '0.65rem 0.85rem',
+                fontSize: '0.8125rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <AlertCircle size={16} />
+                <span>{verifyEmailError}</span>
+              </div>
+            )}
+
             <div style={{
               backgroundColor: '#eff6ff',
               border: '1px solid #bfdbfe',
@@ -1315,7 +1359,13 @@ export const ProfilePage = () => {
                 type="text"
                 maxLength={6}
                 value={verifyEmailOtpCode}
-                onChange={(e) => setVerifyEmailOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                onChange={(e) => {
+                  setVerifyEmailOtpCode(e.target.value.replace(/[^0-9]/g, ''));
+                  if (verifyEmailError) setVerifyEmailError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleConfirmVerifyEmail();
+                }}
                 placeholder="••••••"
                 autoFocus
                 className="form-input"
