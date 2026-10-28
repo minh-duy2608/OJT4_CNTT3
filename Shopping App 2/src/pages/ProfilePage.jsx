@@ -41,6 +41,9 @@ export const ProfilePage = () => {
     user,
     isAuthenticated,
     updateProfile,
+    changePassword,
+    resendVerification,
+    verifyEmail,
     addresses,
     addAddress,
     updateAddress,
@@ -154,7 +157,7 @@ export const ProfilePage = () => {
     }, 4500);
   };
 
-  // Upload Avatar lên Cloudinary
+  // Upload Avatar lên Cloudinary và lưu vào Backend
   const handleAvatarFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -162,10 +165,10 @@ export const ProfilePage = () => {
     try {
       setIsUploadingAvatar(true);
       const result = await uploadToCloudinary(file);
-      updateProfile({ avatar: result.url });
+      await updateProfile({ avatar: result.url, avatarUrl: result.url });
 
       if (result.isCloudinary) {
-        showAlert('Ảnh đại diện đã được lưu trữ vĩnh viễn trên Cloudinary!', 'success');
+        showAlert('Ảnh đại diện đã được lưu trữ trên Cloudinary và cập nhật tài khoản!', 'success');
       } else {
         showAlert(result.warning || 'Ảnh đại diện đã được cập nhật!', 'success');
       }
@@ -178,8 +181,8 @@ export const ProfilePage = () => {
     }
   };
 
-  // Lưu thông tin cá nhân
-  const handleSavePersonalInfo = (e) => {
+  // Lưu thông tin cá nhân (API 6 - PATCH /auth/me)
+  const handleSavePersonalInfo = async (e) => {
     e.preventDefault();
     setInfoTouched({ name: true, email: true, phone: true });
 
@@ -192,16 +195,19 @@ export const ProfilePage = () => {
       return;
     }
 
-    setIsSavingInfo(true);
-    setTimeout(() => {
-      updateProfile({ name: name.trim(), email: email.trim(), phone: phone.trim() });
+    try {
+      setIsSavingInfo(true);
+      await updateProfile({ fullName: name.trim(), phone: phone.trim() });
+      showAlert('Cập nhật thông tin tài khoản thành công (API 6)!', 'success');
+    } catch (err) {
+      showAlert(err.message || 'Cập nhật thông tin thất bại.', 'error');
+    } finally {
       setIsSavingInfo(false);
-      showAlert('Cập nhật thông tin tài khoản thành công!', 'success');
-    }, 400);
+    }
   };
 
-  // Đổi mật khẩu
-  const handleChangePassword = (e) => {
+  // Đổi mật khẩu (API 7 - PATCH /auth/me/password)
+  const handleChangePassword = async (e) => {
     e.preventDefault();
     setPasswordTouched({ current: true, new: true, confirm: true });
 
@@ -214,15 +220,19 @@ export const ProfilePage = () => {
       return;
     }
 
-    setIsSavingPassword(true);
-    setTimeout(() => {
-      setIsSavingPassword(false);
+    try {
+      setIsSavingPassword(true);
+      await changePassword({ currentPassword, newPassword, confirmPassword });
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setPasswordTouched({ current: false, new: false, confirm: false });
-      showAlert('Mật khẩu của bạn đã được thay đổi thành công!', 'success');
-    }, 500);
+      showAlert('Mật khẩu của bạn đã được thay đổi thành công (API 7)!', 'success');
+    } catch (err) {
+      showAlert(err.message || 'Đổi mật khẩu thất bại. Vui lòng kiểm tra lại mật khẩu hiện tại.', 'error');
+    } finally {
+      setIsSavingPassword(false);
+    }
   };
 
   // Mở form thêm địa chỉ
@@ -361,6 +371,63 @@ export const ProfilePage = () => {
 
           <h2 className="profile-card-name">{user.name}</h2>
           <p className="profile-card-email">{user.email}</p>
+          {user.username && (
+            <p style={{ fontSize: '0.8125rem', color: '#6b7280', margin: '-0.25rem 0 0.5rem' }}>
+              @{user.username}
+            </p>
+          )}
+
+          {/* Huy hiệu vai trò & Xác minh Email */}
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '0.75rem' }}>
+            <span style={{
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              padding: '0.2rem 0.5rem',
+              borderRadius: '9999px',
+              backgroundColor: user.role === 'ROLE_ADMIN' ? '#fee2e2' : '#e0e7ff',
+              color: user.role === 'ROLE_ADMIN' ? '#991b1b' : '#3730a3'
+            }}>
+              {user.role === 'ROLE_ADMIN' ? 'Quản trị viên' : 'Khách hàng'}
+            </span>
+
+            <span style={{
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              padding: '0.2rem 0.5rem',
+              borderRadius: '9999px',
+              backgroundColor: user.emailVerifiedAt ? '#dcfce7' : '#fef3c7',
+              color: user.emailVerifiedAt ? '#166534' : '#92400e'
+            }}>
+              {user.emailVerifiedAt ? '✓ Email đã xác minh' : 'Chưa xác minh email'}
+            </span>
+          </div>
+
+          {!user.emailVerifiedAt && (
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const res = await resendVerification(user.email);
+                  showAlert(res?.message || 'Đã gửi lại email xác minh thành công! Vui lòng kiểm tra email.', 'success');
+                } catch (e) {
+                  showAlert(e.message || 'Không thể gửi lại email xác minh.', 'error');
+                }
+              }}
+              style={{
+                background: 'none',
+                border: '1px solid #d1d5db',
+                padding: '0.4rem 0.75rem',
+                borderRadius: '6px',
+                fontSize: '0.75rem',
+                color: '#2563eb',
+                fontWeight: 600,
+                cursor: 'pointer',
+                marginBottom: '1rem'
+              }}
+            >
+              Gửi lại email xác minh (API 11)
+            </button>
+          )}
 
           {/* Trạng thái Cloudinary */}
           <div className="cloudinary-status-card">

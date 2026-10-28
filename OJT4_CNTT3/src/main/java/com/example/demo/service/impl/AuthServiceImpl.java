@@ -93,8 +93,8 @@ public class AuthServiceImpl implements AuthService {
 
         User savedUser = userRepository.save(user);
 
-        // Generate email verification token
-        String verificationTokenString = UUID.randomUUID().toString();
+        // Generate 6-digit email verification OTP
+        String verificationTokenString = generateSixDigitOtp();
         EmailVerificationToken verificationToken = EmailVerificationToken.builder()
                 .token(verificationTokenString)
                 .user(savedUser)
@@ -108,6 +108,7 @@ public class AuthServiceImpl implements AuthService {
                 savedUser.getId(),
                 savedUser.getUsername(),
                 savedUser.getEmail(),
+                savedUser.getFullName(),
                 verificationTokenString
         ));
 
@@ -423,8 +424,8 @@ public class AuthServiceImpl implements AuthService {
         // Invalidate old tokens
         emailVerificationTokenRepository.invalidateAllByUser(user);
 
-        // Create new token
-        String tokenString = UUID.randomUUID().toString();
+        // Create new 6-digit OTP token
+        String tokenString = generateSixDigitOtp();
         EmailVerificationToken verificationToken = EmailVerificationToken.builder()
                 .token(tokenString)
                 .user(user)
@@ -434,11 +435,31 @@ public class AuthServiceImpl implements AuthService {
         emailVerificationTokenRepository.save(verificationToken);
 
         // Publish event for email microservice
-        eventPublisher.publishEvent(new EmailVerificationRequestedEvent(user.getId(), user.getEmail(), tokenString));
+        eventPublisher.publishEvent(new EmailVerificationRequestedEvent(
+                user.getId(), 
+                user.getEmail(), 
+                user.getFullName(), 
+                tokenString
+        ));
 
-        response.put("message", "Mã xác minh mới đã được gửi đến email của bạn.");
+        response.put("message", "Mã xác minh gồm 6 chữ số mới đã được gửi từ son666727@gmail.com đến email của bạn.");
         response.put("verificationToken", tokenString);
         return response;
+    }
+
+    private String generateSixDigitOtp() {
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        String code;
+        int attempts = 0;
+        do {
+            code = String.format("%06d", random.nextInt(1000000));
+            attempts++;
+            if (attempts > 50) {
+                code = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+                break;
+            }
+        } while (emailVerificationTokenRepository.findByToken(code).isPresent());
+        return code;
     }
 
     private User findUserByUsernameOrEmail(String usernameOrEmail) {
