@@ -44,15 +44,19 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional(readOnly = true)
     public List<CategoryResponse> getCategories(CategoryStatus status, boolean onlyRoots) {
-        CategoryStatus targetStatus = status != null ? status : CategoryStatus.ACTIVE;
-
         if (onlyRoots) {
-            return categoryRepository.findByParentIsNullAndStatusOrderBySortOrderAscNameAsc(targetStatus).stream()
+            List<Category> list = (status != null)
+                    ? categoryRepository.findByParentIsNullAndStatusOrderBySortOrderAscNameAsc(status)
+                    : categoryRepository.findByParentIsNullOrderBySortOrderAscNameAsc();
+            return list.stream()
                     .map(c -> CategoryResponse.fromEntity(c, true))
                     .collect(Collectors.toList());
         }
 
-        return categoryRepository.findByStatusOrderBySortOrderAscNameAsc(targetStatus).stream()
+        List<Category> list = (status != null)
+                ? categoryRepository.findByStatusOrderBySortOrderAscNameAsc(status)
+                : categoryRepository.findAllByOrderBySortOrderAscNameAsc();
+        return list.stream()
                 .map(c -> CategoryResponse.fromEntity(c, false))
                 .collect(Collectors.toList());
     }
@@ -154,7 +158,16 @@ public class CategoryServiceImpl implements CategoryService {
                 throw new BadRequestException("Danh mục không thể làm danh mục cha của chính nó!");
             }
             Category parent = findCategoryById(request.getParentId());
+            Category ancestor = parent;
+            while (ancestor != null) {
+                if (ancestor.getId().equals(categoryId)) {
+                    throw new BadRequestException("Không thể chọn danh mục con làm danh mục cha!");
+                }
+                ancestor = ancestor.getParent();
+            }
             category.setParent(parent);
+        } else {
+            category.setParent(null);
         }
 
         Category updated = categoryRepository.save(category);

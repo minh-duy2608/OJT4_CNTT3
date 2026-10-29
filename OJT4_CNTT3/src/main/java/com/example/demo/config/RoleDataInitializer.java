@@ -142,38 +142,19 @@ public class RoleDataInitializer implements CommandLineRunner {
             roleRepository.save(clientRole);
         }
 
-        // 3. SHOP_OWNER
-        RoleEntity ownerRole = roleRepository.findByCode("SHOP_OWNER").orElseGet(() ->
-                roleRepository.save(RoleEntity.builder()
-                        .code("SHOP_OWNER")
-                        .name("Chủ cửa hàng")
-                        .description("Quản lý cửa hàng của mình")
-                        .isSystem(true)
-                        .build()));
-        if (ownerRole.getPermissions() == null || ownerRole.getPermissions().isEmpty()) {
-            Set<String> ownerPermCodes = Set.of(
-                    "SHOP_UPDATE_OWN", "PRODUCT_CREATE", "PRODUCT_UPDATE_OWN", "PRODUCT_DELETE_OWN",
-                    "INVENTORY_MANAGE_OWN", "COUPON_CREATE_OWN", "COUPON_UPDATE_OWN", "COUPON_VIEW_OWN",
-                    "ORDER_VIEW_OWN", "ORDER_UPDATE_OWN", "REVIEW_REPLY_OWN", "REPORT_VIEW_OWN",
-                    "RETURN_MANAGE_OWN", "NOTIFICATION_VIEW_OWN"
-            );
-            List<PermissionEntity> ownerPerms = permissionRepository.findByCodeIn(ownerPermCodes);
-            ownerRole.setPermissions(new HashSet<>(ownerPerms));
-            roleRepository.save(ownerRole);
-        }
-
-        // 4. SHOP_MANAGER
+        // 3. SHOP_MANAGER (Quản lý shop)
         RoleEntity managerRole = roleRepository.findByCode("SHOP_MANAGER").orElseGet(() ->
                 roleRepository.save(RoleEntity.builder()
                         .code("SHOP_MANAGER")
-                        .name("Quản lý cửa hàng")
-                        .description("Vận hành cửa hàng được phân công")
+                        .name("Quản lý shop")
+                        .description("Quản lý và vận hành cửa hàng")
                         .isSystem(true)
                         .build()));
         if (managerRole.getPermissions() == null || managerRole.getPermissions().isEmpty()) {
             Set<String> managerPermCodes = Set.of(
-                    "PRODUCT_CREATE", "PRODUCT_UPDATE_OWN", "INVENTORY_MANAGE_OWN",
-                    "COUPON_VIEW_OWN", "ORDER_VIEW_OWN", "ORDER_UPDATE_OWN",
+                    "PRODUCT_CREATE", "PRODUCT_UPDATE_OWN", "PRODUCT_DELETE_OWN", "INVENTORY_MANAGE_OWN",
+                    "COUPON_CREATE_OWN", "COUPON_UPDATE_OWN", "COUPON_VIEW_OWN",
+                    "ORDER_VIEW_OWN", "ORDER_UPDATE_OWN", "REVIEW_VIEW",
                     "REVIEW_REPLY_OWN", "REPORT_VIEW_OWN", "RETURN_MANAGE_OWN", "NOTIFICATION_VIEW_OWN"
             );
             List<PermissionEntity> managerPerms = permissionRepository.findByCodeIn(managerPermCodes);
@@ -181,21 +162,33 @@ public class RoleDataInitializer implements CommandLineRunner {
             roleRepository.save(managerRole);
         }
 
-        // 5. SHOP_STAFF
-        RoleEntity staffRole = roleRepository.findByCode("SHOP_STAFF").orElseGet(() ->
-                roleRepository.save(RoleEntity.builder()
-                        .code("SHOP_STAFF")
-                        .name("Nhân viên cửa hàng")
-                        .description("Hỗ trợ vận hành cửa hàng")
-                        .isSystem(true)
-                        .build()));
-        if (staffRole.getPermissions() == null || staffRole.getPermissions().isEmpty()) {
-            Set<String> staffPermCodes = Set.of(
-                    "ORDER_VIEW_OWN", "ORDER_UPDATE_OWN", "INVENTORY_MANAGE_OWN", "NOTIFICATION_VIEW_OWN"
-            );
-            List<PermissionEntity> staffPerms = permissionRepository.findByCodeIn(staffPermCodes);
-            staffRole.setPermissions(new HashSet<>(staffPerms));
-            roleRepository.save(staffRole);
+        // Dọn dẹp các vai trò không còn sử dụng: SHOP_OWNER và SHOP_STAFF
+        List<String> deprecatedCodes = List.of("SHOP_OWNER", "SHOP_STAFF");
+        for (String code : deprecatedCodes) {
+            roleRepository.findByCode(code).ifPresent(depRole -> {
+                List<User> usersWithRole = userRepository.findAll();
+                for (User u : usersWithRole) {
+                    boolean userChanged = false;
+                    if (u.getRoles() != null && u.getRoles().contains(depRole)) {
+                        u.getRoles().remove(depRole);
+                        if (u.getRoles().isEmpty()) {
+                            u.getRoles().add(clientRole);
+                        }
+                        userChanged = true;
+                    }
+                    if (u.getRole() == Role.SHOP_OWNER || u.getRole() == Role.SHOP_STAFF) {
+                        u.setRole(Role.CLIENT);
+                        userChanged = true;
+                    }
+                    if (userChanged) {
+                        userRepository.save(u);
+                    }
+                }
+                depRole.getPermissions().clear();
+                roleRepository.save(depRole);
+                roleRepository.delete(depRole);
+                log.info("Cleaned up deprecated system role: {}", code);
+            });
         }
     }
 

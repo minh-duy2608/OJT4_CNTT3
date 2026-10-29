@@ -19,7 +19,11 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
 
     List<Category> findByStatusOrderBySortOrderAscNameAsc(CategoryStatus status);
 
+    List<Category> findAllByOrderBySortOrderAscNameAsc();
+
     List<Category> findByParentIsNullAndStatusOrderBySortOrderAscNameAsc(CategoryStatus status);
+
+    List<Category> findByParentIsNullOrderBySortOrderAscNameAsc();
 
     List<Category> findByParentIdAndStatusOrderBySortOrderAscNameAsc(Long parentId, CategoryStatus status);
 

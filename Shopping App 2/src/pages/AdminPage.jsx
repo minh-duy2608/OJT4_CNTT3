@@ -41,7 +41,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import './AdminPage.css';
 
 // Core system roles protected by the system
-const PROTECTED_SYSTEM_ROLES = ['ADMIN', 'CLIENT', 'SHOP_OWNER', 'SHOP_MANAGER', 'SHOP_STAFF'];
+const PROTECTED_SYSTEM_ROLES = ['ADMIN', 'CLIENT', 'SHOP_MANAGER'];
 
 // Helper: Convert Vietnamese string to clean URL-friendly SEO slug
 const generateSlug = (text) => {
@@ -159,7 +159,7 @@ export const AdminPage = () => {
   };
 
   const handleSaveEditUser = async (e) => {
-    e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
     if (!editingUser) return;
     setIsSavingUser(true);
     try {
@@ -281,7 +281,7 @@ export const AdminPage = () => {
 
   // Create role (API 20)
   const handleSaveNewRole = async (e) => {
-    e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
     if (!newRoleData.code.trim() || !newRoleData.name.trim()) {
       triggerAlert('Vui lòng nhập đầy đủ mã và tên vai trò.', 'error');
       return;
@@ -313,7 +313,7 @@ export const AdminPage = () => {
   };
 
   const handleSaveEditRole = async (e) => {
-    e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
     if (!editingRole) return;
     setIsSavingEditRole(true);
     try {
@@ -494,7 +494,7 @@ export const AdminPage = () => {
 
   // Save Category (Create or Update)
   const handleSaveCategory = async (e) => {
-    e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
     if (!categoryFormData.name.trim()) {
       triggerAlert('Vui lòng nhập tên danh mục.', 'error');
       return;
@@ -836,9 +836,7 @@ export const AdminPage = () => {
                   <option value="">Tất cả Vai trò</option>
                   <option value="ADMIN">Quản trị viên (ADMIN)</option>
                   <option value="CLIENT">Khách hàng (CLIENT)</option>
-                  <option value="SHOP_OWNER">Chủ cửa hàng (SHOP_OWNER)</option>
-                  <option value="SHOP_MANAGER">Quản lý (SHOP_MANAGER)</option>
-                  <option value="SHOP_STAFF">Nhân viên (SHOP_STAFF)</option>
+                  <option value="SHOP_MANAGER">Quản lý shop (SHOP_MANAGER)</option>
                 </select>
 
                 {/* Filter by status */}
@@ -1091,7 +1089,7 @@ export const AdminPage = () => {
                   Quản lý Vai trò Hệ thống & Tùy chỉnh (STT 18 - 25)
                 </h2>
                 <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
-                  Các vai trò cốt lõi (ADMIN, CLIENT, SHOP_OWNER, v.v.) được bảo vệ khỏi việc xóa hoặc sửa mã.
+                  Các vai trò cốt lõi (ADMIN, CLIENT, SHOP_MANAGER) được bảo vệ khỏi việc xóa hoặc sửa mã.
                 </span>
               </div>
               <div className="admin-toolbar-right">
@@ -1276,7 +1274,7 @@ export const AdminPage = () => {
                         </td>
                         <td style={{ fontWeight: 600 }}>{cat.sortOrder ?? 0}</td>
                         <td>
-                          <span className={`status-pill ${cat.status.toLowerCase()}`}>
+                          <span className={`status-pill ${(cat.status || '').toLowerCase()}`}>
                             {cat.status === 'ACTIVE' ? '● Đang hiển thị' : '● Đã ẩn'}
                           </span>
                         </td>

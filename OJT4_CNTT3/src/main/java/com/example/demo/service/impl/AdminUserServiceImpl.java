@@ -56,9 +56,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     private static final Map<String, String> DEFAULT_ROLE_NAMES = Map.of(
             "ADMIN", "Quản trị viên",
             "CLIENT", "Khách hàng",
-            "SHOP_OWNER", "Chủ cửa hàng",
-            "SHOP_MANAGER", "Quản lý cửa hàng",
-            "SHOP_STAFF", "Nhân viên cửa hàng"
+            "SHOP_MANAGER", "Quản lý shop"
     );
 
     @Override
@@ -286,12 +284,8 @@ public class AdminUserServiceImpl implements AdminUserService {
         // Đồng bộ thuộc tính role chính (primary role) trên User
         if (willHaveAdmin) {
             user.setRole(Role.ROLE_ADMIN);
-        } else if (requestedCodes.contains("SHOP_OWNER")) {
-            user.setRole(Role.SHOP_OWNER);
         } else if (requestedCodes.contains("SHOP_MANAGER")) {
             user.setRole(Role.SHOP_MANAGER);
-        } else if (requestedCodes.contains("SHOP_STAFF")) {
-            user.setRole(Role.SHOP_STAFF);
         } else {
             user.setRole(Role.CLIENT);
         }

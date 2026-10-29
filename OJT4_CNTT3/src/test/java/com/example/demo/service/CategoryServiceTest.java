@@ -79,6 +79,19 @@ class CategoryServiceTest extends BaseUnitTest {
     }
 
     @Test
+    @DisplayName("STT 27: getCategories with null status should return all categories")
+    void getCategories_allStatuses_success() {
+        when(categoryRepository.findAllByOrderBySortOrderAscNameAsc())
+                .thenReturn(List.of(rootCategory, subCategory));
+
+        List<CategoryResponse> list = categoryService.getCategories(null, false);
+
+        assertNotNull(list);
+        assertEquals(2, list.size());
+        verify(categoryRepository, times(1)).findAllByOrderBySortOrderAscNameAsc();
+    }
+
+    @Test
     @DisplayName("STT 28: getCategoryById should return category detail")
     void getCategoryById_success() {
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(rootCategory));

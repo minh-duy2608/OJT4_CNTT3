@@ -312,19 +312,19 @@ class AdminUserServiceTest extends BaseUnitTest {
         @DisplayName("API 17: Should successfully assign roles to user")
         void assignUserRoles_success() {
             when(userRepository.findById(2L)).thenReturn(Optional.of(standardUser));
-            when(roleRepository.findByCode("SHOP_OWNER")).thenReturn(Optional.of(
-                    RoleEntity.builder().code("SHOP_OWNER").name("Chủ cửa hàng").build()
+            when(roleRepository.findByCode("SHOP_MANAGER")).thenReturn(Optional.of(
+                    RoleEntity.builder().code("SHOP_MANAGER").name("Quản lý shop").build()
             ));
             when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
             AdminAssignRolesRequest request = AdminAssignRolesRequest.builder()
-                    .roles(Set.of("SHOP_OWNER"))
+                    .roles(Set.of("SHOP_MANAGER"))
                     .build();
 
             List<RoleResponse> roles = adminUserService.assignUserRoles("system_admin", 2L, request);
 
             assertNotNull(roles);
-            assertEquals(Role.SHOP_OWNER, standardUser.getRole());
+            assertEquals(Role.SHOP_MANAGER, standardUser.getRole());
             verify(userRepository, times(1)).save(standardUser);
         }
     }

@@ -784,9 +784,7 @@ CREATE TABLE notifications (
 INSERT INTO roles (code, name, description, is_system) VALUES
 ('ADMIN', 'Quản trị viên', 'Quản lý toàn hệ thống', TRUE),
 ('CLIENT', 'Khách hàng', 'Người mua hàng', TRUE),
-('SHOP_OWNER', 'Chủ cửa hàng', 'Quản lý cửa hàng của mình', TRUE),
-('SHOP_MANAGER', 'Quản lý cửa hàng', 'Vận hành cửa hàng được phân công', TRUE),
-('SHOP_STAFF', 'Nhân viên cửa hàng', 'Hỗ trợ vận hành cửa hàng', TRUE);
+('SHOP_MANAGER', 'Quản lý shop', 'Quản lý và vận hành cửa hàng', TRUE);
 
 INSERT INTO permissions (code, name, description) VALUES
 ('USER_VIEW', 'Xem người dùng', 'Xem danh sách tài khoản'),
@@ -852,20 +850,6 @@ JOIN permissions p ON p.code IN (
 )
 WHERE r.code = 'CLIENT';
 
--- SHOP_OWNER: quản lý Shop, sản phẩm, coupon, đơn và báo cáo Shop.
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM roles r
-JOIN permissions p ON p.code IN (
-    'PRODUCT_VIEW','SHOP_UPDATE_OWN','PRODUCT_CREATE',
-    'PRODUCT_UPDATE_OWN','PRODUCT_DELETE_OWN','INVENTORY_MANAGE_OWN',
-    'COUPON_CREATE_OWN','COUPON_UPDATE_OWN','COUPON_VIEW_OWN',
-    'ORDER_VIEW_OWN','ORDER_UPDATE_OWN','REVIEW_VIEW',
-    'REVIEW_REPLY_OWN','REPORT_VIEW_OWN','RETURN_MANAGE_OWN',
-    'NOTIFICATION_VIEW_OWN'
-)
-WHERE r.code = 'SHOP_OWNER';
-
 -- SHOP_MANAGER: vận hành sản phẩm, coupon và đơn hàng trong Shop.
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
@@ -879,17 +863,6 @@ JOIN permissions p ON p.code IN (
     'NOTIFICATION_VIEW_OWN'
 )
 WHERE r.code = 'SHOP_MANAGER';
-
--- SHOP_STAFF: quyền vận hành giới hạn hơn; không cấp quyền coupon/báo cáo.
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM roles r
-JOIN permissions p ON p.code IN (
-    'PRODUCT_VIEW','PRODUCT_UPDATE_OWN','INVENTORY_MANAGE_OWN',
-    'ORDER_VIEW_OWN','ORDER_UPDATE_OWN','REVIEW_VIEW',
-    'NOTIFICATION_VIEW_OWN'
-)
-WHERE r.code = 'SHOP_STAFF';
 
 -- ============================================================
 -- 12. VIEWS FOR REPORTING

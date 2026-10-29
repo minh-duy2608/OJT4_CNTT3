@@ -226,12 +226,12 @@ class AdminUserControllerTest {
     void assignUserRoles_success() throws Exception {
         String jsonPayload = """
                 {
-                    "roles": ["SHOP_OWNER"]
+                    "roles": ["SHOP_MANAGER"]
                 }
                 """;
 
         List<RoleResponse> updatedRoles = List.of(
-                RoleResponse.builder().code("SHOP_OWNER").name("Chủ cửa hàng").isPrimary(true).build()
+                RoleResponse.builder().code("SHOP_MANAGER").name("Quản lý shop").isPrimary(true).build()
         );
 
         when(authentication.getName()).thenReturn("admin_user");
@@ -244,6 +244,6 @@ class AdminUserControllerTest {
                         .content(jsonPayload))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data[0].code").value("SHOP_OWNER"));
+                .andExpect(jsonPath("$.data[0].code").value("SHOP_MANAGER"));
     }
 }
