@@ -9,6 +9,7 @@ import { CheckoutPage } from '../pages/CheckoutPage';
 import { OrdersPage } from '../pages/OrdersPage';
 import { AuthPage } from '../pages/AuthPage';
 import { ProfilePage } from '../pages/ProfilePage';
+import { AdminPage } from '../pages/AdminPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 
 export const AppRoutes = () => {
@@ -25,6 +26,7 @@ export const AppRoutes = () => {
         <Route path="login" element={<AuthPage />} />
         <Route path="register" element={<AuthPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="admin" element={<AdminPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

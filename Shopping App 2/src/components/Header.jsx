@@ -14,7 +14,8 @@ import {
   Gamepad2,
   LogOut,
   ChevronDown,
-  Package
+  Package,
+  ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -163,6 +164,18 @@ export const Header = () => {
                   Liên hệ
                 </NavLink>
               </li>
+              {isAuthenticated && ['ADMIN', 'ROLE_ADMIN'].includes((user?.role || '').toUpperCase()) && (
+                <li>
+                  <NavLink 
+                    to="/admin" 
+                    className={({ isActive }) => `cyber-nav-link ${isActive ? 'active' : ''}`}
+                    style={{ color: '#2563eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <ShieldCheck size={16} />
+                    Quản trị
+                  </NavLink>
+                </li>
+              )}
             </ul>
           </nav>
 
@@ -219,6 +232,17 @@ export const Header = () => {
                 <div className="cyber-user-dropdown">
                   {isAuthenticated && user ? (
                     <>
+                      {['ADMIN', 'ROLE_ADMIN'].includes((user?.role || '').toUpperCase()) && (
+                        <Link 
+                          to="/admin" 
+                          className="cyber-dropdown-item" 
+                          onClick={() => setShowAuthDropdown(false)}
+                          style={{ color: '#2563eb', fontWeight: 600, background: '#eff6ff' }}
+                        >
+                          <ShieldCheck size={16} color="#2563eb" />
+                          Trung tâm Quản trị
+                        </Link>
+                      )}
                       <Link 
                         to="/profile" 
                         className="cyber-dropdown-item" 

@@ -1,0 +1,1024 @@
+/* ==========================================================================
+   Cyber Admin Console - Design System & Modern UX Styling
+   ========================================================================== */
+
+.cyber-admin-page {
+  background-color: #f8fafc;
+  min-height: calc(100vh - 120px);
+  padding: 2rem 0 4rem 0;
+  color: #0f172a;
+}
+
+/* ==========================================================================
+   Admin Header Bar & Identity Card
+   ========================================================================== */
+.admin-header-banner {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.5rem 2rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+
+.admin-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.admin-shield-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background: #000000;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.admin-title-group h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-title-group p {
+  color: #64748b;
+  font-size: 0.875rem;
+  margin: 0.25rem 0 0 0;
+}
+
+.admin-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.admin-identity-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 0.4rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+}
+
+.admin-identity-pill img {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.admin-role-badge {
+  background: #000000;
+  color: #ffffff;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.admin-btn-back-store {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.admin-btn-back-store:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+/* ==========================================================================
+   Metric Highlights Overview Grid
+   ========================================================================== */
+.admin-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.admin-metric-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.06);
+}
+
+.admin-metric-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-metric-icon-wrap.users {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.admin-metric-icon-wrap.roles {
+  background: #fdf4ff;
+  color: #c026d3;
+}
+
+.admin-metric-icon-wrap.categories {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.admin-metric-icon-wrap.shield {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.admin-metric-info .admin-metric-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.2rem;
+}
+
+.admin-metric-info .admin-metric-val {
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* ==========================================================================
+   Navigation Tabs
+   ========================================================================== */
+.admin-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.35rem;
+  margin-bottom: 1.5rem;
+  overflow-x: auto;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.admin-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.admin-tab-btn:hover {
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+.admin-tab-btn.active {
+  background: #000000;
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.admin-tab-badge {
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 9999px;
+}
+
+.admin-tab-btn.active .admin-tab-badge {
+  background: #27272a;
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   Main Content Container Card
+   ========================================================================== */
+.admin-card-container {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  position: relative;
+}
+
+/* Filter Controls Toolbar */
+.admin-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.admin-toolbar-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.admin-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 260px;
+  max-width: 380px;
+  flex: 1;
+}
+
+.admin-search-box input {
+  width: 100%;
+  padding: 0.55rem 2rem 0.55rem 2.25rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.84375rem;
+  color: #0f172a;
+  background: #ffffff;
+  transition: all 0.15s ease;
+}
+
+.admin-search-box input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.admin-search-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.admin-search-clear {
+  position: absolute;
+  right: 0.6rem;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+}
+
+.admin-select-filter {
+  padding: 0.55rem 2rem 0.55rem 0.85rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.84375rem;
+  color: #334155;
+  background: #ffffff;
+  cursor: pointer;
+  outline: none;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.admin-select-filter:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.admin-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.admin-btn-action-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #000000;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.55rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.admin-btn-action-primary:hover {
+  background: #27272a;
+  transform: translateY(-1px);
+}
+
+.admin-btn-action-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  border-radius: 8px;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.admin-btn-action-secondary:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+/* ==========================================================================
+   Data Table Styling
+   ========================================================================== */
+.admin-table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.admin-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84375rem;
+  text-align: left;
+}
+
+.admin-data-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+.admin-data-table td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  vertical-align: middle;
+}
+
+.admin-data-table tr:hover td {
+  background-color: #f8fafc;
+}
+
+.admin-data-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* User cell info */
+.admin-user-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.admin-user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #e2e8f0;
+}
+
+.admin-user-texts .admin-user-fullname {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.admin-user-texts .admin-user-meta {
+  font-size: 0.75rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Status Badges */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-size: 0.71875rem;
+  font-weight: 600;
+}
+
+.status-pill.active {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.status-pill.blocked {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.status-pill.pending {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.status-pill.inactive {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* Role Pills */
+.role-pill {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 0.71875rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin: 1px;
+}
+
+.role-pill.admin {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.role-pill.client {
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+.role-pill.shop_owner {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.role-pill.shop_manager {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.role-pill.shop_staff {
+  background: #ede9fe;
+  color: #5b21b6;
+  border: 1px solid #ddd6fe;
+}
+
+.role-pill.custom {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+/* Table Actions */
+.admin-table-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.admin-icon-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.admin-icon-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #e2e8f0;
+}
+
+.admin-icon-btn.danger:hover {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+.admin-icon-btn.primary:hover {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+}
+
+.admin-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: transparent !important;
+  color: #cbd5e1 !important;
+  border-color: transparent !important;
+}
+
+/* ==========================================================================
+   Pagination Styling
+   ========================================================================== */
+.admin-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.admin-pagination-info {
+  font-size: 0.8125rem;
+  color: #64748b;
+}
+
+.admin-pagination-btns {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.admin-page-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.admin-page-btn:hover:not(:disabled) {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.admin-page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-page-btn.active {
+  background: #000000;
+  color: #ffffff;
+  border-color: #000000;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   Alerts & Notifications Banners
+   ========================================================================== */
+.admin-alert-banner {
+  padding: 0.85rem 1.15rem;
+  border-radius: 8px;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.84375rem;
+  font-weight: 500;
+  animation: adminFadeIn 0.2s ease;
+}
+
+@keyframes adminFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.admin-alert-banner.success {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+}
+
+.admin-alert-banner.error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.admin-alert-banner.info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+}
+
+.admin-alert-close-btn {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.admin-alert-close-btn:hover {
+  opacity: 1;
+}
+
+/* ==========================================================================
+   Roles & Permissions Grid
+   ========================================================================== */
+.admin-roles-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.25rem;
+}
+
+.admin-role-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: all 0.15s ease;
+}
+
+.admin-role-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.admin-role-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.admin-role-title-box h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.25rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.admin-role-system-tag {
+  font-size: 0.65625rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.admin-role-system-tag.protected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.admin-role-system-tag.custom {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.admin-role-card-desc {
+  font-size: 0.8125rem;
+  color: #64748b;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+  flex-grow: 1;
+}
+
+.admin-role-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 0.85rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.admin-role-perm-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+/* ==========================================================================
+   Permission Checklist Selector (Modal)
+   ========================================================================== */
+.admin-permission-search-box {
+  margin-bottom: 1rem;
+}
+
+.admin-perm-group {
+  margin-bottom: 1.25rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.85rem;
+}
+
+.admin-perm-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.admin-perm-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.5rem;
+}
+
+.admin-perm-checkbox-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  background: #ffffff;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+}
+
+.admin-perm-checkbox-item:hover {
+  background: #f1f5f9;
+}
+
+.admin-perm-checkbox-item input[type="checkbox"] {
+  margin-top: 0.15rem;
+  cursor: pointer;
+}
+
+.admin-perm-code {
+  font-weight: 600;
+  color: #0f172a;
+  display: block;
+}
+
+.admin-perm-desc {
+  font-size: 0.6875rem;
+  color: #64748b;
+  display: block;
+}
+
+/* ==========================================================================
+   Category Hierarchy Tree / List
+   ========================================================================== */
+.admin-cat-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.admin-cat-thumb {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.admin-cat-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-cat-title-wrap .admin-cat-name {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.admin-cat-title-wrap .admin-cat-slug {
+  font-size: 0.71875rem;
+  color: #64748b;
+  font-family: monospace;
+}
+
+/* Form Groups inside Modals */
+.admin-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  text-align: left;
+}
+
+.admin-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.admin-form-group label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.admin-form-group input,
+.admin-form-group select,
+.admin-form-group textarea {
+  padding: 0.55rem 0.85rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.84375rem;
+  color: #0f172a;
+  background: #ffffff;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.admin-form-group input:focus,
+.admin-form-group select:focus,
+.admin-form-group textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.admin-form-group textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+
+.admin-form-hint {
+  font-size: 0.71875rem;
+  color: #64748b;
+}
+
+/* Permission List for My Permissions Tab */
+.admin-my-perms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+}
+
+.admin-my-perm-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.admin-my-perm-card .perm-code {
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  color: #0f172a;
+}
+
+/* Access Denied View */
+.admin-forbidden-view {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 4rem 2rem;
+  text-align: center;
+  max-width: 550px;
+  margin: 3rem auto;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.admin-forbidden-icon-wrap {
+  width: 64px;
+  height: 64px;
+  background: #fee2e2;
+  color: #dc2626;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem auto;
+}
+
+.admin-forbidden-view h2 {
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 0.5rem;
+}
+
+.admin-forbidden-view p {
+  color: #64748b;
+  font-size: 0.875rem;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.admin-forbidden-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .admin-header-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .admin-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .admin-toolbar-left,
+  .admin-toolbar-right {
+    width: 100%;
+  }
+
+  .admin-search-box {
+    max-width: 100%;
+  }
+}
