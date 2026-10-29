@@ -97,18 +97,20 @@ public class AdminUserServiceImpl implements AdminUserService {
             // 3. Lọc theo vai trò (role)
             if (role != null && !role.trim().isEmpty()) {
                 String normalizedRole = normalizeRoleCode(role.trim());
+                List<Predicate> rolePredicates = new ArrayList<>();
                 try {
                     Role roleEnum = Role.valueOf(normalizedRole);
-                    predicates.add(cb.equal(root.get("role"), roleEnum));
-                } catch (IllegalArgumentException ignored) {
-                    // Thử tìm role có tiền tố ROLE_
-                    try {
-                        Role roleEnumPrefixed = Role.valueOf("ROLE_" + normalizedRole);
-                        predicates.add(cb.equal(root.get("role"), roleEnumPrefixed));
-                    } catch (IllegalArgumentException ex) {
-                        log.warn("Unknown role filter: {}", role);
-                    }
-                }
+                    rolePredicates.add(cb.equal(root.get("role"), roleEnum));
+                } catch (IllegalArgumentException ignored) {}
+                try {
+                    Role roleEnumPrefixed = Role.valueOf("ROLE_" + normalizedRole);
+                    rolePredicates.add(cb.equal(root.get("role"), roleEnumPrefixed));
+                } catch (IllegalArgumentException ignored) {}
+
+                jakarta.persistence.criteria.Join<User, RoleEntity> rolesJoin = root.join("roles", jakarta.persistence.criteria.JoinType.LEFT);
+                rolePredicates.add(cb.equal(cb.upper(rolesJoin.get("code")), normalizedRole));
+
+                predicates.add(cb.or(rolePredicates.toArray(new Predicate[0])));
             }
 
             query.distinct(true);

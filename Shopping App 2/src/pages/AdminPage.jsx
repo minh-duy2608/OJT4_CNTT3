@@ -163,7 +163,11 @@ export const AdminPage = () => {
     if (!editingUser) return;
     setIsSavingUser(true);
     try {
-      await adminUserApi.updateUser(editingUser.id, editUserData);
+      await adminUserApi.updateUser(editingUser.id, {
+        fullName: editUserData.fullName?.trim() || null,
+        phone: editUserData.phone?.trim() || null,
+        avatarUrl: editUserData.avatarUrl?.trim() || null
+      });
       triggerAlert(`Đã cập nhật thông tin người dùng #${editingUser.id} thành công!`, 'success');
       setIsEditUserModalOpen(false);
       fetchUsers(userPage);
@@ -197,7 +201,7 @@ export const AdminPage = () => {
     }
     setIsSavingRoles(true);
     try {
-      await adminUserApi.assignUserRoles(roleAssignUser.id, { roleCodes: selectedRoleCodes });
+      await adminUserApi.assignUserRoles(roleAssignUser.id, { roles: selectedRoleCodes });
       triggerAlert(`Đã cập nhật tập vai trò cho người dùng ${roleAssignUser.username} thành công!`, 'success');
       setIsRoleAssignModalOpen(false);
       fetchUsers(userPage);
@@ -219,7 +223,7 @@ export const AdminPage = () => {
     if (!statusTargetUser) return;
     setIsSavingStatus(true);
     try {
-      await adminUserApi.updateUserStatus(statusTargetUser.id, targetNewStatus);
+      await adminUserApi.updateUserStatus(statusTargetUser.id, { status: targetNewStatus });
       triggerAlert(`Đã chuyển trạng thái tài khoản ${statusTargetUser.username} sang ${targetNewStatus}!`, 'success');
       setIsStatusModalOpen(false);
       fetchUsers(userPage);
@@ -944,11 +948,12 @@ export const AdminPage = () => {
                             </div>
                           </td>
                           <td>
-                            <span className={`status-pill ${u.status.toLowerCase()}`}>
+                            <span className={`status-pill ${(u.status || '').toLowerCase()}`}>
                               {u.status === 'ACTIVE' && '● Đang hoạt động'}
-                              {u.status === 'BLOCKED' && '● Đã bị khóa'}
+                              {['BLOCKED', 'LOCKED'].includes(u.status) && '● Đã bị khóa'}
                               {u.status === 'PENDING' && '● Chờ xác thực'}
                               {u.status === 'INACTIVE' && '● Ngừng sử dụng'}
+                              {u.status === 'DELETED' && '● Đã xóa mềm'}
                             </span>
                           </td>
                           <td style={{ color: '#64748b', fontSize: '0.75rem' }}>
@@ -987,7 +992,7 @@ export const AdminPage = () => {
                               </button>
 
                               {/* Khóa / Mở khóa tài khoản (API 15) */}
-                              {u.status === 'BLOCKED' ? (
+                              {['BLOCKED', 'LOCKED'].includes(u.status) ? (
                                 <button
                                   type="button"
                                   className="admin-icon-btn primary"
@@ -1000,9 +1005,9 @@ export const AdminPage = () => {
                                 <button
                                   type="button"
                                   className="admin-icon-btn danger"
-                                  title={isTargetAdmin && user.id === u.id ? 'Không thể tự khóa tài khoản Admin của chính mình' : 'Khóa tài khoản (API 15)'}
-                                  disabled={isTargetAdmin && user.id === u.id}
-                                  onClick={() => handleOpenStatusModal(u, 'BLOCKED')}
+                                  title={isTargetAdmin && user?.id === u.id ? 'Không thể tự khóa tài khoản Admin của chính mình' : 'Khóa tài khoản (API 15)'}
+                                  disabled={isTargetAdmin && user?.id === u.id}
+                                  onClick={() => handleOpenStatusModal(u, 'LOCKED')}
                                 >
                                   <Lock size={15} />
                                 </button>
@@ -1381,7 +1386,7 @@ export const AdminPage = () => {
                   </h4>
                   <div style={{ color: '#64748b', fontSize: '0.8125rem' }}>@{selectedUserDetail.username}</div>
                   <div style={{ marginTop: '0.35rem' }}>
-                    <span className={`status-pill ${selectedUserDetail.status.toLowerCase()}`}>
+                    <span className={`status-pill ${(selectedUserDetail.status || '').toLowerCase()}`}>
                       {selectedUserDetail.status}
                     </span>
                   </div>

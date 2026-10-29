@@ -1,8 +1,8 @@
 import { getStoredAccessToken, getStoredRefreshToken, setStoredTokens, clearStoredTokens, authApi } from './authApi';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL 
-  ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/admin/users` 
-  : '/admin/users';
+  ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api/v1/admin/users` 
+  : '/api/v1/admin/users';
 
 /**
  * Base HTTP request wrapper for Admin User Management API with Bearer token authentication
@@ -106,12 +106,13 @@ export const adminUserApi = {
   /**
    * STT 15: PATCH /admin/users/{userId}/status - Khóa hoặc mở khóa tài khoản
    * @param {number|string} userId
-   * @param {Object} data - { status: 'ACTIVE' | 'LOCKED' | 'DELETED', reason?: string }
+   * @param {string|Object} data - 'LOCKED' | { status: 'ACTIVE' | 'LOCKED' | 'DELETED', reason?: string }
    */
   async updateUserStatus(userId, data) {
+    const payload = typeof data === 'string' ? { status: data } : data;
     return await request(`/${userId}/status`, {
       method: 'PATCH',
-      body: JSON.stringify(data)
+      body: JSON.stringify(payload)
     });
   },
 
@@ -125,12 +126,15 @@ export const adminUserApi = {
   /**
    * STT 17: PUT /admin/users/{userId}/roles - Gán hoặc thay thế tập vai trò hệ thống theo chính sách
    * @param {number|string} userId
-   * @param {Object} data - { roles: ['ADMIN', 'CLIENT', 'SHOP_OWNER', ...] }
+   * @param {Array|Object} data - ['ADMIN'] | { roles: ['ADMIN', ...] } | { roleCodes: [...] }
    */
   async assignUserRoles(userId, data) {
+    const roleList = Array.isArray(data) 
+      ? data 
+      : (data?.roles || data?.roleCodes || []);
     return await request(`/${userId}/roles`, {
       method: 'PUT',
-      body: JSON.stringify(data)
+      body: JSON.stringify({ roles: roleList, roleCodes: roleList })
     });
   }
 };

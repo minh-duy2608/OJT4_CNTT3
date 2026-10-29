@@ -1,8 +1,8 @@
 import { getStoredAccessToken, getStoredRefreshToken, setStoredTokens, clearStoredTokens, authApi } from './authApi';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL 
-  ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/admin` 
-  : '/admin';
+  ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api/v1/admin` 
+  : '/api/v1/admin';
 
 async function request(endpoint = '', options = {}, isRetry = false) {
   const url = `${API_BASE_URL}${endpoint}`;
@@ -136,6 +136,21 @@ export const adminRoleApi = {
    * STT 26: GET /auth/me/permissions - Danh sách quyền của người dùng hiện tại
    */
   async getMyPermissions() {
-    return await request('/auth/me/permissions', { method: 'GET' });
+    const authUrl = import.meta.env.VITE_API_URL 
+      ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api/v1/auth/me/permissions` 
+      : '/api/v1/auth/me/permissions';
+    const token = getStoredAccessToken();
+    const res = await fetch(authUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(data?.message || 'Không thể lấy quyền cá nhân');
+    }
+    return data?.data !== undefined ? data.data : data;
   }
 };

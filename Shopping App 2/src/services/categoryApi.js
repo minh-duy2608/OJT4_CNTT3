@@ -1,8 +1,8 @@
 import { getStoredAccessToken, getStoredRefreshToken, setStoredTokens, clearStoredTokens, authApi } from './authApi';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL 
-  ? import.meta.env.VITE_API_URL.replace(/\/$/, '') 
-  : '';
+  ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api/v1` 
+  : '/api/v1';
 
 async function request(endpoint = '', options = {}, isRetry = false) {
   const url = `${API_BASE_URL}${endpoint}`;

@@ -1,5 +1,6 @@
 package com.example.demo.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,6 +17,7 @@ import java.util.Set;
 @Builder
 public class AdminAssignRolesRequest {
 
+    @JsonAlias({"roles", "roleCodes"})
     @NotEmpty(message = "Tập vai trò không được để trống")
     private Set<String> roles;
 }
