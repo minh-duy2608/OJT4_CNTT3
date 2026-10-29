@@ -13,7 +13,8 @@ export const ConfirmModal = ({
   type = 'confirm', // 'confirm' | 'danger' | 'success' | 'info'
   showCancel = true,
   icon = null,
-  children = null
+  children = null,
+  maxWidth = null
 }) => {
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -67,7 +68,11 @@ export const ConfirmModal = ({
       aria-modal="true"
       aria-labelledby="cyber-modal-title"
     >
-      <div className="cyber-modal-box" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="cyber-modal-box"
+        style={{ maxWidth: maxWidth || undefined }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Nút X đóng góc phải */}
         <button
           type="button"

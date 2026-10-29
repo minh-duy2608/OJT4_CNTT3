@@ -135,6 +135,64 @@ export const productApi = {
   async getShopProducts(shopId, params = {}) {
     const qs = buildProductQueryParams(params);
     return await request(`/shops/${shopId}/products${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
+  /**
+   * Admin: POST /admin/products - Tạo sản phẩm mới kèm danh sách biến thể & hình ảnh (ADMIN)
+   * @param {Object} productData
+   */
+  async createProduct(productData) {
+    return await request('/admin/products', {
+      method: 'POST',
+      body: JSON.stringify(productData)
+    });
+  },
+
+  /**
+   * Admin: PUT /admin/products/{productId} - Cập nhật sản phẩm, biến thể & hình ảnh (ADMIN)
+   * @param {number|string} productId
+   * @param {Object} productData
+   */
+  async updateProduct(productId, productData) {
+    return await request(`/admin/products/${productId}`, {
+      method: 'PUT',
+      body: JSON.stringify(productData)
+    });
+  },
+
+  /**
+   * Admin: DELETE /admin/products/{productId} - Xóa hoặc ngừng sử dụng sản phẩm (ADMIN)
+   * @param {number|string} productId
+   * @param {boolean} force
+   */
+  async deleteProduct(productId, force = false) {
+    return await request(`/admin/products/${productId}?force=${force}`, {
+      method: 'DELETE'
+    });
+  },
+
+  /**
+   * Upload hình ảnh sản phẩm lên máy chủ
+   * @param {File} file
+   */
+  async uploadImage(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = getStoredAccessToken();
+
+    const response = await fetch(`${API_BASE_URL}/upload`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      body: formData
+    });
+
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(data?.message || 'Tải ảnh lên thất bại');
+    }
+    return data?.data !== undefined ? data.data : data;
   }
 };
 

@@ -58,6 +58,12 @@ class ProductServiceTest extends BaseUnitTest {
     @Mock
     private ShopRepository shopRepository;
 
+    @Mock
+    private com.example.demo.repository.CategoryRepository categoryRepository;
+
+    @Mock
+    private com.example.demo.repository.BrandRepository brandRepository;
+
     @InjectMocks
     private ProductServiceImpl productService;
 
@@ -234,6 +240,65 @@ class ProductServiceTest extends BaseUnitTest {
         when(shopRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> productService.getShopProducts(999L, null));
+    }
+
+    @Test
+    @DisplayName("Admin: createProduct should save product, variants and images")
+    void createProduct_success() {
+        Category cat = Category.builder().id(1L).name("Điện thoại").build();
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(cat));
+        when(shopRepository.findAll()).thenReturn(List.of(Shop.builder().id(1L).name("Cyber Store").build()));
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
+            Product p = invocation.getArgument(0);
+            p.setId(101L);
+            return p;
+        });
+        when(productVariantRepository.save(any(ProductVariant.class))).thenAnswer(invocation -> {
+            ProductVariant v = invocation.getArgument(0);
+            v.setId(201L);
+            return v;
+        });
+        when(productRepository.findByIdAndStatusAndDeletedAtIsNull(101L, ProductStatus.ACTIVE)).thenReturn(Optional.of(product1));
+        when(productVariantRepository.findByProductIdAndStatus(101L, ProductVariantStatus.ACTIVE)).thenReturn(List.of(variant1));
+        when(productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(101L)).thenReturn(List.of(image1));
+
+        com.example.demo.dto.request.CreateProductRequest req = com.example.demo.dto.request.CreateProductRequest.builder()
+                .name("MacBook Pro M3")
+                .categoryId(1L)
+                .variants(List.of(
+                        com.example.demo.dto.request.CreateProductVariantRequest.builder()
+                                .variantName("M3 16GB 512GB")
+                                .sku("MBP-M3-16-512")
+                                .price(new BigDecimal("45000000"))
+                                .build()
+                ))
+                .images(List.of(
+                        com.example.demo.dto.request.CreateProductImageRequest.builder()
+                                .imageUrl("https://image.apple.com/mbp.jpg")
+                                .isPrimary(true)
+                                .build()
+                ))
+                .build();
+
+        ProductDetailResponse response = productService.createProduct(req);
+
+        assertNotNull(response);
+        verify(productRepository, times(1)).save(any(Product.class));
+        verify(productVariantRepository, times(1)).save(any(ProductVariant.class));
+        verify(inventoryRepository, times(1)).save(any(Inventory.class));
+        verify(productImageRepository, times(1)).save(any(ProductImage.class));
+    }
+
+    @Test
+    @DisplayName("Admin: deleteProduct with force=false should soft-delete product")
+    void deleteProduct_softDelete() {
+        when(productRepository.findById(100L)).thenReturn(Optional.of(product1));
+
+        productService.deleteProduct(100L, false);
+
+        assertEquals(ProductStatus.INACTIVE, product1.getStatus());
+        assertNotNull(product1.getDeletedAt());
+        verify(productRepository, times(1)).save(product1);
     }
 }
 

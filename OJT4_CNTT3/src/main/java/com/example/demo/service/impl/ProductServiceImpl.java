@@ -51,6 +51,8 @@ public class ProductServiceImpl implements ProductService {
     private final ProductImageRepository productImageRepository;
     private final InventoryRepository inventoryRepository;
     private final ShopRepository shopRepository;
+    private final com.example.demo.repository.CategoryRepository categoryRepository;
+    private final com.example.demo.repository.BrandRepository brandRepository;
 
     private static final Set<String> ALLOWED_SORT_FIELDS = Set.of("id", "name", "createdAt", "updatedAt");
 
@@ -88,9 +90,13 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public ProductDetailResponse getProductById(Long productId) {
         Product product = productRepository.findByIdAndStatusAndDeletedAtIsNull(productId, ProductStatus.ACTIVE)
+                .or(() -> productRepository.findByIdAndDeletedAtIsNull(productId))
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + productId));
 
         List<ProductVariant> variantEntities = productVariantRepository.findByProductIdAndStatus(productId, ProductVariantStatus.ACTIVE);
+        if (variantEntities.isEmpty()) {
+            variantEntities = productVariantRepository.findByProductIdOrderByPriceAsc(productId);
+        }
         List<Long> variantIds = variantEntities.stream().map(ProductVariant::getId).collect(Collectors.toList());
 
         Map<Long, Inventory> inventoryMap = inventoryRepository.findByVariantIdIn(variantIds).stream()
@@ -269,6 +275,276 @@ public class ProductServiceImpl implements ProductService {
                 .orElse(images.isEmpty() ? null : images.get(0).getImageUrl());
 
         return ProductSummaryResponse.fromEntity(product, minPrice, maxPrice, primaryImage);
+    }
+
+    @Override
+    @Transactional
+    public ProductDetailResponse createProduct(com.example.demo.dto.request.CreateProductRequest request) {
+        com.example.demo.entity.Category category = categoryRepository.findById(request.getCategoryId())
+                .orElseThrow(() -> new ResourceNotFoundException("Danh mục không tồn tại với ID: " + request.getCategoryId()));
+
+        com.example.demo.entity.Brand brand = null;
+        if (request.getBrandId() != null) {
+            brand = brandRepository.findById(request.getBrandId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Thương hiệu không tồn tại với ID: " + request.getBrandId()));
+        }
+
+        Long shopId = request.getShopId();
+        if (shopId == null) {
+            com.example.demo.entity.Shop defaultShop = shopRepository.findAll().stream().findFirst()
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng nào trong hệ thống"));
+            shopId = defaultShop.getId();
+        }
+
+        String slug = request.getSlug();
+        if (slug == null || slug.isBlank()) {
+            slug = toSlug(request.getName());
+        }
+
+        String uniqueSlug = slug;
+        int counter = 1;
+        while (productRepository.existsByShopIdAndSlug(shopId, uniqueSlug)) {
+            uniqueSlug = slug + "-" + counter++;
+        }
+
+        Product product = Product.builder()
+                .name(request.getName())
+                .slug(uniqueSlug)
+                .category(category)
+                .brand(brand)
+                .brandId(brand != null ? brand.getId() : null)
+                .shopId(shopId)
+                .shortDescription(request.getShortDescription())
+                .description(request.getDescription())
+                .warrantyMonths(request.getWarrantyMonths())
+                .status(request.getStatus() != null ? request.getStatus() : ProductStatus.ACTIVE)
+                .build();
+
+        Product savedProduct = productRepository.save(product);
+
+        // Process Variants
+        if (request.getVariants() != null && !request.getVariants().isEmpty()) {
+            for (com.example.demo.dto.request.CreateProductVariantRequest vReq : request.getVariants()) {
+                String sku = vReq.getSku();
+                if (sku == null || sku.isBlank()) {
+                    sku = "SKU-" + savedProduct.getId() + "-" + (System.currentTimeMillis() % 100000) + "-" + (int)(Math.random() * 1000);
+                }
+
+                String attributesJson = vReq.getAttributes();
+                if (attributesJson == null && (vReq.getColor() != null || vReq.getStorage() != null)) {
+                    attributesJson = String.format("{\"color\":\"%s\",\"storage\":\"%s\"}",
+                            vReq.getColor() != null ? vReq.getColor() : "",
+                            vReq.getStorage() != null ? vReq.getStorage() : "");
+                }
+
+                ProductVariant variant = ProductVariant.builder()
+                        .product(savedProduct)
+                        .variantName(vReq.getVariantName())
+                        .sku(sku)
+                        .price(vReq.getPrice())
+                        .salePrice(vReq.getSalePrice())
+                        .weightGrams(vReq.getWeightGrams())
+                        .attributes(attributesJson)
+                        .status(vReq.getStatus() != null ? vReq.getStatus() : ProductVariantStatus.ACTIVE)
+                        .build();
+
+                ProductVariant savedVariant = productVariantRepository.save(variant);
+
+                int qty = vReq.getStockQuantity() != null ? vReq.getStockQuantity() : 100;
+                Inventory inventory = Inventory.builder()
+                        .variantId(savedVariant.getId())
+                        .quantity(qty)
+                        .reservedQuantity(0)
+                        .build();
+                inventoryRepository.save(inventory);
+            }
+        } else {
+            String defaultSku = "SKU-" + savedProduct.getId() + "-STD";
+            ProductVariant defaultVariant = ProductVariant.builder()
+                    .product(savedProduct)
+                    .variantName(savedProduct.getName() + " - Tiêu chuẩn")
+                    .sku(defaultSku)
+                    .price(BigDecimal.valueOf(1000000))
+                    .status(ProductVariantStatus.ACTIVE)
+                    .build();
+            ProductVariant savedVariant = productVariantRepository.save(defaultVariant);
+            inventoryRepository.save(Inventory.builder()
+                    .variantId(savedVariant.getId())
+                    .quantity(100)
+                    .reservedQuantity(0)
+                    .build());
+        }
+
+        // Process Images
+        if (request.getImages() != null && !request.getImages().isEmpty()) {
+            boolean hasPrimary = false;
+            for (int i = 0; i < request.getImages().size(); i++) {
+                com.example.demo.dto.request.CreateProductImageRequest imgReq = request.getImages().get(i);
+                boolean isPrimary = Boolean.TRUE.equals(imgReq.getIsPrimary()) || (!hasPrimary && i == 0);
+                if (isPrimary) hasPrimary = true;
+
+                ProductImage img = ProductImage.builder()
+                        .product(savedProduct)
+                        .imageUrl(imgReq.getImageUrl())
+                        .altText(imgReq.getAltText() != null ? imgReq.getAltText() : savedProduct.getName())
+                        .isPrimary(isPrimary)
+                        .sortOrder(imgReq.getSortOrder() != null ? imgReq.getSortOrder() : i)
+                        .build();
+                productImageRepository.save(img);
+            }
+        }
+
+        return getProductById(savedProduct.getId());
+    }
+
+    @Override
+    @Transactional
+    public ProductDetailResponse updateProduct(Long productId, com.example.demo.dto.request.UpdateProductRequest request) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + productId));
+
+        if (request.getName() != null && !request.getName().isBlank()) {
+            product.setName(request.getName());
+        }
+
+        if (request.getSlug() != null && !request.getSlug().isBlank()) {
+            product.setSlug(request.getSlug());
+        }
+
+        if (request.getCategoryId() != null) {
+            com.example.demo.entity.Category category = categoryRepository.findById(request.getCategoryId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Danh mục không tồn tại: " + request.getCategoryId()));
+            product.setCategory(category);
+        }
+
+        if (request.getBrandId() != null) {
+            com.example.demo.entity.Brand brand = brandRepository.findById(request.getBrandId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Thương hiệu không tồn tại: " + request.getBrandId()));
+            product.setBrand(brand);
+            product.setBrandId(brand.getId());
+        }
+
+        if (request.getShortDescription() != null) {
+            product.setShortDescription(request.getShortDescription());
+        }
+
+        if (request.getDescription() != null) {
+            product.setDescription(request.getDescription());
+        }
+
+        if (request.getWarrantyMonths() != null) {
+            product.setWarrantyMonths(request.getWarrantyMonths());
+        }
+
+        if (request.getStatus() != null) {
+            product.setStatus(request.getStatus());
+        }
+
+        Product savedProduct = productRepository.save(product);
+
+        if (request.getVariants() != null && !request.getVariants().isEmpty()) {
+            List<ProductVariant> existingVariants = productVariantRepository.findByProductIdOrderByPriceAsc(productId);
+            for (ProductVariant ev : existingVariants) {
+                inventoryRepository.deleteById(ev.getId());
+                productVariantRepository.delete(ev);
+            }
+
+            for (com.example.demo.dto.request.CreateProductVariantRequest vReq : request.getVariants()) {
+                String sku = vReq.getSku();
+                if (sku == null || sku.isBlank()) {
+                    sku = "SKU-" + savedProduct.getId() + "-" + (System.currentTimeMillis() % 100000) + "-" + (int)(Math.random() * 1000);
+                }
+
+                String attributesJson = vReq.getAttributes();
+                if (attributesJson == null && (vReq.getColor() != null || vReq.getStorage() != null)) {
+                    attributesJson = String.format("{\"color\":\"%s\",\"storage\":\"%s\"}",
+                            vReq.getColor() != null ? vReq.getColor() : "",
+                            vReq.getStorage() != null ? vReq.getStorage() : "");
+                }
+
+                ProductVariant variant = ProductVariant.builder()
+                        .product(savedProduct)
+                        .variantName(vReq.getVariantName())
+                        .sku(sku)
+                        .price(vReq.getPrice())
+                        .salePrice(vReq.getSalePrice())
+                        .weightGrams(vReq.getWeightGrams())
+                        .attributes(attributesJson)
+                        .status(vReq.getStatus() != null ? vReq.getStatus() : ProductVariantStatus.ACTIVE)
+                        .build();
+
+                ProductVariant savedVariant = productVariantRepository.save(variant);
+
+                int qty = vReq.getStockQuantity() != null ? vReq.getStockQuantity() : 100;
+                inventoryRepository.save(Inventory.builder()
+                        .variantId(savedVariant.getId())
+                        .quantity(qty)
+                        .reservedQuantity(0)
+                        .build());
+            }
+        }
+
+        if (request.getImages() != null) {
+            List<ProductImage> oldImages = productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(productId);
+            productImageRepository.deleteAll(oldImages);
+
+            boolean hasPrimary = false;
+            for (int i = 0; i < request.getImages().size(); i++) {
+                com.example.demo.dto.request.CreateProductImageRequest imgReq = request.getImages().get(i);
+                boolean isPrimary = Boolean.TRUE.equals(imgReq.getIsPrimary()) || (!hasPrimary && i == 0);
+                if (isPrimary) hasPrimary = true;
+
+                ProductImage img = ProductImage.builder()
+                        .product(savedProduct)
+                        .imageUrl(imgReq.getImageUrl())
+                        .altText(imgReq.getAltText() != null ? imgReq.getAltText() : savedProduct.getName())
+                        .isPrimary(isPrimary)
+                        .sortOrder(imgReq.getSortOrder() != null ? imgReq.getSortOrder() : i)
+                        .build();
+                productImageRepository.save(img);
+            }
+        }
+
+        return getProductById(productId);
+    }
+
+    @Override
+    @Transactional
+    public void deleteProduct(Long productId, boolean force) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + productId));
+
+        if (!force) {
+            product.setStatus(ProductStatus.INACTIVE);
+            product.setDeletedAt(java.time.LocalDateTime.now());
+            productRepository.save(product);
+            log.info("Soft-deactivated product #{}", productId);
+        } else {
+            List<ProductVariant> variants = productVariantRepository.findByProductIdOrderByPriceAsc(productId);
+            for (ProductVariant v : variants) {
+                inventoryRepository.deleteById(v.getId());
+                productVariantRepository.delete(v);
+            }
+            List<ProductImage> images = productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(productId);
+            productImageRepository.deleteAll(images);
+            productRepository.delete(product);
+            log.info("Permanently deleted product #{}", productId);
+        }
+    }
+
+    private String toSlug(String input) {
+        if (input == null || input.isBlank()) {
+            return "product-" + System.currentTimeMillis();
+        }
+        String normalized = java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD);
+        String slug = normalized.replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
+                .toLowerCase()
+                .replaceAll("đ", "d")
+                .replaceAll("[^a-z0-9\\s-]", "")
+                .replaceAll("\\s+", "-")
+                .replaceAll("-+", "-")
+                .replaceAll("^-|-$", "");
+        return slug.isBlank() ? "product-" + System.currentTimeMillis() : slug;
     }
 }
 

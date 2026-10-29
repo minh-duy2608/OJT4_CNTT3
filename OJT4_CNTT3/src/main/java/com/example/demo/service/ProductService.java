@@ -40,5 +40,20 @@ public interface ProductService {
      * STT 44: GET /shops/{shopId}/products - Sản phẩm công khai của cửa hàng (Public)
      */
     PageResponse<ProductSummaryResponse> getShopProducts(Long shopId, ProductFilterCriteria criteria);
+
+    /**
+     * Admin: POST /admin/products - Tạo sản phẩm mới kèm biến thể và hình ảnh
+     */
+    ProductDetailResponse createProduct(com.example.demo.dto.request.CreateProductRequest request);
+
+    /**
+     * Admin: PUT /admin/products/{productId} - Cập nhật sản phẩm, biến thể và hình ảnh
+     */
+    ProductDetailResponse updateProduct(Long productId, com.example.demo.dto.request.UpdateProductRequest request);
+
+    /**
+     * Admin: DELETE /admin/products/{productId} - Xóa hoặc ngừng sử dụng sản phẩm
+     */
+    void deleteProduct(Long productId, boolean force);
 }
 

@@ -28,4 +28,6 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     long countByBrandId(Long brandId);
 
     long countByShopId(Long shopId);
+
+    boolean existsByShopIdAndSlug(Long shopId, String slug);
 }

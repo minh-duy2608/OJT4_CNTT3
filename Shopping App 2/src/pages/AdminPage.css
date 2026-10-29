@@ -174,6 +174,11 @@
   color: #dc2626;
 }
 
+.admin-metric-icon-wrap.products {
+  background: #fef3c7;
+  color: #d97706;
+}
+
 .admin-metric-icon-wrap.shield {
   background: #fffbeb;
   color: #d97706;
@@ -1026,5 +1031,121 @@
   .admin-search-box {
     max-width: 100%;
   }
+}
+
+/* ==========================================================================
+   Product Management Specific Styling
+   ========================================================================== */
+.admin-product-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.admin-product-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.admin-prod-images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.admin-prod-img-card {
+  position: relative;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: all 0.15s ease;
+}
+
+.admin-prod-img-card.primary {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+.admin-prod-img-thumb {
+  width: 100%;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.admin-prod-img-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.admin-prod-img-actions {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.35rem;
+  gap: 0.25rem;
+}
+
+.admin-prod-img-badge-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.65625rem;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+.admin-prod-img-btn-set {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  font-size: 0.65625rem;
+  font-weight: 600;
+  padding: 2px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.admin-prod-img-btn-set:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+.admin-prod-img-btn-del {
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-prod-img-btn-del:hover {
+  color: #b91c1c;
 }
 
