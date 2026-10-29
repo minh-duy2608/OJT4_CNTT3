@@ -44,6 +44,22 @@ public class Product {
     @Column(name = "brand_id")
     private Long brandId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "brand_id", insertable = false, updatable = false)
+    private Brand brand;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "shop_id", insertable = false, updatable = false)
+    private Shop shop;
+
+    @jakarta.persistence.OneToMany(mappedBy = "product", cascade = jakarta.persistence.CascadeType.ALL, fetch = FetchType.LAZY)
+    @Builder.Default
+    private java.util.List<ProductVariant> variants = new java.util.ArrayList<>();
+
+    @jakarta.persistence.OneToMany(mappedBy = "product", cascade = jakarta.persistence.CascadeType.ALL, fetch = FetchType.LAZY)
+    @Builder.Default
+    private java.util.List<ProductImage> images = new java.util.ArrayList<>();
+
     @Column(nullable = false, length = 255)
     private String name;
 
@@ -88,5 +104,16 @@ public class Product {
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
+    }
+
+    public String getPrimaryImageUrl() {
+        if (images != null && !images.isEmpty()) {
+            return images.stream()
+                    .filter(ProductImage::isPrimary)
+                    .map(ProductImage::getImageUrl)
+                    .findFirst()
+                    .orElse(images.get(0).getImageUrl());
+        }
+        return null;
     }
 }

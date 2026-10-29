@@ -33,6 +33,12 @@ public class RoleDataInitializer implements CommandLineRunner {
     private final RoleRepository roleRepository;
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
+    private final com.example.demo.repository.BrandRepository brandRepository;
+    private final com.example.demo.repository.ShopRepository shopRepository;
+    private final com.example.demo.repository.ProductRepository productRepository;
+    private final com.example.demo.repository.ProductVariantRepository productVariantRepository;
+    private final com.example.demo.repository.ProductImageRepository productImageRepository;
+    private final com.example.demo.repository.InventoryRepository inventoryRepository;
     private final PasswordEncoder passwordEncoder;
 
     // 44 Standard Permissions extracted from 01-init.sql
@@ -90,6 +96,8 @@ public class RoleDataInitializer implements CommandLineRunner {
         initRoles();
         initDefaultAdmin();
         initDefaultCategories();
+        initDefaultBrands();
+        initDefaultShopAndProducts();
     }
 
     private void initPermissions() {
@@ -284,5 +292,170 @@ public class RoleDataInitializer implements CommandLineRunner {
 
         categoryRepository.saveAll(sampleCategories);
         log.info("Initialized {} default product categories", sampleCategories.size());
+    }
+
+    private void initDefaultBrands() {
+        if (brandRepository.count() > 0) {
+            return;
+        }
+
+        List<com.example.demo.entity.Brand> sampleBrands = List.of(
+                com.example.demo.entity.Brand.builder().name("Apple").slug("apple").description("Apple Inc. - iPhone, iPad, Mac, Apple Watch").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
+                com.example.demo.entity.Brand.builder().name("Samsung").slug("samsung").description("Samsung Electronics - Galaxy Phones, Tablets, Watches").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
+                com.example.demo.entity.Brand.builder().name("Sony").slug("sony").description("Sony - Tai nghe, loa bluetooth, thiết bị âm thanh đỉnh cao").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
+                com.example.demo.entity.Brand.builder().name("Dell").slug("dell").description("Dell - Laptop doanh nhân XPS, Alienware Gaming").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
+                com.example.demo.entity.Brand.builder().name("Asus").slug("asus").description("Asus - Zenbook, ROG Gaming laptop & linh kiện").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
+                com.example.demo.entity.Brand.builder().name("Xiaomi").slug("xiaomi").description("Xiaomi - Thiết bị di động & hệ sinh thái thông minh").status(com.example.demo.entity.BrandStatus.ACTIVE).build()
+        );
+
+        brandRepository.saveAll(sampleBrands);
+        log.info("Initialized {} default product brands", sampleBrands.size());
+    }
+
+    private void initDefaultShopAndProducts() {
+        if (productRepository.count() > 0) {
+            return;
+        }
+
+        // Đảm bảo có ít nhất 1 shop chính thức
+        com.example.demo.entity.Shop officialShop = shopRepository.findBySlug("cyber-official-store").orElseGet(() -> {
+            User adminUser = userRepository.findByEmail("son666727@gmail.com")
+                    .or(() -> userRepository.findByEmail("hson05542@gmail.com"))
+                    .orElse(null);
+            Long ownerId = adminUser != null ? adminUser.getId() : 1L;
+
+            return shopRepository.save(com.example.demo.entity.Shop.builder()
+                    .ownerId(ownerId)
+                    .name("Cyber Flagship Store")
+                    .slug("cyber-official-store")
+                    .description("Cửa hàng công nghệ chính hãng Cyber Tech Mall")
+                    .email("support@cybertech.vn")
+                    .phone("19006868")
+                    .province("TP. Hồ Chí Minh")
+                    .district("Quận 1")
+                    .status(com.example.demo.entity.ShopStatus.ACTIVE)
+                    .build());
+        });
+
+        // Lấy danh mục và thương hiệu mẫu
+        var catPhone = categoryRepository.findBySlug("dien-thoai-tablet").orElse(null);
+        var catLaptop = categoryRepository.findBySlug("laptop-may-tinh").orElse(null);
+        var catAudio = categoryRepository.findBySlug("am-thanh-tai-nghe").orElse(null);
+        var catWatch = categoryRepository.findBySlug("dong-ho-thong-minh").orElse(null);
+
+        var brandApple = brandRepository.findBySlug("apple").orElse(null);
+        var brandSamsung = brandRepository.findBySlug("samsung").orElse(null);
+        var brandSony = brandRepository.findBySlug("sony").orElse(null);
+
+        if (catPhone == null || brandApple == null) {
+            return;
+        }
+
+        // 1. iPhone 15 Pro Max
+        createSampleProduct(
+                officialShop.getId(), catPhone, brandApple,
+                "iPhone 15 Pro Max 256GB", "iphone-15-pro-max-256gb",
+                "Thiết kế titan cao cấp, chip A17 Pro cực mạnh, camera tiềm vọng 5x",
+                "Màn hình Super Retina XDR OLED 6.7 inch 120Hz Promotion. Khung vỏ Titan chuẩn hàng không vũ trụ siêu bền và nhẹ. Cổng USB-C tốc độ truyền 10Gbps.",
+                12, "IP15PM-256-BLK", "Titan Đen 256GB",
+                new java.math.BigDecimal("29990000"), new java.math.BigDecimal("28490000"),
+                50, "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=800"
+        );
+
+        // 2. Samsung Galaxy S24 Ultra
+        if (brandSamsung != null) {
+            createSampleProduct(
+                    officialShop.getId(), catPhone, brandSamsung,
+                    "Samsung Galaxy S24 Ultra 512GB", "samsung-galaxy-s24-ultra-512gb",
+                    "Quyền năng Galaxy AI, khung viền titan và bút S-Pen thông minh",
+                    "Snapdragon 8 Gen 3 for Galaxy, Màn hình Dynamic AMOLED 2X 6.8 inch 2600 nits chống chói. Camera 200MP đột phá.",
+                    12, "S24U-512-GRY", "Xám Titan 512GB",
+                    new java.math.BigDecimal("31990000"), new java.math.BigDecimal("29990000"),
+                    35, "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=800"
+            );
+        }
+
+        // 3. Sony WH-1000XM5
+        if (catAudio != null && brandSony != null) {
+            createSampleProduct(
+                    officialShop.getId(), catAudio, brandSony,
+                    "Tai nghe chống ồn Sony WH-1000XM5", "sony-wh-1000xm5",
+                    "Khả năng chống ồn hàng đầu ngành với bộ xử lý tích hợp V1",
+                    "Thời lượng pin lên đến 30 giờ, công nghệ đàm thoại khử tiếng ồn bằng AI, sạc nhanh 3 phút nghe được 3 giờ.",
+                    12, "WH1000XM5-BLK", "Đen Huyền Bí",
+                    new java.math.BigDecimal("8490000"), new java.math.BigDecimal("7990000"),
+                    40, "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800"
+            );
+        }
+
+        // 4. Apple Watch Series 9
+        if (catWatch != null) {
+            createSampleProduct(
+                    officialShop.getId(), catWatch, brandApple,
+                    "Apple Watch Series 9 GPS 45mm", "apple-watch-series-9-gps-45mm",
+                    "Chip S9 SiP mạnh mẽ, cử chỉ chạm hai lần Double Tap kỳ diệu",
+                    "Màn hình sáng gấp đôi lên đến 2000 nits, theo dõi nhịp tim, điện tâm đồ ECG, theo dõi giấc ngủ chi tiết.",
+                    12, "AWS9-45-MID", "Midnight Nhôm 45mm",
+                    new java.math.BigDecimal("10490000"), null,
+                    25, "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800"
+            );
+        }
+
+        log.info("Initialized default shop and catalog sample products");
+    }
+
+    private void createSampleProduct(
+            Long shopId,
+            Category category,
+            com.example.demo.entity.Brand brand,
+            String name,
+            String slug,
+            String shortDesc,
+            String desc,
+            int warranty,
+            String sku,
+            String variantName,
+            java.math.BigDecimal price,
+            java.math.BigDecimal salePrice,
+            int stock,
+            String imageUrl
+    ) {
+        com.example.demo.entity.Product product = productRepository.save(com.example.demo.entity.Product.builder()
+                .shopId(shopId)
+                .category(category)
+                .brandId(brand.getId())
+                .name(name)
+                .slug(slug)
+                .shortDescription(shortDesc)
+                .description(desc)
+                .warrantyMonths(warranty)
+                .status(com.example.demo.entity.ProductStatus.ACTIVE)
+                .build());
+
+        com.example.demo.entity.ProductVariant variant = productVariantRepository.save(com.example.demo.entity.ProductVariant.builder()
+                .product(product)
+                .sku(sku)
+                .variantName(variantName)
+                .price(price)
+                .salePrice(salePrice)
+                .weightGrams(250)
+                .status(com.example.demo.entity.ProductVariantStatus.ACTIVE)
+                .build());
+
+        inventoryRepository.save(com.example.demo.entity.Inventory.builder()
+                .variantId(variant.getId())
+                .quantity(stock)
+                .reservedQuantity(0)
+                .build());
+
+        if (imageUrl != null) {
+            productImageRepository.save(com.example.demo.entity.ProductImage.builder()
+                    .product(product)
+                    .imageUrl(imageUrl)
+                    .altText(name)
+                    .isPrimary(true)
+                    .sortOrder(0)
+                    .build());
+        }
     }
 }
