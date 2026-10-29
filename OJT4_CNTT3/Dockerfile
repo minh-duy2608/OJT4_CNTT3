@@ -27,8 +27,9 @@ FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-# Create a non-root user for security
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# Create a non-root user for security and uploads directory
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
+    mkdir -p /app/uploads && chown -R appuser:appgroup /app/uploads && chmod 777 /app/uploads
 
 # Copy executable jar from builder stage
 COPY --from=builder /app/build/libs/*.jar app.jar
