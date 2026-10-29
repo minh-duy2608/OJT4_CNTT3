@@ -15,3 +15,4 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
 
     List<Inventory> findByVariantIdIn(Collection<Long> variantIds);
 }
+

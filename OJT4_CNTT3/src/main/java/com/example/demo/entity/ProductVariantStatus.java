@@ -4,3 +4,4 @@ public enum ProductVariantStatus {
     ACTIVE,
     INACTIVE
 }
+

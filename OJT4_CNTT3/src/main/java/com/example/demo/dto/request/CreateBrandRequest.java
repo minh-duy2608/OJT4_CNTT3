@@ -31,3 +31,4 @@ public class CreateBrandRequest {
     @Builder.Default
     private BrandStatus status = BrandStatus.ACTIVE;
 }
+

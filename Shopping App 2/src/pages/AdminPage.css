@@ -169,6 +169,11 @@
   color: #16a34a;
 }
 
+.admin-metric-icon-wrap.brands {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
 .admin-metric-icon-wrap.shield {
   background: #fffbeb;
   color: #d97706;

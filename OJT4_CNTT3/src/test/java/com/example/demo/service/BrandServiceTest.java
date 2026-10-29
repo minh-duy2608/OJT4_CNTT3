@@ -216,3 +216,4 @@ class BrandServiceTest extends BaseUnitTest {
         verify(brandRepository, times(1)).delete(appleBrand);
     }
 }
+

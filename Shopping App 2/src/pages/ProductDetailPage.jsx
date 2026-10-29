@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   Heart, 
@@ -13,7 +13,8 @@ import {
   Zap, 
   Share2,
   ChevronRight,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Store
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -21,6 +22,7 @@ import { INITIAL_PRODUCTS, formatVND } from '../data/products';
 import { ProductCard } from '../components/ProductCard';
 import { VariantSelectionModal } from '../components/VariantSelectionModal';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { productApi } from '../services/productApi';
 import './ProductDetailPage.css';
 
 export const ProductDetailPage = () => {
@@ -29,11 +31,62 @@ export const ProductDetailPage = () => {
   const { addToCart, showToast } = useCart();
   const { isAuthenticated } = useAuth();
 
-  // Tìm sản phẩm theo id
-  const product = INITIAL_PRODUCTS.find((p) => p.id === id) || INITIAL_PRODUCTS[0];
+  // Tìm sản phẩm mock dự phòng
+  const fallbackProduct = INITIAL_PRODUCTS.find((p) => String(p.id) === String(id)) || INITIAL_PRODUCTS[0];
 
-  const [isLiked, setIsLiked] = useState(Boolean(product.isLiked));
+  const [product, setProduct] = useState(fallbackProduct);
+  const [selectedImage, setSelectedImage] = useState(fallbackProduct.image);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLiked, setIsLiked] = useState(Boolean(fallbackProduct.isLiked));
   const [copiedLink, setCopiedLink] = useState(false);
+
+  // Fetch product detail from API (STT 40)
+  useEffect(() => {
+    let isMounted = true;
+    if (id) {
+      setIsLoading(true);
+      productApi.getProductById(id)
+        .then((data) => {
+          if (!isMounted || !data) return;
+          const minP = data.minPrice ?? 0;
+          const maxP = data.maxPrice ?? minP;
+          const primaryImg = data.primaryImageUrl || (data.images && data.images[0]?.imageUrl) || fallbackProduct.image;
+
+          const liveProduct = {
+            id: data.id,
+            name: data.name,
+            description: data.description || fallbackProduct.description,
+            price: minP,
+            formattedPrice: minP ? formatVND(minP) : 'Liên hệ',
+            formattedOriginalPrice: maxP > minP ? formatVND(maxP) : (minP ? formatVND(minP * 1.1) : ''),
+            image: primaryImg,
+            primaryImageUrl: primaryImg,
+            images: data.images || [],
+            variants: data.variants || [],
+            category: data.category?.name || fallbackProduct.category,
+            brand: data.brand?.name || 'Cyber Official',
+            brandLogo: data.brand?.logoUrl,
+            shop: data.shop?.name || 'Cyber Flagship Store',
+            inStock: data.inStock !== false
+          };
+
+          setProduct(liveProduct);
+          setSelectedImage(primaryImg);
+        })
+        .catch((err) => {
+          console.warn('API getProductById fallback to mock:', err);
+          const found = INITIAL_PRODUCTS.find((p) => String(p.id) === String(id)) || INITIAL_PRODUCTS[0];
+          setProduct(found);
+          setSelectedImage(found.image);
+        })
+        .finally(() => {
+          if (isMounted) setIsLoading(false);
+        });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
 
   // Trạng thái mở Hộp thoại chọn biến thể & số lượng
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -117,16 +170,61 @@ export const ProductDetailPage = () => {
             </button>
 
             <img 
-              src={product.image} 
+              src={selectedImage || product.image} 
               alt={product.name} 
               className="detail-main-img" 
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80';
+              }}
             />
           </div>
+
+          {/* Dải ảnh thu nhỏ (Gallery Thumbnails) */}
+          {Array.isArray(product.images) && product.images.length > 1 && (
+            <div style={{ display: 'flex', gap: '8px', marginTop: '12px', overflowX: 'auto', paddingBottom: '4px' }}>
+              {product.images.map((imgObj, idx) => (
+                <button
+                  key={imgObj.id || idx}
+                  type="button"
+                  onClick={() => setSelectedImage(imgObj.imageUrl)}
+                  style={{
+                    border: (selectedImage === imgObj.imageUrl) ? '2px solid #000000' : '1px solid #e4e4e7',
+                    borderRadius: '8px',
+                    padding: '3px',
+                    backgroundColor: '#ffffff',
+                    cursor: 'pointer',
+                    width: '64px',
+                    height: '64px',
+                    flexShrink: 0
+                  }}
+                >
+                  <img
+                    src={imgObj.imageUrl}
+                    alt={`${product.name} ${idx + 1}`}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Khối Thông Tin & Tác Vụ Mua Hàng */}
         <div className="detail-info-col">
-          <span className="detail-brand-badge">Cyber Official Store</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
+            <span className="detail-brand-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              {product.brandLogo && (
+                <img src={product.brandLogo} alt="" style={{ width: '14px', height: '14px', objectFit: 'contain' }} />
+              )}
+              {product.brand || 'Cyber Official Store'}
+            </span>
+            {product.shop && (
+              <span style={{ fontSize: '0.8rem', color: '#71717a', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Store size={13} /> {product.shop}
+              </span>
+            )}
+          </div>
 
           <h1 className="detail-product-title">{product.name}</h1>
 
@@ -139,18 +237,51 @@ export const ProductDetailPage = () => {
             </div>
             <span className="reviews-count">(142 đánh giá của khách hàng)</span>
             <span className="stock-status-badge">
-              <Check size={12} strokeWidth={3} /> Còn hàng
+              <Check size={12} strokeWidth={3} /> {product.inStock ? 'Còn hàng' : 'Tạm hết hàng'}
             </span>
           </div>
 
           {/* Hộp Giá Tiền Việt Nam Đồng */}
           <div className="detail-price-box">
             <span className="detail-current-price">{product.formattedPrice}</span>
-            <span className="detail-original-price">{product.formattedOriginalPrice}</span>
+            {product.formattedOriginalPrice && (
+              <span className="detail-original-price">{product.formattedOriginalPrice}</span>
+            )}
             <span className="detail-discount-pill">-15% OFF</span>
           </div>
 
           <p className="detail-description">{product.description}</p>
+
+          {/* Biến thể hiện có (nếu có từ Backend API 41) */}
+          {Array.isArray(product.variants) && product.variants.length > 0 && (
+            <div style={{ marginBottom: '1.25rem', padding: '12px 14px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
+                Các phiên bản sẵn có:
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {product.variants.map((v) => (
+                  <span
+                    key={v.id}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '4px 10px',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      fontSize: '0.8rem',
+                      fontWeight: 500,
+                      color: '#1e293b'
+                    }}
+                  >
+                    <span>{v.name}</span>
+                    <strong style={{ color: '#0284c7' }}>{formatVND(v.price)}</strong>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Thông báo nếu chưa đăng nhập */}
           {!isAuthenticated && (

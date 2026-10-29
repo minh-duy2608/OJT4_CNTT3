@@ -17,3 +17,4 @@ public interface ShopRepository extends JpaRepository<Shop, Long> {
 
     List<Shop> findByStatus(ShopStatus status);
 }
+

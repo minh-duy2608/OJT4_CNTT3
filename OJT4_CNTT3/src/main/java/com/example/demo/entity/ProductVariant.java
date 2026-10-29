@@ -82,3 +82,4 @@ public class ProductVariant {
         this.updatedAt = LocalDateTime.now();
     }
 }
+

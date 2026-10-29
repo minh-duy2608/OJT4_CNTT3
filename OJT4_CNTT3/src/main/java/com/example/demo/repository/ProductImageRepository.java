@@ -11,3 +11,4 @@ public interface ProductImageRepository extends JpaRepository<ProductImage, Long
 
     List<ProductImage> findByProductIdOrderBySortOrderAscIdAsc(Long productId);
 }
+

@@ -52,3 +52,4 @@ public class Inventory {
         return Math.max(0, q - rq);
     }
 }
+

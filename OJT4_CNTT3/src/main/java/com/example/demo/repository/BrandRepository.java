@@ -25,3 +25,4 @@ public interface BrandRepository extends JpaRepository<Brand, Long> {
 
     List<Brand> findByStatusOrderByNameAsc(BrandStatus status);
 }
+

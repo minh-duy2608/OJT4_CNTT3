@@ -236,3 +236,4 @@ class ProductServiceTest extends BaseUnitTest {
         assertThrows(ResourceNotFoundException.class, () -> productService.getShopProducts(999L, null));
     }
 }
+

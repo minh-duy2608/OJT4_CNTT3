@@ -42,13 +42,17 @@ export const VariantSelectionModal = ({
   }, [onClose]);
 
   // Đơn giá tính theo phiên bản
-  const unitPrice = product.price + selectedVersion.extra;
+  const basePrice = Number(product.price ?? product.minPrice ?? 0);
+  const unitPrice = basePrice + (selectedVersion?.extra || 0);
   const totalPrice = unitPrice * quantity;
+
+  const displayImage = product.image || product.primaryImageUrl || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80';
 
   const handleConfirmSubmit = () => {
     onConfirm({
       ...product,
       price: unitPrice,
+      image: displayImage,
       formattedPrice: formatVND(unitPrice),
       name: `${product.name} (${selectedColor}, ${selectedVersion.name})`,
       selectedColor,
@@ -66,7 +70,7 @@ export const VariantSelectionModal = ({
         {/* Header Preview */}
         <div className="variant-modal-header">
           <div className="modal-thumb-box">
-            <img src={product.image} alt={product.name} className="modal-thumb-img" />
+            <img src={displayImage} alt={product.name} className="modal-thumb-img" />
           </div>
 
           <div className="modal-summary-info">

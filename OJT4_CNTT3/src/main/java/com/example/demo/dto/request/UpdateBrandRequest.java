@@ -28,3 +28,4 @@ public class UpdateBrandRequest {
 
     private BrandStatus status;
 }
+

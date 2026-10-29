@@ -6,3 +6,4 @@ public enum ShopStatus {
     SUSPENDED,
     REJECTED
 }
+

@@ -271,3 +271,4 @@ public class ProductServiceImpl implements ProductService {
         return ProductSummaryResponse.fromEntity(product, minPrice, maxPrice, primaryImage);
     }
 }
+

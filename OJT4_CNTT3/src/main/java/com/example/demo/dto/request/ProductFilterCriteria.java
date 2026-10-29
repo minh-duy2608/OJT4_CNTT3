@@ -35,3 +35,4 @@ public class ProductFilterCriteria {
     @Builder.Default
     private String sortDir = "desc";
 }
+

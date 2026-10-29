@@ -5,7 +5,19 @@ import './ProductCard.css';
 
 export const ProductCard = ({ product }) => {
   const navigate = useNavigate();
-  const [liked, setLiked] = useState(Boolean(product.isLiked));
+  const [liked, setLiked] = useState(Boolean(product?.isLiked));
+
+  if (!product) return null;
+
+  // Safe image & price fallback
+  const displayImage = product.image || product.primaryImageUrl || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80';
+  const displayPrice = product.formattedPrice || (
+    product.minPrice != null
+      ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(product.minPrice)
+      : (product.price != null
+          ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(product.price)
+          : 'Liên hệ')
+  );
 
   // Chuyển hướng sang trang chi tiết & mua hàng khi bấm vào card
   const handleCardClick = () => {
@@ -46,10 +58,14 @@ export const ProductCard = ({ product }) => {
       {/* Ảnh sản phẩm */}
       <div className="product-img-wrapper">
         <img 
-          src={product.image} 
+          src={displayImage} 
           alt={product.name} 
           className="product-card-img" 
           loading="lazy" 
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80';
+          }}
         />
       </div>
 
@@ -67,7 +83,7 @@ export const ProductCard = ({ product }) => {
 
         {/* Giá tiền Việt Nam Đồng */}
         <div className="product-card-price">
-          {product.formattedPrice}
+          {displayPrice}
         </div>
 
         {/* Nút Mua ngay chuẩn mẫu Figma */}

@@ -31,12 +31,14 @@ import {
   Phone,
   Mail,
   Calendar,
-  MapPin
+  MapPin,
+  Award
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { adminUserApi } from '../services/adminUserApi';
 import { adminRoleApi } from '../services/adminRoleApi';
 import { categoryApi } from '../services/categoryApi';
+import { brandApi } from '../services/brandApi';
 import { ConfirmModal } from '../components/ConfirmModal';
 import './AdminPage.css';
 
@@ -566,7 +568,168 @@ export const AdminPage = () => {
   };
 
   // =========================================================================
-  // 4. TAB: QUYỀN HẠN CỦA TÔI (MY PERMISSIONS - STT 26)
+  // 4. TAB: QUẢN LÝ THƯƠNG HIỆU (BRANDS - STT 33-38)
+  // =========================================================================
+  const [brands, setBrands] = useState([]);
+  const [brandsLoading, setBrandsLoading] = useState(false);
+  const [brandStatusFilter, setBrandStatusFilter] = useState('');
+
+  // Modals for Brands
+  const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
+  const [isEditingBrand, setIsEditingBrand] = useState(false);
+  const [currentBrandId, setCurrentBrandId] = useState(null);
+  const [brandFormData, setBrandFormData] = useState({
+    name: '',
+    slug: '',
+    logoUrl: '',
+    description: '',
+    status: 'ACTIVE'
+  });
+  const [isSavingBrand, setIsSavingBrand] = useState(false);
+
+  const [brandToDelete, setBrandToDelete] = useState(null);
+  const [isDeleteBrandModalOpen, setIsDeleteBrandModalOpen] = useState(false);
+  const [forceDeleteBrand, setForceDeleteBrand] = useState(false);
+  const [isDeletingBrand, setIsDeletingBrand] = useState(false);
+
+  const [viewingBrandProducts, setViewingBrandProducts] = useState(null);
+  const [brandProductsList, setBrandProductsList] = useState([]);
+  const [isBrandProductsModalOpen, setIsBrandProductsModalOpen] = useState(false);
+  const [brandProductsLoading, setBrandProductsLoading] = useState(false);
+
+  // Fetch Brands (API 33)
+  const fetchBrands = useCallback(async () => {
+    setBrandsLoading(true);
+    try {
+      const data = await brandApi.getBrands({
+        status: brandStatusFilter || undefined
+      });
+      setBrands(data || []);
+    } catch (err) {
+      console.error('Failed to load brands:', err);
+      triggerAlert(err.message || 'Không thể tải danh sách thương hiệu.', 'error');
+    } finally {
+      setBrandsLoading(false);
+    }
+  }, [brandStatusFilter]);
+
+  // Open Create Brand Modal (API 36)
+  const handleOpenCreateBrand = () => {
+    setIsEditingBrand(false);
+    setCurrentBrandId(null);
+    setBrandFormData({
+      name: '',
+      slug: '',
+      logoUrl: '',
+      description: '',
+      status: 'ACTIVE'
+    });
+    setIsBrandModalOpen(true);
+  };
+
+  // Open Edit Brand Modal (API 37)
+  const handleOpenEditBrand = (brand) => {
+    setIsEditingBrand(true);
+    setCurrentBrandId(brand.id);
+    setBrandFormData({
+      name: brand.name || '',
+      slug: brand.slug || '',
+      logoUrl: brand.logoUrl || '',
+      description: brand.description || '',
+      status: brand.status || 'ACTIVE'
+    });
+    setIsBrandModalOpen(true);
+  };
+
+  // Auto-generate slug when name changes in modal
+  const handleBrandNameChange = (newName) => {
+    const generated = generateSlug(newName);
+    setBrandFormData((prev) => ({
+      ...prev,
+      name: newName,
+      slug: isEditingBrand ? prev.slug : generated
+    }));
+  };
+
+  // Submit Save Brand (API 36 / 37)
+  const handleSaveBrand = async (e) => {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (!brandFormData.name.trim()) {
+      triggerAlert('Vui lòng nhập tên thương hiệu.', 'error');
+      return;
+    }
+
+    setIsSavingBrand(true);
+    try {
+      const payload = {
+        name: brandFormData.name.trim(),
+        slug: brandFormData.slug.trim() || generateSlug(brandFormData.name),
+        logoUrl: brandFormData.logoUrl.trim() || null,
+        description: brandFormData.description.trim() || null,
+        status: brandFormData.status
+      };
+
+      if (isEditingBrand) {
+        await brandApi.updateBrand(currentBrandId, payload);
+        triggerAlert(`Cập nhật thương hiệu "${payload.name}" thành công!`, 'success');
+      } else {
+        await brandApi.createBrand(payload);
+        triggerAlert(`Tạo thương hiệu mới "${payload.name}" thành công!`, 'success');
+      }
+
+      setIsBrandModalOpen(false);
+      fetchBrands();
+    } catch (err) {
+      console.error('Save brand error:', err);
+      triggerAlert(err.message || 'Lỗi khi lưu thông tin thương hiệu.', 'error');
+    } finally {
+      setIsSavingBrand(false);
+    }
+  };
+
+  // Open Delete Brand Modal (API 38)
+  const handleOpenDeleteBrand = (brand) => {
+    setBrandToDelete(brand);
+    setForceDeleteBrand(false);
+    setIsDeleteBrandModalOpen(true);
+  };
+
+  // Confirm Delete Brand (API 38)
+  const handleConfirmDeleteBrand = async () => {
+    if (!brandToDelete) return;
+    setIsDeletingBrand(true);
+    try {
+      const res = await brandApi.deleteBrand(brandToDelete.id, forceDeleteBrand);
+      triggerAlert(res?.message || `Xóa/ngừng dùng thương hiệu "${brandToDelete.name}" thành công!`, 'success');
+      setIsDeleteBrandModalOpen(false);
+      setBrandToDelete(null);
+      fetchBrands();
+    } catch (err) {
+      console.error('Delete brand error:', err);
+      triggerAlert(err.message || 'Lỗi khi xóa thương hiệu.', 'error');
+    } finally {
+      setIsDeletingBrand(false);
+    }
+  };
+
+  // View Brand Products (API 35)
+  const handleOpenBrandProducts = async (brand) => {
+    setViewingBrandProducts(brand);
+    setIsBrandProductsModalOpen(true);
+    setBrandProductsLoading(true);
+    try {
+      const res = await brandApi.getBrandProducts(brand.id, { page: 0, size: 20 });
+      setBrandProductsList(res?.content || []);
+    } catch (err) {
+      console.error('Failed to load brand products:', err);
+      setBrandProductsList([]);
+    } finally {
+      setBrandProductsLoading(false);
+    }
+  };
+
+  // =========================================================================
+  // 5. TAB: QUYỀN HẠN CỦA TÔI (MY PERMISSIONS - STT 26)
   // =========================================================================
   const [myPermissions, setMyPermissions] = useState([]);
   const [myPermsLoading, setMyPermsLoading] = useState(false);
@@ -583,20 +746,27 @@ export const AdminPage = () => {
     }
   }, []);
 
+  // Preload metrics on mount
+  useEffect(() => {
+    fetchCategories();
+    fetchBrands();
+  }, [fetchCategories, fetchBrands]);
+
   // Sync data on tab change
   useEffect(() => {
     if (activeTab === 'users') {
       fetchUsers(userPage);
-      // Preload roles for filter dropdown
       if (roles.length === 0) fetchRolesAndPermissions();
     } else if (activeTab === 'roles') {
       fetchRolesAndPermissions();
     } else if (activeTab === 'categories') {
       fetchCategories();
+    } else if (activeTab === 'brands') {
+      fetchBrands();
     } else if (activeTab === 'permissions') {
       fetchMyPermissions();
     }
-  }, [activeTab, fetchUsers, fetchRolesAndPermissions, fetchCategories, fetchMyPermissions, userPage, roles.length]);
+  }, [activeTab, fetchUsers, fetchRolesAndPermissions, fetchCategories, fetchBrands, fetchMyPermissions, userPage, roles.length]);
 
   // Check admin role permission
   const isAdminUser = useMemo(() => {
@@ -672,6 +842,7 @@ export const AdminPage = () => {
                 if (activeTab === 'users') fetchUsers(userPage);
                 if (activeTab === 'roles') fetchRolesAndPermissions();
                 if (activeTab === 'categories') fetchCategories();
+                if (activeTab === 'brands') fetchBrands();
                 if (activeTab === 'permissions') fetchMyPermissions();
                 triggerAlert('Đã làm mới dữ liệu từ máy chủ.', 'info');
               }}
@@ -739,15 +910,13 @@ export const AdminPage = () => {
             </div>
           </div>
 
-          <div className="admin-metric-card">
-            <div className="admin-metric-icon-wrap shield">
-              <Lock size={22} />
+          <div className="admin-metric-card" onClick={() => setActiveTab('brands')} style={{ cursor: 'pointer' }}>
+            <div className="admin-metric-icon-wrap brands">
+              <Award size={22} />
             </div>
             <div className="admin-metric-info">
-              <div className="admin-metric-label">Bảo vệ Quản trị (Anti-Lockout)</div>
-              <div className="admin-metric-val" style={{ fontSize: '0.9375rem', color: '#15803d' }}>
-                ✓ Đang hoạt động
-              </div>
+              <div className="admin-metric-label">Thương hiệu</div>
+              <div className="admin-metric-val">{brands.length} thương hiệu</div>
             </div>
           </div>
         </div>
@@ -784,6 +953,16 @@ export const AdminPage = () => {
             <FolderTree size={17} />
             Danh mục Sản phẩm
             <span className="admin-tab-badge">STT 27-32</span>
+          </button>
+
+          <button
+            type="button"
+            className={`admin-tab-btn ${activeTab === 'brands' ? 'active' : ''}`}
+            onClick={() => setActiveTab('brands')}
+          >
+            <Award size={17} />
+            Thương hiệu
+            <span className="admin-tab-badge">STT 33-38</span>
           </button>
 
           <button
@@ -1321,7 +1500,173 @@ export const AdminPage = () => {
         )}
 
         {/* =================================================================== */}
-        {/* TAB 4: QUYỀN HẠN CỦA TÔI (MY PERMISSIONS - STT 26) */}
+        {/* TAB 4: QUẢN LÝ THƯƠNG HIỆU (BRANDS - STT 33-38) */}
+        {/* =================================================================== */}
+        {activeTab === 'brands' && (
+          <div className="admin-card-container">
+            <div className="admin-toolbar">
+              <div className="admin-toolbar-left">
+                <h2 style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Award size={20} color="#dc2626" />
+                  Quản lý Thương hiệu Sản phẩm
+                  <span className="admin-tab-badge" style={{ fontSize: '0.6875rem' }}>STT 33-38</span>
+                </h2>
+                <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+                  Tổng cộng <strong>{brands.length}</strong> thương hiệu đối tác công nghệ trên hệ thống Cyber.
+                </span>
+              </div>
+
+              <div className="admin-toolbar-right">
+                <select
+                  value={brandStatusFilter}
+                  onChange={(e) => setBrandStatusFilter(e.target.value)}
+                  className="admin-filter-select"
+                >
+                  <option value="">Tất cả trạng thái</option>
+                  <option value="ACTIVE">Đang hoạt động (ACTIVE)</option>
+                  <option value="INACTIVE">Tạm ngừng (INACTIVE)</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={handleOpenCreateBrand}
+                  className="admin-btn-action primary"
+                >
+                  <Plus size={16} />
+                  Thêm thương hiệu mới
+                </button>
+              </div>
+            </div>
+
+            <div className="admin-table-wrapper">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '60px' }}>ID</th>
+                    <th style={{ width: '80px' }}>Logo</th>
+                    <th>Tên thương hiệu</th>
+                    <th>Slug URL</th>
+                    <th>Mô tả</th>
+                    <th style={{ textAlign: 'center', width: '120px' }}>Số sản phẩm</th>
+                    <th style={{ textAlign: 'center', width: '130px' }}>Trạng thái</th>
+                    <th style={{ textAlign: 'right', width: '160px' }}>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {brandsLoading ? (
+                    <tr>
+                      <td colSpan="8" style={{ textAlign: 'center', padding: '3rem' }}>
+                        <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto', color: '#64748b' }} />
+                        <div style={{ marginTop: '0.5rem', color: '#64748b' }}>Đang tải danh sách thương hiệu...</div>
+                      </td>
+                    </tr>
+                  ) : brands.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
+                        Không có thương hiệu nào phù hợp với bộ lọc hiện tại.
+                      </td>
+                    </tr>
+                  ) : (
+                    brands.map((brand) => (
+                      <tr key={brand.id}>
+                        <td>
+                          <span style={{ fontWeight: 600, color: '#64748b' }}>#{brand.id}</span>
+                        </td>
+                        <td>
+                          <div style={{ width: '40px', height: '40px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#ffffff' }}>
+                            {brand.logoUrl ? (
+                              <img
+                                src={brand.logoUrl}
+                                alt={brand.name}
+                                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <span style={{ fontWeight: 700, color: '#94a3b8', fontSize: '0.85rem' }}>
+                                {brand.name.slice(0, 2).toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 700, color: '#0f172a' }}>{brand.name}</div>
+                        </td>
+                        <td>
+                          <code style={{ fontSize: '0.78125rem', color: '#475569', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
+                            /{brand.slug}
+                          </code>
+                        </td>
+                        <td>
+                          <div style={{ maxWidth: '280px', color: '#64748b', fontSize: '0.8125rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={brand.description}>
+                            {brand.description || '— Chưa có mô tả —'}
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenBrandProducts(brand)}
+                            style={{
+                              background: '#eff6ff',
+                              border: '1px solid #bfdbfe',
+                              color: '#1d4ed8',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                            title="Bấm để xem danh sách sản phẩm thuộc thương hiệu này"
+                          >
+                            {brand.productCount ?? 0} sản phẩm
+                          </button>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={`status-pill ${(brand.status || 'ACTIVE').toLowerCase()}`}>
+                            {brand.status === 'ACTIVE' ? 'Hoạt động' : 'Tạm ngừng'}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.35rem', justifyContent: 'flex-end' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenBrandProducts(brand)}
+                              className="admin-btn-action light"
+                              title="Xem sản phẩm"
+                            >
+                              <Eye size={15} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditBrand(brand)}
+                              className="admin-btn-action light"
+                              title="Chỉnh sửa thông tin thương hiệu"
+                            >
+                              <Edit size={15} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDeleteBrand(brand)}
+                              className="admin-btn-action danger"
+                              title="Xóa hoặc ngừng sử dụng thương hiệu"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* TAB 5: QUYỀN HẠN CỦA TÔI (MY PERMISSIONS - STT 26) */}
         {/* =================================================================== */}
         {activeTab === 'permissions' && (
           <div className="admin-card-container">
@@ -1940,6 +2285,169 @@ export const AdminPage = () => {
                       <div>
                         <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.8125rem' }}>{p.name}</div>
                         <div style={{ fontSize: '0.71875rem', color: '#64748b' }}>Mã: #{p.id} • Slug: /{p.slug}</div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 700, color: '#2563eb', fontSize: '0.8125rem' }}>
+                        {p.minPrice ? Number(p.minPrice).toLocaleString('vi-VN') + ' đ' : 'Liên hệ'}
+                      </div>
+                      <span className="status-pill active" style={{ fontSize: '0.65625rem' }}>{p.status}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </ConfirmModal>
+
+        {/* =================================================================== */}
+        {/* MODAL 12: TẠO / SỬA THƯƠNG HIỆU (API 36 & 37) */}
+        {/* =================================================================== */}
+        <ConfirmModal
+          isOpen={isBrandModalOpen}
+          onClose={() => setIsBrandModalOpen(false)}
+          title={isEditingBrand ? `Cập nhật thương hiệu: ${brandFormData.name}` : 'Tạo thương hiệu mới (API 36)'}
+          type="confirm"
+          confirmText={isSavingBrand ? 'Đang lưu...' : (isEditingBrand ? 'Lưu thay đổi' : 'Tạo thương hiệu')}
+          cancelText="Hủy"
+          onConfirm={handleSaveBrand}
+        >
+          <form onSubmit={handleSaveBrand} className="admin-modal-form">
+            <div className="admin-form-group">
+              <label>Tên thương hiệu: *</label>
+              <input
+                type="text"
+                placeholder="VD: Apple, Samsung, Sony, Dell, Asus..."
+                value={brandFormData.name}
+                onChange={(e) => handleBrandNameChange(e.target.value)}
+              />
+            </div>
+
+            <div className="admin-form-group">
+              <label>Slug URL (Chuẩn SEO): *</label>
+              <input
+                type="text"
+                placeholder="apple"
+                value={brandFormData.slug}
+                onChange={(e) => setBrandFormData({ ...brandFormData, slug: e.target.value.toLowerCase() })}
+              />
+              <span className="admin-form-hint">Tự động gợi ý từ tên thương hiệu không dấu.</span>
+            </div>
+
+            <div className="admin-form-group">
+              <label>Logo URL:</label>
+              <input
+                type="text"
+                placeholder="https://upload.wikimedia.org/.../logo.svg"
+                value={brandFormData.logoUrl}
+                onChange={(e) => setBrandFormData({ ...brandFormData, logoUrl: e.target.value })}
+              />
+            </div>
+
+            <div className="admin-form-group">
+              <label>Trạng thái thương hiệu:</label>
+              <select
+                value={brandFormData.status}
+                onChange={(e) => setBrandFormData({ ...brandFormData, status: e.target.value })}
+              >
+                <option value="ACTIVE">Hoạt động ngoài Catalog (ACTIVE)</option>
+                <option value="INACTIVE">Tạm ẩn / Ngừng kinh doanh (INACTIVE)</option>
+              </select>
+            </div>
+
+            <div className="admin-form-group">
+              <label>Mô tả thương hiệu:</label>
+              <textarea
+                placeholder="Mô tả về lịch sử, sứ mệnh hoặc dải sản phẩm của hãng..."
+                value={brandFormData.description}
+                onChange={(e) => setBrandFormData({ ...brandFormData, description: e.target.value })}
+              />
+            </div>
+          </form>
+        </ConfirmModal>
+
+        {/* =================================================================== */}
+        {/* MODAL 13: XÓA / NGỪNG SỬ DỤNG THƯƠNG HIỆU (API 38) */}
+        {/* =================================================================== */}
+        <ConfirmModal
+          isOpen={isDeleteBrandModalOpen}
+          onClose={() => setIsDeleteBrandModalOpen(false)}
+          title={`Xóa thương hiệu: ${brandToDelete?.name}`}
+          type="danger"
+          confirmText={isDeletingBrand ? 'Đang xử lý...' : 'Xác nhận'}
+          cancelText="Hủy"
+          onConfirm={handleConfirmDeleteBrand}
+        >
+          {brandToDelete && (
+            <div style={{ textAlign: 'left', fontSize: '0.84375rem' }}>
+              <p style={{ marginBottom: '1rem', color: '#64748b' }}>
+                Bạn có chắc chắn muốn xóa thương hiệu <strong>"{brandToDelete.name}"</strong>?
+              </p>
+
+              <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '0.75rem', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: '#b45309', marginBottom: '0.35rem' }}>
+                  <AlertTriangle size={16} />
+                  Chính sách bảo vệ dữ liệu sản phẩm
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#78350f' }}>
+                  Nếu thương hiệu này đang có <strong>{brandToDelete.productCount ?? 0}</strong> sản phẩm liên kết, hệ thống sẽ tự động chuyển trạng thái sang <strong>INACTIVE (ngừng kinh doanh)</strong> để bảo toàn toàn vẹn dữ liệu đơn hàng và sản phẩm.
+                </div>
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 500, color: '#0f172a' }}>
+                <input
+                  type="checkbox"
+                  checked={forceDeleteBrand}
+                  onChange={(e) => setForceDeleteBrand(e.target.checked)}
+                />
+                Xóa vĩnh viễn khỏi cơ sở dữ liệu nếu không có sản phẩm liên kết (force=true)
+              </label>
+            </div>
+          )}
+        </ConfirmModal>
+
+        {/* =================================================================== */}
+        {/* MODAL 14: XEM SẢN PHẨM THUỘC THƯƠNG HIỆU (API 35) */}
+        {/* =================================================================== */}
+        <ConfirmModal
+          isOpen={isBrandProductsModalOpen}
+          onClose={() => setIsBrandProductsModalOpen(false)}
+          title={`Sản phẩm thuộc thương hiệu: ${viewingBrandProducts?.name || ''}`}
+          type="info"
+          showCancel={false}
+          confirmText="Đóng"
+          onConfirm={() => setIsBrandProductsModalOpen(false)}
+        >
+          <div style={{ textAlign: 'left', maxHeight: '350px', overflowY: 'auto' }}>
+            {brandProductsLoading ? (
+              <div style={{ textAlign: 'center', padding: '2rem' }}>
+                <RefreshCw size={20} className="animate-spin" style={{ margin: '0 auto', color: '#64748b' }} />
+                <div style={{ marginTop: '0.5rem', color: '#64748b', fontSize: '0.8125rem' }}>Đang tải danh sách sản phẩm...</div>
+              </div>
+            ) : brandProductsList.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b', fontSize: '0.84375rem' }}>
+                Chưa có sản phẩm nào thuộc thương hiệu này ngoài catalog công khai.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {brandProductsList.map((p) => (
+                  <div
+                    key={p.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.6rem 0.8rem',
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <Package size={18} color="#64748b" />
+                      <div>
+                        <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.8125rem' }}>{p.name}</div>
+                        <div style={{ fontSize: '0.71875rem', color: '#64748b' }}>Mã: #{p.id} • Danh mục: {p.categoryName || 'Chung'}</div>
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>

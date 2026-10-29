@@ -137,3 +137,4 @@ export const productApi = {
     return await request(`/shops/${shopId}/products${qs ? `?${qs}` : ''}`, { method: 'GET' });
   }
 };
+

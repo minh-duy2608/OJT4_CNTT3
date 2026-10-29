@@ -41,3 +41,4 @@ public interface ProductService {
      */
     PageResponse<ProductSummaryResponse> getShopProducts(Long shopId, ProductFilterCriteria criteria);
 }
+

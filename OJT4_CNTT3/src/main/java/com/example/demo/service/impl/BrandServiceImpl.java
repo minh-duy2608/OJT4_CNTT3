@@ -184,3 +184,4 @@ public class BrandServiceImpl implements BrandService {
         return slug.replaceAll("-+", "-").replaceAll("^-|-$", "");
     }
 }
+
