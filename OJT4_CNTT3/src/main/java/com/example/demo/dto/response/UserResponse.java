@@ -26,6 +26,7 @@ public class UserResponse {
     private String phone;
     private String avatarUrl;
     private Role role;
+    private java.util.Set<String> roles;
     private UserStatus status;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
@@ -44,6 +45,17 @@ public class UserResponse {
         if (user == null) {
             return null;
         }
+        java.util.Set<String> roleCodes = new java.util.HashSet<>();
+        if (user.getRole() != null) {
+            roleCodes.add(user.getRole().name());
+        }
+        if (user.getRoles() != null) {
+            user.getRoles().forEach(r -> {
+                if (r != null && r.getCode() != null) {
+                    roleCodes.add(r.getCode());
+                }
+            });
+        }
         return UserResponse.builder()
                 .id(user.getId())
                 .username(user.getUsername())
@@ -52,6 +64,7 @@ public class UserResponse {
                 .phone(user.getPhone())
                 .avatarUrl(user.getAvatarUrl())
                 .role(user.getRole())
+                .roles(roleCodes)
                 .status(user.getStatus())
                 .emailVerifiedAt(user.getEmailVerifiedAt())
                 .lastLoginAt(user.getLastLoginAt())

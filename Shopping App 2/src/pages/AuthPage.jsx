@@ -180,11 +180,26 @@ export const AuthPage = () => {
         setResendCountdown(60);
         setApiSuccess(`Mã xác minh 6 số đã được gửi từ son666727@gmail.com đến ${email.trim()}`);
       } else {
-        await login({
+        const loggedUser = await login({
           username: email.trim(),
           password
         });
-        navigate('/products');
+        
+        // Phân quyền nghiệp vụ sau đăng nhập:
+        // Nếu tài khoản có vai trò ADMIN thì chuyển thẳng vào Trung tâm Quản trị Cyber (/admin)
+        // Nếu là khách hàng bình thường thì điều hướng đến trang mua sắm (/products)
+        const roleStr = (loggedUser?.role || '').toUpperCase();
+        const hasAdminRole = roleStr === 'ADMIN' || roleStr === 'ROLE_ADMIN' ||
+          (Array.isArray(loggedUser?.roles) && loggedUser.roles.some(r => {
+            const code = (typeof r === 'string' ? r : r?.code || '').toUpperCase();
+            return code === 'ADMIN' || code === 'ROLE_ADMIN';
+          }));
+
+        if (hasAdminRole) {
+          navigate('/admin');
+        } else {
+          navigate('/products');
+        }
       }
     } catch (err) {
       setApiError(err.message || 'Thao tác không thành công. Vui lòng kiểm tra lại thông tin.');

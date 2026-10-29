@@ -29,6 +29,7 @@ const formatUserResponse = (apiUser, existingAddresses = []) => {
     avatar: apiUser.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=face',
     avatarUrl: apiUser.avatarUrl,
     role: apiUser.role,
+    roles: Array.isArray(apiUser.roles) ? apiUser.roles : (apiUser.roles ? Array.from(apiUser.roles) : []),
     status: apiUser.status,
     emailVerifiedAt: apiUser.emailVerifiedAt,
     lastLoginAt: apiUser.lastLoginAt,

@@ -200,52 +200,80 @@ public class RoleDataInitializer implements CommandLineRunner {
     }
 
     private void initDefaultAdmin() {
-        long activeAdmins = userRepository.countActiveAdmins(UserStatus.ACTIVE, Role.ROLE_ADMIN, Role.ADMIN);
-        if (activeAdmins > 0) {
-            return;
-        }
-
         RoleEntity adminRole = roleRepository.findByCode("ADMIN").orElse(null);
+        RoleEntity clientRole = roleRepository.findByCode("CLIENT").orElse(null);
 
-        // 1. Nếu có tài khoản của bạn (hson05542@gmail.com), tự động gán quyền ADMIN
-        var myUser = userRepository.findByEmail("hson05542@gmail.com");
-        if (myUser.isPresent()) {
-            User user = myUser.get();
-            user.setRole(Role.ROLE_ADMIN);
+        // 1. Đảm bảo tài khoản 1 (tài khoản đang dùng: hson05542@gmail.com) có quyền ADMIN
+        var user1Opt = userRepository.findByEmail("hson05542@gmail.com");
+        if (user1Opt.isPresent()) {
+            User u1 = user1Opt.get();
+            u1.setRole(Role.ROLE_ADMIN);
             if (adminRole != null) {
-                user.getRoles().add(adminRole);
+                if (u1.getRoles() == null) {
+                    u1.setRoles(new HashSet<>());
+                }
+                u1.getRoles().add(adminRole);
             }
-            userRepository.save(user);
-            log.info("Auto-assigned ROLE_ADMIN to user: {}", user.getEmail());
-            return;
+            userRepository.save(u1);
+            log.info("Assigned ADMIN privileges to primary user: {}", u1.getEmail());
         }
 
-        // 2. Nếu đã có người dùng khác trong hệ thống, nâng quyền cho người dùng đầu tiên
-        var firstUser = userRepository.findAll().stream().findFirst();
-        if (firstUser.isPresent()) {
-            User user = firstUser.get();
-            user.setRole(Role.ROLE_ADMIN);
-            if (adminRole != null) {
-                user.getRoles().add(adminRole);
+        // 2. Đảm bảo tài khoản 2 (son666727@gmail.com) có mật khẩu Hoangson06 và quyền ADMIN
+        var user2Opt = userRepository.findByEmail("son666727@gmail.com");
+        if (user2Opt.isPresent()) {
+            User u2 = user2Opt.get();
+            u2.setRole(Role.ROLE_ADMIN);
+            u2.setPassword(passwordEncoder.encode("Hoangson06"));
+            u2.setStatus(UserStatus.ACTIVE);
+            if (u2.getEmailVerifiedAt() == null) {
+                u2.setEmailVerifiedAt(LocalDateTime.now());
             }
-            userRepository.save(user);
-            log.info("Auto-assigned ROLE_ADMIN to first existing user: {}", user.getUsername());
-            return;
+            if (adminRole != null) {
+                if (u2.getRoles() == null) {
+                    u2.setRoles(new HashSet<>());
+                }
+                u2.getRoles().add(adminRole);
+            }
+            userRepository.save(u2);
+            log.info("Updated admin account son666727@gmail.com with password Hoangson06");
+        } else {
+            User u2 = User.builder()
+                    .username("son666727")
+                    .email("son666727@gmail.com")
+                    .fullName("Hoàng Sơn")
+                    .password(passwordEncoder.encode("Hoangson06"))
+                    .role(Role.ROLE_ADMIN)
+                    .status(UserStatus.ACTIVE)
+                    .emailVerifiedAt(LocalDateTime.now())
+                    .roles(adminRole != null ? new HashSet<>(Set.of(adminRole)) : new HashSet<>())
+                    .build();
+            userRepository.save(u2);
+            log.info("Created new admin account son666727@gmail.com with password Hoangson06");
         }
 
-        // 3. Nếu DB hoàn toàn trống, tạo tài khoản quản trị viên mặc định: admin / Admin@123456
-        User defaultAdmin = User.builder()
-                .username("admin")
-                .email("admin@cyber.vn")
-                .password(passwordEncoder.encode("Admin@123456"))
-                .fullName("Quản trị viên hệ thống")
-                .role(Role.ROLE_ADMIN)
-                .status(UserStatus.ACTIVE)
-                .emailVerifiedAt(LocalDateTime.now())
-                .roles(adminRole != null ? Set.of(adminRole) : Set.of())
-                .build();
-        userRepository.save(defaultAdmin);
-        log.info("Initialized default system admin account: username 'admin', email 'admin@cyber.vn', password 'Admin@123456'");
+        // 3. Đảm bảo CHỈ 2 tài khoản này có quyền ADMIN: Thu hồi quyền ADMIN của bất kỳ tài khoản nào khác
+        List<User> allUsers = userRepository.findAll();
+        for (User u : allUsers) {
+            String email = u.getEmail();
+            if (!"hson05542@gmail.com".equalsIgnoreCase(email) && !"son666727@gmail.com".equalsIgnoreCase(email)) {
+                boolean changed = false;
+                if (u.getRole() == Role.ROLE_ADMIN || u.getRole() == Role.ADMIN) {
+                    u.setRole(Role.ROLE_USER);
+                    changed = true;
+                }
+                if (u.getRoles() != null && adminRole != null && u.getRoles().contains(adminRole)) {
+                    u.getRoles().remove(adminRole);
+                    if (clientRole != null && u.getRoles().isEmpty()) {
+                        u.getRoles().add(clientRole);
+                    }
+                    changed = true;
+                }
+                if (changed) {
+                    userRepository.save(u);
+                    log.info("Revoked admin privilege from non-admin account: {}", u.getUsername());
+                }
+            }
+        }
     }
 
     private void initDefaultCategories() {

@@ -70,6 +70,20 @@ export const Header = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Kiểm tra vai trò Quản trị viên (ADMIN)
+  const isUserAdmin = useMemo(() => {
+    if (!user) return false;
+    const r = (user.role || '').toUpperCase();
+    if (r === 'ADMIN' || r === 'ROLE_ADMIN') return true;
+    if (Array.isArray(user.roles)) {
+      return user.roles.some(item => {
+        const code = (typeof item === 'string' ? item : item?.code || '').toUpperCase();
+        return code === 'ADMIN' || code === 'ROLE_ADMIN';
+      });
+    }
+    return false;
+  }, [user]);
+
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     if (searchTerm.trim()) {
@@ -164,7 +178,7 @@ export const Header = () => {
                   Liên hệ
                 </NavLink>
               </li>
-              {isAuthenticated && ['ADMIN', 'ROLE_ADMIN'].includes((user?.role || '').toUpperCase()) && (
+              {isAuthenticated && isUserAdmin && (
                 <li>
                   <NavLink 
                     to="/admin" 
@@ -232,7 +246,7 @@ export const Header = () => {
                 <div className="cyber-user-dropdown">
                   {isAuthenticated && user ? (
                     <>
-                      {['ADMIN', 'ROLE_ADMIN'].includes((user?.role || '').toUpperCase()) && (
+                      {isUserAdmin && (
                         <Link 
                           to="/admin" 
                           className="cyber-dropdown-item" 

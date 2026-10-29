@@ -598,7 +598,14 @@ export const AdminPage = () => {
   const isAdminUser = useMemo(() => {
     if (!user) return false;
     const r = (user.role || '').toUpperCase();
-    return r === 'ADMIN' || r === 'ROLE_ADMIN';
+    if (r === 'ADMIN' || r === 'ROLE_ADMIN') return true;
+    if (Array.isArray(user.roles)) {
+      return user.roles.some(roleItem => {
+        const code = (typeof roleItem === 'string' ? roleItem : roleItem?.code || '').toUpperCase();
+        return code === 'ADMIN' || code === 'ROLE_ADMIN';
+      });
+    }
+    return false;
   }, [user]);
 
   // Access Denied Screen if user is not ADMIN
@@ -1948,3 +1955,4 @@ export const AdminPage = () => {
     </div>
   );
 };
+
