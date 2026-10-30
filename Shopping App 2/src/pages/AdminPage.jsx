@@ -37,7 +37,8 @@ import {
   Image,
   PlusCircle,
   ShoppingBag,
-  Box
+  Box,
+  SlidersHorizontal
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { adminUserApi } from '../services/adminUserApi';
@@ -46,6 +47,7 @@ import { categoryApi } from '../services/categoryApi';
 import { brandApi } from '../services/brandApi';
 import { productApi } from '../services/productApi';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { parseProductSpecs, formatProductDescription, SPEC_PRESETS } from '../utils/productSpecs';
 import './AdminPage.css';
 
 // Core system roles protected by the system
@@ -761,7 +763,8 @@ export const AdminPage = () => {
     warrantyMonths: 12,
     status: 'ACTIVE',
     variants: [],
-    images: []
+    images: [],
+    specifications: []
   });
   const [isSavingProduct, setIsSavingProduct] = useState(false);
 
@@ -822,6 +825,14 @@ export const AdminPage = () => {
   const handleOpenCreateProduct = () => {
     setIsEditingProduct(false);
     setCurrentProductId(null);
+    const defaultSpecs = [
+      { name: 'Màn hình', value: '6.7 inch, Super Retina XDR OLED, 120Hz, Dynamic Island' },
+      { name: 'Hệ điều hành', value: 'iOS 18 / Android 15' },
+      { name: 'Chipset (CPU)', value: 'Apple A18 Pro 6 nhân mạnh mẽ' },
+      { name: 'RAM & Lưu trữ', value: '8GB RAM | 256GB ROM' },
+      { name: 'Camera sau', value: 'Chính 48MP + Siêu rộng 48MP + Tele 12MP (Zoom 5x)' },
+      { name: 'Pin & Sạc', value: '4.685 mAh, Sạc nhanh 30W, Sạc không dây MagSafe' }
+    ];
     setProductFormData({
       name: '',
       slug: '',
@@ -843,7 +854,8 @@ export const AdminPage = () => {
           status: 'ACTIVE'
         }
       ],
-      images: []
+      images: [],
+      specifications: defaultSpecs
     });
     setIsProductModalOpen(true);
   };
@@ -855,13 +867,14 @@ export const AdminPage = () => {
     try {
       const detail = await productApi.getProductById(prod.id);
       if (detail) {
+        const parsed = parseProductSpecs(detail.description || '');
         setProductFormData({
           name: detail.name || '',
           slug: detail.slug || '',
           categoryId: detail.category?.id || '',
           brandId: detail.brand?.id || '',
           shortDescription: detail.shortDescription || '',
-          description: detail.description || '',
+          description: parsed.cleanDescription || '',
           warrantyMonths: detail.warrantyMonths || 12,
           status: detail.status || 'ACTIVE',
           variants: (detail.variants && detail.variants.length > 0)
@@ -906,7 +919,14 @@ export const AdminPage = () => {
                 isPrimary: Boolean(img.isPrimary),
                 sortOrder: img.sortOrder ?? idx
               }))
-            : []
+            : [],
+          specifications: (parsed.specs && parsed.specs.length > 0)
+            ? parsed.specs
+            : [
+                { name: 'Màn hình', value: '' },
+                { name: 'Chip xử lý', value: '' },
+                { name: 'RAM & Dung lượng', value: '' }
+              ]
         });
         setIsProductModalOpen(true);
       }
@@ -1036,6 +1056,39 @@ export const AdminPage = () => {
     });
   };
 
+  // Dynamic Specifications Handlers
+  const handleAddSpecification = () => {
+    setProductFormData((prev) => ({
+      ...prev,
+      specifications: [...prev.specifications, { name: '', value: '' }]
+    }));
+  };
+
+  const handleRemoveSpecification = (index) => {
+    setProductFormData((prev) => ({
+      ...prev,
+      specifications: prev.specifications.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleSpecificationChange = (index, field, val) => {
+    setProductFormData((prev) => {
+      const updated = [...prev.specifications];
+      updated[index] = { ...updated[index], [field]: val };
+      return { ...prev, specifications: updated };
+    });
+  };
+
+  const handleApplySpecPreset = (presetId) => {
+    const preset = SPEC_PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+    setProductFormData((prev) => ({
+      ...prev,
+      specifications: preset.specs.map((s) => ({ ...s }))
+    }));
+    triggerAlert(`Đã áp dụng mẫu thông số kỹ thuật: ${preset.name}`, 'info');
+  };
+
   // Save product (Create or Edit)
   const handleSaveProduct = async (e) => {
     if (e && typeof e.preventDefault === 'function') e.preventDefault();
@@ -1054,13 +1107,18 @@ export const AdminPage = () => {
 
     setIsSavingProduct(true);
     try {
+      const formattedDescription = formatProductDescription(
+        productFormData.description.trim(),
+        productFormData.specifications
+      );
+
       const payload = {
         name: productFormData.name.trim(),
         slug: productFormData.slug.trim() || generateSlug(productFormData.name),
         categoryId: Number(productFormData.categoryId),
         brandId: productFormData.brandId ? Number(productFormData.brandId) : null,
         shortDescription: productFormData.shortDescription.trim() || null,
-        description: productFormData.description.trim() || null,
+        description: formattedDescription || null,
         warrantyMonths: Number(productFormData.warrantyMonths) || 12,
         status: productFormData.status,
         variants: productFormData.variants.map((v, idx) => ({
@@ -3487,6 +3545,124 @@ export const AdminPage = () => {
                 </table>
               </div>
             </div>
+
+            {/* 4. Thông số kỹ thuật chi tiết */}
+            <div style={{ marginTop: '1.25rem', padding: '1rem', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div>
+                  <h4 style={{ fontSize: '0.875rem', fontWeight: 700, margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <SlidersHorizontal size={16} color="#2563eb" />
+                    4. Bảng thông số kỹ thuật chi tiết (Tùy biến cho từng loại sản phẩm)
+                  </h4>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
+                    Tự do tạo tên thông số và mô tả (Ví dụ: Chipset, Màn hình, Hệ điều hành, Pin, Cảm biến...).
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.71875rem', color: '#64748b', fontWeight: 600 }}>Mẫu nhanh:</span>
+                  {SPEC_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => handleApplySpecPreset(preset.id)}
+                      style={{
+                        padding: '3px 8px',
+                        fontSize: '0.71875rem',
+                        fontWeight: 600,
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        background: '#ffffff',
+                        color: '#334155',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {preset.name}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={handleAddSpecification}
+                    className="btn btn-outline"
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      color: '#2563eb',
+                      borderColor: '#93c5fd',
+                      background: '#eff6ff'
+                    }}
+                  >
+                    <Plus size={14} /> Thêm thông số
+                  </button>
+                </div>
+              </div>
+
+              {productFormData.specifications.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '1rem', background: '#ffffff', borderRadius: '8px', border: '1px dashed #cbd5e1', color: '#64748b', fontSize: '0.8125rem' }}>
+                  Chưa có thông số kỹ thuật nào. Bấm nút <strong>"+ Thêm thông số"</strong> hoặc chọn <strong>Mẫu nhanh</strong> ở trên.
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto', background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <table className="admin-table" style={{ fontSize: '0.78125rem', marginBottom: 0 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '40px', textAlign: 'center' }}>#</th>
+                        <th style={{ width: '220px' }}>Tên thông số (Ví dụ: Chip xử lý, Màn hình...) *</th>
+                        <th>Mô tả / Giá trị thông số *</th>
+                        <th style={{ width: '50px', textAlign: 'center' }}>Xóa</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {productFormData.specifications.map((spec, sIdx) => (
+                        <tr key={sIdx}>
+                          <td style={{ textAlign: 'center', color: '#94a3b8', fontWeight: 600 }}>{sIdx + 1}</td>
+                          <td>
+                            <input
+                              type="text"
+                              value={spec.name}
+                              onChange={(e) => handleSpecificationChange(sIdx, 'name', e.target.value)}
+                              placeholder="VD: Chip xử lý, Hệ điều hành..."
+                              className="admin-input-compact"
+                              style={{ width: '100%', fontWeight: 600 }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              value={spec.value}
+                              onChange={(e) => handleSpecificationChange(sIdx, 'value', e.target.value)}
+                              placeholder="VD: Apple A18 Pro 6 nhân, Super Retina XDR..."
+                              className="admin-input-compact"
+                              style={{ width: '100%' }}
+                            />
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSpecification(sIdx)}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#ef4444',
+                                cursor: 'pointer',
+                                padding: '4px'
+                              }}
+                              title="Xóa thông số này"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </form>
         </ConfirmModal>
 
@@ -3634,6 +3810,38 @@ export const AdminPage = () => {
                   </table>
                 </div>
               </div>
+
+              {/* Technical Specifications Table */}
+              {(() => {
+                const parsed = parseProductSpecs(selectedProductDetail.description || '');
+                if (!parsed.specs || parsed.specs.length === 0) return null;
+                return (
+                  <div style={{ marginTop: '1.25rem' }}>
+                    <h4 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <SlidersHorizontal size={15} color="#2563eb" />
+                      Thông số kỹ thuật chi tiết ({parsed.specs.length} mục):
+                    </h4>
+                    <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                      <table className="admin-table" style={{ fontSize: '0.78125rem', marginBottom: 0 }}>
+                        <thead>
+                          <tr>
+                            <th style={{ width: '220px' }}>Tên thông số</th>
+                            <th>Mô tả chi tiết</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {parsed.specs.map((s, idx) => (
+                            <tr key={idx} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                              <td style={{ fontWeight: 600, color: '#334155' }}>{s.name}</td>
+                              <td style={{ color: '#0f172a' }}>{s.value}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </ConfirmModal>

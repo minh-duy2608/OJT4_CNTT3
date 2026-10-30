@@ -431,6 +431,73 @@
   color: #52525b;
 }
 
+/* Color Pill in Product Detail */
+.detail-color-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #ffffff;
+  border: 1.5px solid #e4e4e7;
+  color: #18181b;
+  font-size: 0.84375rem;
+  font-weight: 600;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.detail-color-pill:hover {
+  border-color: #000000;
+  background-color: #f4f4f5;
+}
+
+.detail-color-pill.is-active {
+  background-color: #000000;
+  color: #ffffff;
+  border-color: #000000;
+}
+
+.detail-color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.detail-color-pill.is-active .detail-color-dot {
+  border-color: #ffffff;
+}
+
+/* Highlights Box */
+.detail-highlights-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.detail-highlights-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.35rem;
+}
+
+.detail-highlights-content {
+  font-size: 0.875rem;
+  color: #334155;
+  line-height: 1.55;
+}
+
 /* Specifications Table */
 .detail-specs-section {
   margin-top: 4rem;
@@ -448,26 +515,44 @@
 .specs-table {
   width: 100%;
   border-collapse: collapse;
+  border: 1px solid #e4e4e7;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.specs-table tr:nth-child(even) {
+  background-color: #f8fafc;
+}
+
+.specs-table tr:nth-child(odd) {
+  background-color: #ffffff;
 }
 
 .specs-table tr {
-  border-bottom: 1px solid #f4f4f5;
+  border-bottom: 1px solid #e4e4e7;
+}
+
+.specs-table tr:last-child {
+  border-bottom: none;
 }
 
 .specs-table td {
-  padding: 1rem 0;
-  font-size: 0.9375rem;
+  padding: 0.85rem 1.25rem;
+  font-size: 0.875rem;
+  vertical-align: top;
 }
 
 .specs-table td:first-child {
-  color: #71717a;
-  width: 35%;
-  font-weight: 500;
+  color: #475569;
+  width: 32%;
+  font-weight: 600;
+  border-right: 1px solid #e4e4e7;
 }
 
 .specs-table td:last-child {
-  color: #09090b;
-  font-weight: 600;
+  color: #0f172a;
+  font-weight: 500;
 }
 
 /* Responsive */

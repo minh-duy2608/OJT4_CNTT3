@@ -252,11 +252,46 @@ public class RoleDataInitializer implements CommandLineRunner {
             log.info("Created new admin account son666727@gmail.com with password Hoangson06");
         }
 
-        // 3. Đảm bảo CHỈ 2 tài khoản này có quyền ADMIN: Thu hồi quyền ADMIN của bất kỳ tài khoản nào khác
+        // 3. Đảm bảo tài khoản quản trị hệ thống mặc định (admin@gmail.com) có mật khẩu Admin@123456 và quyền ADMIN
+        var adminOpt = userRepository.findByEmail("admin@gmail.com");
+        if (adminOpt.isPresent()) {
+            User adminUser = adminOpt.get();
+            adminUser.setRole(Role.ROLE_ADMIN);
+            adminUser.setPassword(passwordEncoder.encode("Admin@123456"));
+            adminUser.setStatus(UserStatus.ACTIVE);
+            if (adminUser.getEmailVerifiedAt() == null) {
+                adminUser.setEmailVerifiedAt(LocalDateTime.now());
+            }
+            if (adminRole != null) {
+                if (adminUser.getRoles() == null) {
+                    adminUser.setRoles(new HashSet<>());
+                }
+                adminUser.getRoles().add(adminRole);
+            }
+            userRepository.save(adminUser);
+            log.info("Updated admin account admin@gmail.com with password Admin@123456");
+        } else {
+            User adminUser = User.builder()
+                    .username("admin")
+                    .email("admin@gmail.com")
+                    .fullName("Quản Trị Viên Cyber")
+                    .password(passwordEncoder.encode("Admin@123456"))
+                    .role(Role.ROLE_ADMIN)
+                    .status(UserStatus.ACTIVE)
+                    .emailVerifiedAt(LocalDateTime.now())
+                    .roles(adminRole != null ? new HashSet<>(Set.of(adminRole)) : new HashSet<>())
+                    .build();
+            userRepository.save(adminUser);
+            log.info("Created default admin account admin@gmail.com with password Admin@123456");
+        }
+
+        // 4. Thu hồi quyền ADMIN của bất kỳ tài khoản nào khác không thuộc danh sách quản trị viên được phép
         List<User> allUsers = userRepository.findAll();
         for (User u : allUsers) {
             String email = u.getEmail();
-            if (!"hson05542@gmail.com".equalsIgnoreCase(email) && !"son666727@gmail.com".equalsIgnoreCase(email)) {
+            if (!"hson05542@gmail.com".equalsIgnoreCase(email) 
+                    && !"son666727@gmail.com".equalsIgnoreCase(email)
+                    && !"admin@gmail.com".equalsIgnoreCase(email)) {
                 boolean changed = false;
                 if (u.getRole() == Role.ROLE_ADMIN || u.getRole() == Role.ADMIN) {
                     u.setRole(Role.ROLE_USER);
