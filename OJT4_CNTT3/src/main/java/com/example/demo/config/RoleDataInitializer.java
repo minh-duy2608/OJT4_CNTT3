@@ -330,28 +330,33 @@ public class RoleDataInitializer implements CommandLineRunner {
     }
 
     private void initDefaultBrands() {
-        if (brandRepository.count() > 0) {
-            return;
-        }
-
         List<com.example.demo.entity.Brand> sampleBrands = List.of(
                 com.example.demo.entity.Brand.builder().name("Apple").slug("apple").description("Apple Inc. - iPhone, iPad, Mac, Apple Watch").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
                 com.example.demo.entity.Brand.builder().name("Samsung").slug("samsung").description("Samsung Electronics - Galaxy Phones, Tablets, Watches").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
                 com.example.demo.entity.Brand.builder().name("Sony").slug("sony").description("Sony - Tai nghe, loa bluetooth, thiết bị âm thanh đỉnh cao").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
                 com.example.demo.entity.Brand.builder().name("Dell").slug("dell").description("Dell - Laptop doanh nhân XPS, Alienware Gaming").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
                 com.example.demo.entity.Brand.builder().name("Asus").slug("asus").description("Asus - Zenbook, ROG Gaming laptop & linh kiện").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
-                com.example.demo.entity.Brand.builder().name("Xiaomi").slug("xiaomi").description("Xiaomi - Thiết bị di động & hệ sinh thái thông minh").status(com.example.demo.entity.BrandStatus.ACTIVE).build()
+                com.example.demo.entity.Brand.builder().name("Xiaomi").slug("xiaomi").description("Xiaomi - Thiết bị di động & hệ sinh thái thông minh").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
+                com.example.demo.entity.Brand.builder().name("MSI").slug("msi").description("MSI - Laptop Gaming, Creator & Bo mạch chủ hàng đầu thế giới").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
+                com.example.demo.entity.Brand.builder().name("Acer").slug("acer").description("Acer - Laptop Predator, Nitro Gaming và văn phòng mỏng nhẹ").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
+                com.example.demo.entity.Brand.builder().name("Lenovo").slug("lenovo").description("Lenovo - ThinkPad doanh nhân, Legion Gaming và Yoga cao cấp").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
+                com.example.demo.entity.Brand.builder().name("HP").slug("hp").description("HP - Laptop OMEN Gaming, Envy, Pavilion và Spectre sang trọng").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
+                com.example.demo.entity.Brand.builder().name("OPPO").slug("oppo").description("OPPO - Camera Phone, Reno & Find X Series cao cấp").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
+                com.example.demo.entity.Brand.builder().name("Garmin").slug("garmin").description("Garmin - Đồng hồ thể thao & theo dõi sức khỏe chuyên nghiệp").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
+                com.example.demo.entity.Brand.builder().name("Marshall").slug("marshall").description("Marshall - Âm thanh biểu tượng phong cách Rock & Roll Anh Quốc").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
+                com.example.demo.entity.Brand.builder().name("JBL").slug("jbl").description("JBL - Loa bluetooth di động và tai nghe âm bass mạnh mẽ").status(com.example.demo.entity.BrandStatus.ACTIVE).build(),
+                com.example.demo.entity.Brand.builder().name("Canon").slug("canon").description("Canon - Máy ảnh chuyên nghiệp EOS & ống kính chính hãng").status(com.example.demo.entity.BrandStatus.ACTIVE).build()
         );
 
-        brandRepository.saveAll(sampleBrands);
-        log.info("Initialized {} default product brands", sampleBrands.size());
+        for (var b : sampleBrands) {
+            if (!brandRepository.existsBySlug(b.getSlug())) {
+                brandRepository.save(b);
+            }
+        }
+        log.info("Verified and updated default product brands catalog");
     }
 
     private void initDefaultShopAndProducts() {
-        if (productRepository.count() > 0) {
-            return;
-        }
-
         // Đảm bảo có ít nhất 1 shop chính thức
         com.example.demo.entity.Shop officialShop = shopRepository.findBySlug("cyber-official-store").orElseGet(() -> {
             User adminUser = userRepository.findByEmail("son666727@gmail.com")
@@ -381,24 +386,26 @@ public class RoleDataInitializer implements CommandLineRunner {
         var brandApple = brandRepository.findBySlug("apple").orElse(null);
         var brandSamsung = brandRepository.findBySlug("samsung").orElse(null);
         var brandSony = brandRepository.findBySlug("sony").orElse(null);
-
-        if (catPhone == null || brandApple == null) {
-            return;
-        }
+        var brandAsus = brandRepository.findBySlug("asus").orElse(null);
+        var brandDell = brandRepository.findBySlug("dell").orElse(null);
+        var brandMsi = brandRepository.findBySlug("msi").orElse(null);
+        var brandAcer = brandRepository.findBySlug("acer").orElse(null);
 
         // 1. iPhone 15 Pro Max
-        createSampleProduct(
-                officialShop.getId(), catPhone, brandApple,
-                "iPhone 15 Pro Max 256GB", "iphone-15-pro-max-256gb",
-                "Thiết kế titan cao cấp, chip A17 Pro cực mạnh, camera tiềm vọng 5x",
-                "Màn hình Super Retina XDR OLED 6.7 inch 120Hz Promotion. Khung vỏ Titan chuẩn hàng không vũ trụ siêu bền và nhẹ. Cổng USB-C tốc độ truyền 10Gbps.",
-                12, "IP15PM-256-BLK", "Titan Đen 256GB",
-                new java.math.BigDecimal("29990000"), new java.math.BigDecimal("28490000"),
-                50, "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=800"
-        );
+        if (catPhone != null && brandApple != null && !productRepository.existsBySlug("iphone-15-pro-max-256gb")) {
+            createSampleProduct(
+                    officialShop.getId(), catPhone, brandApple,
+                    "iPhone 15 Pro Max 256GB", "iphone-15-pro-max-256gb",
+                    "Thiết kế titan cao cấp, chip A17 Pro cực mạnh, camera tiềm vọng 5x",
+                    "Màn hình Super Retina XDR OLED 6.7 inch 120Hz Promotion. Khung vỏ Titan chuẩn hàng không vũ trụ siêu bền và nhẹ. Cổng USB-C tốc độ truyền 10Gbps.",
+                    12, "IP15PM-256-BLK", "Titan Đen 256GB",
+                    new java.math.BigDecimal("29990000"), new java.math.BigDecimal("28490000"),
+                    50, "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=800"
+            );
+        }
 
         // 2. Samsung Galaxy S24 Ultra
-        if (brandSamsung != null) {
+        if (catPhone != null && brandSamsung != null && !productRepository.existsBySlug("samsung-galaxy-s24-ultra-512gb")) {
             createSampleProduct(
                     officialShop.getId(), catPhone, brandSamsung,
                     "Samsung Galaxy S24 Ultra 512GB", "samsung-galaxy-s24-ultra-512gb",
@@ -411,7 +418,7 @@ public class RoleDataInitializer implements CommandLineRunner {
         }
 
         // 3. Sony WH-1000XM5
-        if (catAudio != null && brandSony != null) {
+        if (catAudio != null && brandSony != null && !productRepository.existsBySlug("sony-wh-1000xm5")) {
             createSampleProduct(
                     officialShop.getId(), catAudio, brandSony,
                     "Tai nghe chống ồn Sony WH-1000XM5", "sony-wh-1000xm5",
@@ -424,7 +431,7 @@ public class RoleDataInitializer implements CommandLineRunner {
         }
 
         // 4. Apple Watch Series 9
-        if (catWatch != null) {
+        if (catWatch != null && brandApple != null && !productRepository.existsBySlug("apple-watch-series-9-gps-45mm")) {
             createSampleProduct(
                     officialShop.getId(), catWatch, brandApple,
                     "Apple Watch Series 9 GPS 45mm", "apple-watch-series-9-gps-45mm",
@@ -433,6 +440,71 @@ public class RoleDataInitializer implements CommandLineRunner {
                     12, "AWS9-45-MID", "Midnight Nhôm 45mm",
                     new java.math.BigDecimal("10490000"), null,
                     25, "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800"
+            );
+        }
+
+        // 5. Apple MacBook Air M2
+        if (catLaptop != null && brandApple != null && !productRepository.existsBySlug("apple-macbook-air-m2-2024-8cpu-8gpu-16gb-256gb")) {
+            createSampleProduct(
+                    officialShop.getId(), catLaptop, brandApple,
+                    "Apple MacBook Air M2 2024 16GB 256GB", "apple-macbook-air-m2-2024-8cpu-8gpu-16gb-256gb",
+                    "MacBook Air M2 được trang bị chip M2 mạnh mẽ, mang lại hiệu năng vượt trội cho việc học và làm việc",
+                    "Chip Apple M2 với 8 lõi CPU và 8 lõi GPU. Màn hình Liquid Retina 13.6 inch 500 nits. Thời lượng pin lên đến 18 giờ.",
+                    12, "MBA-M2-16-256-SLV", "Bạc Silver 16GB/256GB",
+                    new java.math.BigDecimal("21990000"), new java.math.BigDecimal("18500000"),
+                    30, "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800"
+            );
+        }
+
+        // 6. Asus ROG Zephyrus G14
+        if (catLaptop != null && brandAsus != null && !productRepository.existsBySlug("asus-rog-zephyrus-g14-oled")) {
+            createSampleProduct(
+                    officialShop.getId(), catLaptop, brandAsus,
+                    "Laptop Asus ROG Zephyrus G14 OLED GA403", "asus-rog-zephyrus-g14-oled",
+                    "Laptop Gaming màn OLED 3K 120Hz siêu mỏng nhẹ, CPU AMD Ryzen 9 AI, Card đồ họa RTX 4060, vỏ nhôm CNC",
+                    "Bộ vi xử lý AMD Ryzen 9 8945HS với Ryzen AI. Card đồ họa NVIDIA GeForce RTX 4060 8GB GDDR6. Màn hình ROG Nebula OLED 3K 120Hz 0.2ms.",
+                    24, "ROG-G14-OLED-4060", "Xám Eclipse 16GB/512GB",
+                    new java.math.BigDecimal("44990000"), new java.math.BigDecimal("39990000"),
+                    20, "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=800"
+            );
+        }
+
+        // 7. Dell XPS 13 Plus
+        if (catLaptop != null && brandDell != null && !productRepository.existsBySlug("dell-xps-13-plus-9320")) {
+            createSampleProduct(
+                    officialShop.getId(), catLaptop, brandDell,
+                    "Laptop Dell XPS 13 Plus 9320 Core i7", "dell-xps-13-plus-9320",
+                    "Kiệt tác thiết kế siêu mỏng nhẹ, màn hình OLED 3.5K cảm ứng, bàn phím tràn cạnh và thanh cảm ứng điện dung",
+                    "Intel Core i7-1360P thế hệ 13. Màn hình 13.4 inch 3.5K OLED InfinityEdge cảm ứng 400 nits. Trọng lượng siêu nhẹ chỉ 1.23kg.",
+                    12, "DELL-XPS13-9320", "Bạc Platinum 16GB/512GB",
+                    new java.math.BigDecimal("41990000"), new java.math.BigDecimal("36990000"),
+                    15, "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=800"
+            );
+        }
+
+        // 8. MSI Cyborg 15
+        if (catLaptop != null && brandMsi != null && !productRepository.existsBySlug("msi-cyborg-15-a12v")) {
+            createSampleProduct(
+                    officialShop.getId(), catLaptop, brandMsi,
+                    "Laptop Gaming MSI Cyborg 15 A12V RTX 4050", "msi-cyborg-15-a12v",
+                    "Thiết kế cyberpunk xuyên thấu đậm chất tương lai, màn hình 144Hz IPS, CPU Intel Core i7 và card đồ họa RTX 4050",
+                    "Intel Core i7-12650H, RTX 4050 6GB GDDR6, Màn hình 15.6 inch FHD 144Hz IPS-level, Bàn phím đèn nền xanh Translucent.",
+                    24, "MSI-CYBORG-15", "Đen Translucent 16GB/512GB",
+                    new java.math.BigDecimal("24990000"), new java.math.BigDecimal("21990000"),
+                    25, "https://images.unsplash.com/photo-1603302576837-37561b2e2302?w=800"
+            );
+        }
+
+        // 9. Acer Nitro V 15
+        if (catLaptop != null && brandAcer != null && !productRepository.existsBySlug("acer-nitro-v-15-anv15")) {
+            createSampleProduct(
+                    officialShop.getId(), catLaptop, brandAcer,
+                    "Laptop Acer Nitro V 15 ANV15 Core i5 RTX 4050", "acer-nitro-v-15-anv15",
+                    "Chiến binh gaming quốc dân, tản nhiệt 2 quạt mát lạnh, màn hình 144Hz siêu mượt và card rời RTX 4050 6GB",
+                    "Intel Core i5-13420H, Card rời NVIDIA GeForce RTX 4050 6GB, Màn hình 15.6 inch FHD 144Hz IPS, Tản nhiệt kép cực mát.",
+                    12, "ACER-NITRO-V15", "Đen Obsidian 16GB/512GB",
+                    new java.math.BigDecimal("22990000"), new java.math.BigDecimal("19990000"),
+                    30, "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=800"
             );
         }
 

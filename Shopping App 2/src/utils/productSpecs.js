@@ -139,14 +139,14 @@ export const parseProductSpecs = (rawDescription) => {
   // Sort descending by length so longer phrases match first
   const sortedKeywords = [...commonKeywords].sort((a, b) => b.length - a.length);
   const keywordEscaped = sortedKeywords.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-  const regex = new RegExp(`(?:^|[\\n\\r•;–-]\\s*|\\s{2,})(${keywordEscaped})[:\\s]`, 'gi');
+  const regex = new RegExp(`(^|[\\r\\n•;]|(?<![\\w\\-])\\s+)(${keywordEscaped})(?:[:\\s]|$)`, 'gi');
 
   const matches = [];
   let m;
   while ((m = regex.exec(trimmed)) !== null) {
     matches.push({
-      keyword: m[1],
-      index: m.index + m[0].indexOf(m[1])
+      keyword: m[2],
+      index: m.index + m[1].length
     });
   }
 

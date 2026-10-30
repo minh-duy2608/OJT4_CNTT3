@@ -3,7 +3,102 @@
    ========================================================================== */
 
 .cyber-products-container {
-  padding: 3.5rem 0 3rem;
+  padding: 2.5rem 0 3rem;
+}
+
+/* Category Filter Bar - Horizontal Pill Scroller */
+.category-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  overflow-x: auto;
+  padding: 0.25rem 0 0.85rem;
+  margin-bottom: 0.85rem;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.category-filter-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.category-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.15rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #e4e4e7;
+  background-color: #ffffff;
+  color: #3f3f46;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.category-pill-btn:hover {
+  background-color: #f4f4f5;
+  color: #000000;
+  border-color: #d4d4d8;
+  transform: translateY(-1px);
+}
+
+.category-pill-btn.is-active {
+  background-color: #000000;
+  color: #ffffff;
+  border-color: #000000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Brand Filter Bar - Categorized Brands */
+.brand-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.4rem 0 1.25rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #f4f4f5;
+}
+
+.brand-filter-label {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #71717a;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-right: 0.25rem;
+}
+
+.brand-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #e4e4e7;
+  background-color: #ffffff;
+  color: #52525b;
+  transition: all 0.15s ease;
+}
+
+.brand-pill-btn:hover {
+  border-color: #a1a1aa;
+  color: #000000;
+  background-color: #f8fafc;
+}
+
+.brand-pill-btn.is-active {
+  background-color: #000000;
+  color: #ffffff;
+  border-color: #000000;
 }
 
 /* Tabs Navigation: New Arrival | Bestseller | Featured Products (Figma Exact) */
@@ -11,10 +106,10 @@
   display: flex;
   align-items: center;
   gap: 2.25rem;
-  margin-bottom: 2.5rem;
+  margin-bottom: 2rem;
   border-bottom: 1px solid #f0f0f0;
   padding-bottom: 0.25rem;
-  margin-top: 20px;
+  margin-top: 10px;
 }
 
 .products-tab-btn {
@@ -100,49 +195,47 @@
 }
 
 .pagination-btn {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 0.5rem 0.95rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  border-radius: 8px;
-  border: 1px solid #e4e4e7;
+  gap: 0.35rem;
+  padding: 0.5rem 0.85rem;
   background-color: #ffffff;
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
   color: #18181b;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .pagination-btn:hover:not(:disabled) {
-  border-color: #000000;
   background-color: #f4f4f5;
+  border-color: #d4d4d8;
 }
 
 .pagination-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
-  border-color: #e4e4e7;
 }
 
 .page-number-btn {
   min-width: 38px;
   height: 38px;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
+  background-color: #ffffff;
+  border: 1px solid #e4e4e7;
   border-radius: 8px;
   font-size: 0.875rem;
-  font-weight: 600;
-  border: 1px solid #e4e4e7;
-  background-color: #ffffff;
+  font-weight: 500;
   color: #18181b;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
 }
 
-.page-number-btn:hover:not(.is-active) {
-  border-color: #a1a1aa;
+.page-number-btn:hover {
   background-color: #f4f4f5;
 }
 
@@ -150,14 +243,12 @@
   background-color: #000000;
   color: #ffffff;
   border-color: #000000;
-  font-weight: 700;
+  font-weight: 600;
 }
 
-/* Responsive Grid */
-@media (max-width: 1100px) {
+@media (max-width: 1024px) {
   .products-card-grid {
     grid-template-columns: repeat(3, 1fr);
-    gap: 1.25rem;
   }
 }
 
@@ -166,20 +257,7 @@
     grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
   }
-
   .products-tab-header {
-    gap: 1.5rem;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .products-tab-btn {
-    font-size: 1rem;
-  }
-
-  .pagination-container {
-    flex-direction: column;
-    align-items: center;
     gap: 1.25rem;
   }
 }

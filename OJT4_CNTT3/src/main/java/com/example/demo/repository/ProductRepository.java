@@ -30,4 +30,6 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     long countByShopId(Long shopId);
 
     boolean existsByShopIdAndSlug(Long shopId, String slug);
+
+    boolean existsBySlug(String slug);
 }

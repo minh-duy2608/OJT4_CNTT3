@@ -84,6 +84,13 @@ export const Header = () => {
     return false;
   }, [user]);
 
+  // Xác định danh mục công nghệ đang chọn trên sub-nav
+  const activeCategoryKey = useMemo(() => {
+    if (location.pathname !== '/products') return null;
+    const params = new URLSearchParams(location.search);
+    return params.get('category');
+  }, [location.pathname, location.search]);
+
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     if (searchTerm.trim()) {
@@ -323,63 +330,63 @@ export const Header = () => {
         <div className="container">
           <ul className="cyber-subnav-list">
             <li className="cyber-subnav-item-wrap">
-              <NavLink 
+              <Link 
                 to="/products?category=phones" 
-                className={({ isActive }) => `cyber-subnav-link ${isActive ? 'active' : ''}`}
+                className={`cyber-subnav-link ${activeCategoryKey === 'phones' || activeCategoryKey === 'dien-thoai-tablet' || activeCategoryKey === '1' ? 'active' : ''}`}
               >
                 <Smartphone className="cyber-subnav-icon" />
                 <span>Điện thoại</span>
-              </NavLink>
+              </Link>
             </li>
 
             <li className="cyber-subnav-item-wrap">
-              <NavLink 
+              <Link 
                 to="/products?category=laptops" 
-                className={({ isActive }) => `cyber-subnav-link ${isActive ? 'active' : ''}`}
+                className={`cyber-subnav-link ${activeCategoryKey === 'laptops' || activeCategoryKey === 'laptop-may-tinh' || activeCategoryKey === '2' ? 'active' : ''}`}
               >
                 <Laptop className="cyber-subnav-icon" />
                 <span>Laptop</span>
-              </NavLink>
+              </Link>
             </li>
 
             <li className="cyber-subnav-item-wrap">
-              <NavLink 
+              <Link 
                 to="/products?category=smartwatches" 
-                className={({ isActive }) => `cyber-subnav-link ${isActive ? 'active' : ''}`}
+                className={`cyber-subnav-link ${activeCategoryKey === 'smartwatches' || activeCategoryKey === 'dong-ho-thong-minh' || activeCategoryKey === '3' ? 'active' : ''}`}
               >
                 <Watch className="cyber-subnav-icon" />
                 <span>Đồng hồ thông minh</span>
-              </NavLink>
+              </Link>
             </li>
 
             <li className="cyber-subnav-item-wrap">
-              <NavLink 
+              <Link 
                 to="/products?category=cameras" 
-                className={({ isActive }) => `cyber-subnav-link ${isActive ? 'active' : ''}`}
+                className={`cyber-subnav-link ${activeCategoryKey === 'cameras' || activeCategoryKey === 'may-anh-quay-phim' || activeCategoryKey === '6' ? 'active' : ''}`}
               >
                 <Camera className="cyber-subnav-icon" />
                 <span>Cameras</span>
-              </NavLink>
+              </Link>
             </li>
 
             <li className="cyber-subnav-item-wrap">
-              <NavLink 
+              <Link 
                 to="/products?category=headphones" 
-                className={({ isActive }) => `cyber-subnav-link ${isActive ? 'active' : ''}`}
+                className={`cyber-subnav-link ${activeCategoryKey === 'headphones' || activeCategoryKey === 'am-thanh-tai-nghe' || activeCategoryKey === '4' ? 'active' : ''}`}
               >
                 <Headphones className="cyber-subnav-icon" />
                 <span>Tai nghe</span>
-              </NavLink>
+              </Link>
             </li>
 
             <li className="cyber-subnav-item-wrap">
-              <NavLink 
+              <Link 
                 to="/products?category=gaming" 
-                className={({ isActive }) => `cyber-subnav-link ${isActive ? 'active' : ''}`}
+                className={`cyber-subnav-link ${activeCategoryKey === 'gaming' || activeCategoryKey === '9' ? 'active' : ''}`}
               >
                 <Gamepad2 className="cyber-subnav-icon" />
                 <span>Gaming</span>
-              </NavLink>
+              </Link>
             </li>
           </ul>
         </div>
