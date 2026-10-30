@@ -162,3 +162,4 @@ export const getCategoryBrands = (categoryIdentifier, allApiBrands = []) => {
 
   return result;
 };
+

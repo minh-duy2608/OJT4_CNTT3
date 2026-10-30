@@ -871,10 +871,10 @@ export const AdminPage = () => {
         setProductFormData({
           name: detail.name || '',
           slug: detail.slug || '',
-          categoryId: detail.category?.id || '',
-          brandId: detail.brand?.id || '',
+          categoryId: detail.categoryId || detail.category?.id || '',
+          brandId: detail.brandId || detail.brand?.id || '',
           shortDescription: detail.shortDescription || '',
-          description: parsed.cleanDescription || '',
+          description: parsed.description || parsed.cleanDescription || detail.description || '',
           warrantyMonths: detail.warrantyMonths || 12,
           status: detail.status || 'ACTIVE',
           variants: (detail.variants && detail.variants.length > 0)
@@ -1122,8 +1122,9 @@ export const AdminPage = () => {
         warrantyMonths: Number(productFormData.warrantyMonths) || 12,
         status: productFormData.status,
         variants: productFormData.variants.map((v, idx) => ({
+          id: v.id || null,
           variantName: v.variantName.trim() || `Phiên bản #${idx + 1}`,
-          sku: v.sku.trim() || `SKU-${Date.now()}-${idx + 1}`,
+          sku: (v.sku && v.sku.trim()) || `SKU-${currentProductId || Date.now()}-${idx + 1}`,
           color: v.color || null,
           storage: v.storage || null,
           price: Number(v.price) || 0,

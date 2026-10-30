@@ -85,7 +85,7 @@ export const parseProductSpecs = (rawDescription) => {
           ? obj.specifications.filter((s) => s && (s.name || s.value))
           : [];
         const desc = obj.text || obj.description || '';
-        return { specs, description: desc };
+        return { specs, description: desc, cleanDescription: desc };
       }
     } catch {
       // Fall through to text parser
@@ -169,9 +169,10 @@ export const parseProductSpecs = (rawDescription) => {
     });
 
     if (specs.length >= 2) {
-      return { specs, description: nonSpecLines.join('\n').trim() };
+      const desc = nonSpecLines.join('\n').trim();
+      return { specs, description: desc, cleanDescription: desc };
     }
-    return { specs: [], description: trimmed };
+    return { specs: [], description: trimmed, cleanDescription: trimmed };
   }
 
   // Extract values between keyword matches
@@ -193,7 +194,7 @@ export const parseProductSpecs = (rawDescription) => {
 
   const firstIndex = matches[0].index;
   const description = firstIndex > 0 ? trimmed.substring(0, firstIndex).trim() : '';
-  return { specs, description };
+  return { specs, description, cleanDescription: description };
 };
 
 /**

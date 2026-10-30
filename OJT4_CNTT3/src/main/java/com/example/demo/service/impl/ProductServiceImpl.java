@@ -35,10 +35,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -444,15 +446,24 @@ public class ProductServiceImpl implements ProductService {
 
         if (request.getVariants() != null && !request.getVariants().isEmpty()) {
             List<ProductVariant> existingVariants = productVariantRepository.findByProductIdOrderByPriceAsc(productId);
-            for (ProductVariant ev : existingVariants) {
-                inventoryRepository.deleteById(ev.getId());
-                productVariantRepository.delete(ev);
-            }
+            Map<Long, ProductVariant> existingById = existingVariants.stream()
+                    .collect(Collectors.toMap(ProductVariant::getId, Function.identity()));
+            Map<String, ProductVariant> existingBySku = existingVariants.stream()
+                    .filter(v -> v.getSku() != null && !v.getSku().isBlank())
+                    .collect(Collectors.toMap(v -> v.getSku().trim(), Function.identity(), (a, b) -> a));
 
-            for (com.example.demo.dto.request.CreateProductVariantRequest vReq : request.getVariants()) {
-                String sku = vReq.getSku();
-                if (sku == null || sku.isBlank()) {
-                    sku = "SKU-" + savedProduct.getId() + "-" + (System.currentTimeMillis() % 100000) + "-" + (int)(Math.random() * 1000);
+            Set<Long> processedVariantIds = new HashSet<>();
+
+            for (int i = 0; i < request.getVariants().size(); i++) {
+                com.example.demo.dto.request.CreateProductVariantRequest vReq = request.getVariants().get(i);
+
+                ProductVariant variant = null;
+                if (vReq.getId() != null && existingById.containsKey(vReq.getId())) {
+                    variant = existingById.get(vReq.getId());
+                } else if (vReq.getSku() != null && !vReq.getSku().isBlank() && existingBySku.containsKey(vReq.getSku().trim())) {
+                    variant = existingBySku.get(vReq.getSku().trim());
+                } else if (i < existingVariants.size() && vReq.getId() == null && (vReq.getSku() == null || vReq.getSku().isBlank())) {
+                    variant = existingVariants.get(i);
                 }
 
                 String attributesJson = vReq.getAttributes();
@@ -462,31 +473,90 @@ public class ProductServiceImpl implements ProductService {
                             vReq.getStorage() != null ? vReq.getStorage() : "");
                 }
 
-                ProductVariant variant = ProductVariant.builder()
-                        .product(savedProduct)
-                        .variantName(vReq.getVariantName())
-                        .sku(sku)
-                        .price(vReq.getPrice())
-                        .salePrice(vReq.getSalePrice())
-                        .weightGrams(vReq.getWeightGrams())
-                        .attributes(attributesJson)
-                        .status(vReq.getStatus() != null ? vReq.getStatus() : ProductVariantStatus.ACTIVE)
-                        .build();
+                if (variant != null) {
+                    // Cập nhật biến thể hiện có (in-place update - không gây duplicate SKU)
+                    processedVariantIds.add(variant.getId());
+                    variant.setVariantName(vReq.getVariantName());
+                    variant.setPrice(vReq.getPrice());
+                    variant.setSalePrice(vReq.getSalePrice());
+                    variant.setWeightGrams(vReq.getWeightGrams());
+                    variant.setAttributes(attributesJson);
+                    if (vReq.getStatus() != null) {
+                        variant.setStatus(vReq.getStatus());
+                    }
+                    if (vReq.getSku() != null && !vReq.getSku().isBlank()) {
+                        String newSku = vReq.getSku().trim();
+                        if (!newSku.equals(variant.getSku())) {
+                            if (!productVariantRepository.existsBySkuAndIdNot(newSku, variant.getId())) {
+                                variant.setSku(newSku);
+                            }
+                        }
+                    }
+                    ProductVariant savedVariant = productVariantRepository.save(variant);
 
-                ProductVariant savedVariant = productVariantRepository.save(variant);
+                    int qty = vReq.getStockQuantity() != null ? vReq.getStockQuantity() : 100;
+                    inventoryRepository.findById(savedVariant.getId()).ifPresentOrElse(inv -> {
+                        inv.setQuantity(qty);
+                        inventoryRepository.save(inv);
+                    }, () -> {
+                        inventoryRepository.save(Inventory.builder()
+                                .variantId(savedVariant.getId())
+                                .quantity(qty)
+                                .reservedQuantity(0)
+                                .build());
+                    });
+                } else {
+                    // Thêm mới biến thể
+                    String sku = vReq.getSku();
+                    if (sku == null || sku.isBlank() || productVariantRepository.existsBySku(sku.trim())) {
+                        sku = "SKU-" + savedProduct.getId() + "-" + System.currentTimeMillis() + "-" + (i + 1);
+                    } else {
+                        sku = sku.trim();
+                    }
 
-                int qty = vReq.getStockQuantity() != null ? vReq.getStockQuantity() : 100;
-                inventoryRepository.save(Inventory.builder()
-                        .variantId(savedVariant.getId())
-                        .quantity(qty)
-                        .reservedQuantity(0)
-                        .build());
+                    ProductVariant newVariant = ProductVariant.builder()
+                            .product(savedProduct)
+                            .variantName(vReq.getVariantName())
+                            .sku(sku)
+                            .price(vReq.getPrice())
+                            .salePrice(vReq.getSalePrice())
+                            .weightGrams(vReq.getWeightGrams())
+                            .attributes(attributesJson)
+                            .status(vReq.getStatus() != null ? vReq.getStatus() : ProductVariantStatus.ACTIVE)
+                            .build();
+
+                    ProductVariant savedVariant = productVariantRepository.save(newVariant);
+                    processedVariantIds.add(savedVariant.getId());
+
+                    int qty = vReq.getStockQuantity() != null ? vReq.getStockQuantity() : 100;
+                    inventoryRepository.save(Inventory.builder()
+                            .variantId(savedVariant.getId())
+                            .quantity(qty)
+                            .reservedQuantity(0)
+                            .build());
+                }
+            }
+
+            // Xóa các biến thể cũ đã bị xóa khỏi danh sách
+            for (ProductVariant ev : existingVariants) {
+                if (!processedVariantIds.contains(ev.getId())) {
+                    try {
+                        inventoryRepository.deleteById(ev.getId());
+                        productVariantRepository.delete(ev);
+                        productVariantRepository.flush();
+                    } catch (Exception ex) {
+                        log.warn("Không thể xóa biến thể ID {} do có ràng buộc đơn hàng/giỏ hàng, chuyển trạng thái INACTIVE: {}", ev.getId(), ex.getMessage());
+                        ev.setStatus(ProductVariantStatus.INACTIVE);
+                        productVariantRepository.save(ev);
+                    }
+                }
             }
         }
 
         if (request.getImages() != null) {
             List<ProductImage> oldImages = productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(productId);
             productImageRepository.deleteAll(oldImages);
+            productImageRepository.flush();
 
             boolean hasPrimary = false;
             for (int i = 0; i < request.getImages().size(); i++) {
