@@ -15,7 +15,8 @@ import {
   ChevronRight,
   Store,
   Layers,
-  Sparkles
+  Sparkles,
+  AlertCircle
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -150,29 +151,18 @@ export const ProductDetailPage = () => {
     };
   }, [product.variants]);
 
-  // State chọn phiên bản & màu sắc
+  // State chọn phiên bản & màu sắc - Khởi tạo rỗng để người dùng BẮT BUỘC phải bấm chọn trước khi mua
   const [selectedStorage, setSelectedStorage] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
-
-  // Tự động đồng bộ lựa chọn đầu tiên khi danh sách phiên bản/màu sắc tải xong
-  useEffect(() => {
-    if (storageOptions.length > 0 && !selectedStorage) {
-      setSelectedStorage(storageOptions[0]);
-    }
-  }, [storageOptions, selectedStorage]);
-
-  useEffect(() => {
-    if (colorOptions.length > 0 && !selectedColor) {
-      setSelectedColor(colorOptions[0]);
-    }
-  }, [colorOptions, selectedColor]);
+  const [attemptedAction, setAttemptedAction] = useState(false);
 
   // Tìm biến thể khớp nhất với cấu hình đang chọn
   const matchedVariant = useMemo(() => {
+    if (!selectedColor && !selectedStorage) return null;
     return (
       variantsMap[`${selectedColor}_${selectedStorage}`] ||
-      variantsMap[`storage_${selectedStorage}`] ||
-      variantsMap[`color_${selectedColor}`] ||
+      (selectedStorage ? variantsMap[`storage_${selectedStorage}`] : null) ||
+      (selectedColor ? variantsMap[`color_${selectedColor}`] : null) ||
       (Array.isArray(product.variants) ? product.variants[0] : null)
     );
   }, [variantsMap, selectedColor, selectedStorage, product.variants]);
@@ -208,16 +198,23 @@ export const ProductDetailPage = () => {
 
   const stockQuantity = matchedVariant?.stockQuantity ?? (product.inStock ? 100 : 0);
 
-  // Xử lý Thêm vào giỏ hàng trực tiếp từ trang chi tiết
+  // Xử lý Thêm vào giỏ hàng trực tiếp từ trang chi tiết (Yêu cầu phải chọn phiên bản & màu sắc)
   const handleAddToCart = () => {
     if (!isAuthenticated) {
       setShowAuthRequiredModal(true);
       return;
     }
 
+    if (!selectedStorage || !selectedColor) {
+      setAttemptedAction(true);
+      showToast('Vui lòng chọn Phiên bản và Màu sắc sản phẩm trước khi thêm vào giỏ hàng!', 'warning');
+      return;
+    }
+
     const configuredProduct = {
       ...product,
       id: matchedVariant ? `${product.id}-${matchedVariant.id}` : `${product.id}-${selectedColor}-${selectedStorage}`,
+      productId: product.id,
       variantId: matchedVariant?.id,
       name: `${product.name} (${selectedColor}, ${selectedStorage})`,
       price: currentPrice,
@@ -233,27 +230,46 @@ export const ProductDetailPage = () => {
     showToast(`Đã thêm ${quantity}x "${configuredProduct.name}" vào giỏ hàng!`, 'success');
   };
 
-  // Xử lý Mua ngay: Thêm vào giỏ và chuyển thẳng sang Checkout
+  // Xử lý Mua ngay:
+  // CHỈ thanh toán DUY NHẤT sản phẩm vừa chọn, TUYỆT ĐỐI KHÔNG đưa vào giỏ hay thanh toán cả giỏ hàng
   const handleBuyNow = () => {
     if (!isAuthenticated) {
       setShowAuthRequiredModal(true);
       return;
     }
 
-    const configuredProduct = {
-      ...product,
+    if (!selectedStorage || !selectedColor) {
+      setAttemptedAction(true);
+      showToast('Vui lòng chọn Phiên bản và Màu sắc sản phẩm trước khi mua ngay!', 'warning');
+      return;
+    }
+
+    const buyNowItem = {
       id: matchedVariant ? `${product.id}-${matchedVariant.id}` : `${product.id}-${selectedColor}-${selectedStorage}`,
+      productId: product.id,
       variantId: matchedVariant?.id,
       name: `${product.name} (${selectedColor}, ${selectedStorage})`,
       price: currentPrice,
       formattedPrice: formatVND(currentPrice),
       image: selectedImage || product.image,
       selectedColor,
-      selectedStorage
+      selectedStorage,
+      quantity,
+      shop: product.shop,
+      brand: product.brand,
+      warrantyMonths: product.warrantyMonths
     };
 
-    addToCart(configuredProduct, quantity, { fly: false });
-    navigate('/checkout');
+    // Lưu vào sessionStorage để reload trang checkout vẫn giữ nguyên đúng sản phẩm này
+    try {
+      sessionStorage.setItem('CYBER_BUY_NOW_ITEM', JSON.stringify(buyNowItem));
+      sessionStorage.removeItem('CYBER_FROM_CART');
+    } catch (e) {
+      console.warn('SessionStorage error:', e);
+    }
+
+    // Chuyển hướng sang Checkout với duy nhất buyNowItem, KHÔNG gọi addToCart
+    navigate('/checkout', { state: { buyNowItem } });
   };
 
   // Sao chép link mua hàng vào clipboard
@@ -374,14 +390,33 @@ export const ProductDetailPage = () => {
             {discountPercent && (
               <span className="detail-discount-pill">-{discountPercent}% OFF</span>
             )}
+            {(!selectedStorage || !selectedColor) && (
+              <span style={{ fontSize: '0.8125rem', color: '#64748b', fontWeight: 500 }}>
+                (Giá dự kiến theo phiên bản)
+              </span>
+            )}
           </div>
+
+          {/* Cảnh báo khi người dùng bấm Mua ngay mà chưa chọn phiên bản & màu sắc */}
+          {attemptedAction && (!selectedStorage || !selectedColor) && (
+            <div className="detail-selection-alert">
+              <AlertCircle size={18} />
+              <span>
+                Vui lòng chọn <strong>{!selectedStorage && !selectedColor ? 'Phiên bản và Màu sắc' : (!selectedStorage ? 'Phiên bản / Dung lượng' : 'Màu sắc')}</strong> bên dưới trước khi đặt mua!
+              </span>
+            </div>
+          )}
 
           {/* =================================================================== */}
           {/* 1. CHỌN PHIÊN BẢN / DUNG LƯỢNG */}
           {/* =================================================================== */}
-          <div className="detail-variant-group">
+          <div className={`detail-variant-group ${attemptedAction && !selectedStorage ? 'is-unselected' : ''}`}>
             <span className="variant-label">
-              1. Phiên bản / Dung lượng: <strong>{selectedStorage}</strong>
+              1. Phiên bản / Dung lượng: {selectedStorage ? (
+                <strong style={{ color: '#000000' }}>{selectedStorage}</strong>
+              ) : (
+                <span className="selection-required-hint">⚠️ (Vui lòng chọn)</span>
+              )}
             </span>
             <div className="storage-options-row">
               {storageOptions.map((storage) => (
@@ -389,7 +424,10 @@ export const ProductDetailPage = () => {
                   key={storage}
                   type="button"
                   className={`storage-pill-btn ${selectedStorage === storage ? 'is-active' : ''}`}
-                  onClick={() => setSelectedStorage(storage)}
+                  onClick={() => {
+                    setSelectedStorage(storage);
+                    setAttemptedAction(false);
+                  }}
                 >
                   {selectedStorage === storage && <Check size={14} style={{ display: 'inline', marginRight: '4px' }} />}
                   {storage}
@@ -401,9 +439,13 @@ export const ProductDetailPage = () => {
           {/* =================================================================== */}
           {/* 2. CHỌN MÀU SẮC (NẰM BÊN DƯỚI PHIÊN BẢN) */}
           {/* =================================================================== */}
-          <div className="detail-variant-group">
+          <div className={`detail-variant-group ${attemptedAction && !selectedColor ? 'is-unselected' : ''}`}>
             <span className="variant-label">
-              2. Màu sắc: <strong>{selectedColor}</strong>
+              2. Màu sắc: {selectedColor ? (
+                <strong style={{ color: '#000000' }}>{selectedColor}</strong>
+              ) : (
+                <span className="selection-required-hint">⚠️ (Vui lòng chọn)</span>
+              )}
             </span>
             <div className="color-options-row">
               {colorOptions.map((color) => {
@@ -422,7 +464,10 @@ export const ProductDetailPage = () => {
                     key={color}
                     type="button"
                     className={`detail-color-pill ${selectedColor === color ? 'is-active' : ''}`}
-                    onClick={() => setSelectedColor(color)}
+                    onClick={() => {
+                      setSelectedColor(color);
+                      setAttemptedAction(false);
+                    }}
                   >
                     <span className="detail-color-dot" style={{ backgroundColor: bg }} />
                     <span>{color}</span>

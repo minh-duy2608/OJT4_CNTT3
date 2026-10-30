@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -25,6 +25,13 @@ export const CartPage = () => {
   } = useCart();
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
+
+  // Đảm bảo xóa session Mua ngay khi người dùng vào xem giỏ hàng
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem('CYBER_BUY_NOW_ITEM');
+    } catch {}
+  }, []);
 
   // Các trạng thái Model Box xác nhận
   const [showCheckoutConfirmModal, setShowCheckoutConfirmModal] = useState(false);
@@ -246,8 +253,12 @@ export const CartPage = () => {
         confirmText="Xác nhận & Đi đến thanh toán"
         cancelText="Kiểm tra lại giỏ"
         onConfirm={() => {
+          try {
+            sessionStorage.removeItem('CYBER_BUY_NOW_ITEM');
+            sessionStorage.setItem('CYBER_FROM_CART', 'true');
+          } catch {}
           setShowCheckoutConfirmModal(false);
-          navigate('/checkout');
+          navigate('/checkout', { state: { fromCart: true } });
         }}
       >
         <div style={{ background: '#f9f9fa', padding: '14px', borderRadius: '10px', border: '1px solid #e4e4e7', fontSize: '0.875rem', lineHeight: '1.6' }}>

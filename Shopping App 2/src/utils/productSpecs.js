@@ -209,3 +209,4 @@ export const formatProductDescription = (descriptionText, specifications = []) =
     specifications: cleanSpecs
   });
 };
+

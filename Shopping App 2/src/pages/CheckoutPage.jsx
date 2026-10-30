@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { 
   MapPin, 
   Plus, 
@@ -38,10 +38,35 @@ export const CheckoutPage = () => {
   } = useCart();
   const { createOrder } = useOrders();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Chỉ thanh toán các mặt hàng được chọn từ Giỏ hàng (nếu không có thì fallback cartItems)
-  const itemsToCheckout = selectedItems.length > 0 ? selectedItems : cartItems;
-  const subtotalToCheckout = selectedItems.length > 0 ? selectedTotal : cartTotal;
+  // Kiểm tra xem đây có phải luồng Mua ngay (Buy Now trực tiếp) hay không
+  const [buyNowItem] = useState(() => {
+    if (location.state?.fromCart) return null;
+    if (location.state?.buyNowItem) {
+      return location.state.buyNowItem;
+    }
+    try {
+      const saved = sessionStorage.getItem('CYBER_BUY_NOW_ITEM');
+      if (saved && !sessionStorage.getItem('CYBER_FROM_CART')) {
+        return JSON.parse(saved);
+      }
+    } catch {}
+    return null;
+  });
+
+  const isBuyNowMode = Boolean(buyNowItem);
+
+  // PHÂN BIỆT RÕ RÀNG:
+  // - Nếu Mua ngay từ trang chi tiết: CHỈ thanh toán DUY NHẤT 1 sản phẩm buyNowItem, KHÔNG ảnh hưởng giỏ hàng
+  // - Nếu từ Giỏ hàng: Chỉ thanh toán các sản phẩm ĐƯỢC CHỌN (selectedItems)
+  const itemsToCheckout = isBuyNowMode
+    ? [buyNowItem]
+    : selectedItems;
+
+  const subtotalToCheckout = isBuyNowMode
+    ? Number(buyNowItem.price || 0) * Number(buyNowItem.quantity || 1)
+    : selectedTotal;
 
   // Model Box xác nhận đặt hàng
   const [showConfirmOrderModal, setShowConfirmOrderModal] = useState(false);
@@ -222,9 +247,22 @@ export const CheckoutPage = () => {
       };
 
       const created = createOrder(orderPayload);
-      // Xóa các sản phẩm đã được thanh toán (các sản phẩm chưa chọn vẫn giữ lại trong giỏ)
-      clearSelectedFromCart();
+
+      if (isBuyNowMode) {
+        // Luồng Mua ngay: chỉ dọn session mua ngay, TUYỆT ĐỐI KHÔNG XÓA GIỎ HÀNG
+        try {
+          sessionStorage.removeItem('CYBER_BUY_NOW_ITEM');
+        } catch {}
+      } else {
+        // Luồng Giỏ hàng: chỉ xóa các sản phẩm ĐÃ ĐƯỢC CHỌN trong giỏ
+        clearSelectedFromCart();
+        try {
+          sessionStorage.removeItem('CYBER_FROM_CART');
+        } catch {}
+      }
+
       setIsSubmitting(false);
+      showToast('Đặt hàng thành công!', 'success');
       navigate('/orders');
     }, 700);
   };
@@ -253,12 +291,39 @@ export const CheckoutPage = () => {
     <div className="container checkout-page-wrapper">
       {/* Header */}
       <div style={{ marginBottom: '2rem' }}>
-        <Link to="/cart" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem', color: '#71717a', marginBottom: '0.75rem', textDecoration: 'none' }}>
-          <ArrowLeft size={16} /> Quay lại giỏ hàng
-        </Link>
-        <h1 className="checkout-page-title">Xác nhận đơn hàng</h1>
-        <p className="checkout-page-subtitle">
-          Vui lòng kiểm tra kỹ địa chỉ nhận hàng, phương thức thanh toán và áp dụng voucher ưu đãi trước khi đặt hàng.
+        {isBuyNowMode ? (
+          <Link 
+            to={buyNowItem?.productId ? `/products/${buyNowItem.productId}` : '/products'} 
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem', color: '#71717a', marginBottom: '0.75rem', textDecoration: 'none' }}
+          >
+            <ArrowLeft size={16} /> Quay lại trang sản phẩm
+          </Link>
+        ) : (
+          <Link 
+            to="/cart" 
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem', color: '#71717a', marginBottom: '0.75rem', textDecoration: 'none' }}
+          >
+            <ArrowLeft size={16} /> Quay lại giỏ hàng
+          </Link>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <h1 className="checkout-page-title" style={{ margin: 0 }}>Xác nhận đơn hàng</h1>
+          {isBuyNowMode ? (
+            <span style={{ background: '#eff6ff', color: '#2563eb', padding: '4px 12px', borderRadius: '20px', fontSize: '0.78125rem', fontWeight: 600 }}>
+              ⚡ Mua ngay trực tiếp (1 sản phẩm)
+            </span>
+          ) : (
+            <span style={{ background: '#f1f5f9', color: '#334155', padding: '4px 12px', borderRadius: '20px', fontSize: '0.78125rem', fontWeight: 600 }}>
+              🛒 Thanh toán từ giỏ ({itemsToCheckout.length} sản phẩm đã chọn)
+            </span>
+          )}
+        </div>
+
+        <p className="checkout-page-subtitle" style={{ marginTop: '0.5rem' }}>
+          {isBuyNowMode
+            ? 'Bạn đang thực hiện thanh toán trực tiếp cho sản phẩm vừa bấm Mua ngay. Giỏ hàng hiện có của bạn vẫn được giữ nguyên an toàn.'
+            : 'Vui lòng kiểm tra kỹ địa chỉ nhận hàng, phương thức thanh toán và áp dụng voucher ưu đãi trước khi đặt hàng.'}
         </p>
       </div>
 
