@@ -2692,6 +2692,7 @@ export const AdminPage = () => {
           onClose={() => setIsAssignPermModalOpen(false)}
           title={`Phân quyền cho vai trò: ${assignRoleTarget?.name} (${roleSelectedPerms.length} quyền)`}
           type="confirm"
+          maxWidth="720px"
           confirmText={isSavingPerms ? 'Đang lưu...' : 'Cập nhật danh sách quyền'}
           cancelText="Hủy"
           onConfirm={handleSaveRolePermissions}
@@ -2933,6 +2934,7 @@ export const AdminPage = () => {
           onClose={() => setIsProductsModalOpen(false)}
           title={`Sản phẩm thuộc danh mục: ${viewingCatProducts?.name || ''}`}
           type="info"
+          maxWidth="680px"
           showCancel={false}
           confirmText="Đóng"
           onConfirm={() => setIsProductsModalOpen(false)}
@@ -3096,6 +3098,7 @@ export const AdminPage = () => {
           onClose={() => setIsBrandProductsModalOpen(false)}
           title={`Sản phẩm thuộc thương hiệu: ${viewingBrandProducts?.name || ''}`}
           type="info"
+          maxWidth="680px"
           showCancel={false}
           confirmText="Đóng"
           onConfirm={() => setIsBrandProductsModalOpen(false)}

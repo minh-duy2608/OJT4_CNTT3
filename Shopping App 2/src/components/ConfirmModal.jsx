@@ -34,18 +34,19 @@ export const ConfirmModal = ({
 
   if (!isOpen) return null;
 
-  const renderIcon = () => {
+  const renderIcon = (customSize) => {
+    const size = customSize || (maxWidth ? 20 : 26);
     if (icon) return icon;
     switch (type) {
       case 'danger':
-        return <Trash2 size={26} strokeWidth={2.2} />;
+        return <Trash2 size={size} strokeWidth={2.2} />;
       case 'success':
-        return <CheckCircle2 size={28} strokeWidth={2.2} />;
+        return <CheckCircle2 size={size} strokeWidth={2.2} />;
       case 'info':
-        return <Info size={26} strokeWidth={2.2} />;
+        return <Info size={size} strokeWidth={2.2} />;
       case 'confirm':
       default:
-        return <HelpCircle size={26} strokeWidth={2.2} />;
+        return <HelpCircle size={size} strokeWidth={2.2} />;
     }
   };
 
@@ -69,33 +70,58 @@ export const ConfirmModal = ({
       aria-labelledby="cyber-modal-title"
     >
       <div
-        className="cyber-modal-box"
+        className={`cyber-modal-box ${maxWidth ? 'is-wide' : ''}`}
         style={{ maxWidth: maxWidth || undefined }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Nút X đóng góc phải */}
-        <button
-          type="button"
-          className="cyber-modal-close-icon-btn"
-          onClick={onClose}
-          aria-label="Đóng"
-        >
-          <X size={18} />
-        </button>
-
-        {/* Thân Modal */}
-        <div className="cyber-modal-body">
-          <div className={`cyber-modal-icon-wrap type-${type}`}>
-            {renderIcon()}
+        {/* Nút X hoặc Header ghim ở trên cùng */}
+        {maxWidth ? (
+          <div className="cyber-modal-header-compact">
+            <div className="cyber-modal-header-left">
+              <div className={`cyber-modal-icon-wrap-compact type-${type}`}>
+                {renderIcon(18)}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                {title && <h3 id="cyber-modal-title" className="cyber-modal-title-compact">{title}</h3>}
+                {message && <div className="cyber-modal-message-compact">{message}</div>}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="cyber-modal-close-icon-btn-static"
+              onClick={onClose}
+              aria-label="Đóng"
+            >
+              <X size={18} />
+            </button>
           </div>
+        ) : (
+          <button
+            type="button"
+            className="cyber-modal-close-icon-btn"
+            onClick={onClose}
+            aria-label="Đóng"
+          >
+            <X size={18} />
+          </button>
+        )}
 
-          {title && <h3 id="cyber-modal-title" className="cyber-modal-title">{title}</h3>}
-          {message && <div className="cyber-modal-message">{message}</div>}
+        {/* Thân Modal cuộn mượt mà */}
+        <div className="cyber-modal-body">
+          {!maxWidth && (
+            <>
+              <div className={`cyber-modal-icon-wrap type-${type}`}>
+                {renderIcon()}
+              </div>
+              {title && <h3 id="cyber-modal-title" className="cyber-modal-title">{title}</h3>}
+              {message && <div className="cyber-modal-message">{message}</div>}
+            </>
+          )}
 
           {children && <div className="cyber-modal-custom-content">{children}</div>}
         </div>
 
-        {/* Footer nút hành động */}
+        {/* Footer nút hành động luôn ghim ở dưới */}
         <div className="cyber-modal-footer">
           {showCancel && (
             <button
