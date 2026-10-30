@@ -55,5 +55,65 @@ public interface ProductService {
      * Admin: DELETE /admin/products/{productId} - Xóa hoặc ngừng sử dụng sản phẩm
      */
     void deleteProduct(Long productId, boolean force);
+
+    /**
+     * STT 45: GET /shops/{shopId}/manage/products - Danh sách sản phẩm trong phạm vi quản lý (Shop permission)
+     */
+    PageResponse<ProductSummaryResponse> getShopManagedProducts(Long shopId, ProductFilterCriteria criteria, String currentUsername);
+
+    /**
+     * STT 46: POST /shops/{shopId}/products - Tạo sản phẩm (Shop permission)
+     */
+    ProductDetailResponse createShopProduct(Long shopId, com.example.demo.dto.request.CreateProductRequest request, String currentUsername);
+
+    /**
+     * STT 47: GET /shops/{shopId}/products/{productId} - Chi tiết sản phẩm trong phạm vi quản lý (Shop permission)
+     */
+    ProductDetailResponse getShopProductById(Long shopId, Long productId, String currentUsername);
+
+    /**
+     * STT 48: PATCH /shops/{shopId}/products/{productId} - Cập nhật thông tin sản phẩm (Shop permission)
+     */
+    ProductDetailResponse updateShopProduct(Long shopId, Long productId, com.example.demo.dto.request.UpdateProductRequest request, String currentUsername);
+
+    /**
+     * STT 49: PATCH /shops/{shopId}/products/{productId}/status - Thay đổi trạng thái sản phẩm (Shop permission)
+     */
+    ProductDetailResponse updateShopProductStatus(Long shopId, Long productId, com.example.demo.entity.ProductStatus status, String currentUsername);
+
+    /**
+     * STT 50: DELETE /shops/{shopId}/products/{productId} - Ngừng kinh doanh hoặc xóa theo chính sách (Shop permission)
+     */
+    void deleteShopProduct(Long shopId, Long productId, boolean force, String currentUsername);
+
+    /**
+     * STT 51: POST /shops/{shopId}/products/{productId}/variants - Tạo biến thể sản phẩm (Shop permission)
+     */
+    ProductVariantResponse createShopProductVariant(Long shopId, Long productId, com.example.demo.dto.request.CreateProductVariantRequest request, String currentUsername);
+
+    /**
+     * STT 52: PATCH /shops/{shopId}/products/{productId}/variants/{variantId} - Cập nhật biến thể (Shop permission)
+     */
+    ProductVariantResponse updateShopProductVariant(Long shopId, Long productId, Long variantId, com.example.demo.dto.request.CreateProductVariantRequest request, String currentUsername);
+
+    /**
+     * STT 53: DELETE /shops/{shopId}/products/{productId}/variants/{variantId} - Xóa hoặc vô hiệu hóa biến thể (Shop permission)
+     */
+    void deleteShopProductVariant(Long shopId, Long productId, Long variantId, boolean force, String currentUsername);
+
+    /**
+     * STT 54: POST /shops/{shopId}/products/{productId}/images - Thêm hình ảnh sản phẩm (Shop permission)
+     */
+    ProductImageResponse addShopProductImage(Long shopId, Long productId, com.example.demo.dto.request.CreateProductImageRequest request, String currentUsername);
+
+    /**
+     * STT 55: PATCH /shops/{shopId}/products/{productId}/images/{imageId} - Cập nhật thứ tự hoặc thuộc tính hình ảnh (Shop permission)
+     */
+    ProductImageResponse updateShopProductImage(Long shopId, Long productId, Long imageId, com.example.demo.dto.request.UpdateProductImageRequest request, String currentUsername);
+
+    /**
+     * STT 56: DELETE /shops/{shopId}/products/{productId}/images/{imageId} - Xóa hình ảnh sản phẩm (Shop permission)
+     */
+    void deleteShopProductImage(Long shopId, Long productId, Long imageId, String currentUsername);
 }
 

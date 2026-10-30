@@ -22,6 +22,7 @@ public class ProductFilterCriteria {
     private BigDecimal minPrice;
     private BigDecimal maxPrice;
     private Boolean inStock;
+    private com.example.demo.entity.ProductStatus status;
 
     @Builder.Default
     private int page = 0;

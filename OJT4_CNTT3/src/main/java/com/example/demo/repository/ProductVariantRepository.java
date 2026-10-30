@@ -22,5 +22,13 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
     boolean existsBySku(String sku);
 
     boolean existsBySkuAndIdNot(String sku, Long id);
+
+    Optional<ProductVariant> findByIdAndProductId(Long id, Long productId);
+
+    @org.springframework.data.jpa.repository.Query(value = "SELECT COUNT(*) FROM order_items WHERE variant_id = :variantId", nativeQuery = true)
+    long countOrderItemsByVariantId(@org.springframework.data.repository.query.Param("variantId") Long variantId);
+
+    @org.springframework.data.jpa.repository.Query(value = "SELECT COUNT(*) FROM cart_items WHERE variant_id = :variantId", nativeQuery = true)
+    long countCartItemsByVariantId(@org.springframework.data.repository.query.Param("variantId") Long variantId);
 }
 

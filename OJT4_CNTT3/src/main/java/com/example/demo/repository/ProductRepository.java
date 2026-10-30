@@ -23,6 +23,10 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     Optional<Product> findByIdAndStatusAndDeletedAtIsNull(Long id, ProductStatus status);
 
+    Optional<Product> findByIdAndShopIdAndDeletedAtIsNull(Long id, Long shopId);
+
+    Optional<Product> findByIdAndShopId(Long id, Long shopId);
+
     long countByCategoryId(Long categoryId);
 
     long countByBrandId(Long brandId);
@@ -32,4 +36,10 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     boolean existsByShopIdAndSlug(Long shopId, String slug);
 
     boolean existsBySlug(String slug);
+
+    @org.springframework.data.jpa.repository.Query(value = "SELECT COUNT(*) FROM order_items oi JOIN product_variants pv ON oi.variant_id = pv.id WHERE pv.product_id = :productId", nativeQuery = true)
+    long countOrderItemsByProductId(@org.springframework.data.repository.query.Param("productId") Long productId);
+
+    @org.springframework.data.jpa.repository.Query(value = "SELECT COUNT(*) FROM cart_items ci JOIN product_variants pv ON ci.variant_id = pv.id WHERE pv.product_id = :productId", nativeQuery = true)
+    long countCartItemsByProductId(@org.springframework.data.repository.query.Param("productId") Long productId);
 }

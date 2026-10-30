@@ -55,7 +55,18 @@ public class SecurityConfig {
                         .accessDeniedHandler(customAccessDeniedHandler)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        // Public Authentication Endpoints
+                        // Public Catalog Read-only Endpoints
+                        .requestMatchers(
+                                org.springframework.http.HttpMethod.GET,
+                                "/categories", "/api/v1/categories",
+                                "/categories/**", "/api/v1/categories/**",
+                                "/brands", "/api/v1/brands",
+                                "/brands/**", "/api/v1/brands/**",
+                                "/products", "/api/v1/products",
+                                "/products/**", "/api/v1/products/**",
+                                "/shops/*/products", "/api/v1/shops/*/products"
+                        ).permitAll()
+                        // Public Authentication & Resource Endpoints
                         .requestMatchers(
                                 "/auth/register", "/api/v1/auth/register",
                                 "/auth/login", "/api/v1/auth/login",
@@ -64,14 +75,6 @@ public class SecurityConfig {
                                 "/auth/reset-password", "/api/v1/auth/reset-password",
                                 "/auth/verify-email", "/api/v1/auth/verify-email",
                                 "/auth/resend-verification", "/api/v1/auth/resend-verification",
-                                "/categories", "/api/v1/categories",
-                                "/categories/**", "/api/v1/categories/**",
-                                "/brands", "/api/v1/brands",
-                                "/brands/**", "/api/v1/brands/**",
-                                "/products", "/api/v1/products",
-                                "/products/**", "/api/v1/products/**",
-                                "/shops/*/products", "/api/v1/shops/*/products",
-                                "/shops/*/products/**", "/api/v1/shops/*/products/**",
                                 "/uploads/**",
                                 "/upload", "/api/v1/upload",
                                 "/v3/api-docs/**",

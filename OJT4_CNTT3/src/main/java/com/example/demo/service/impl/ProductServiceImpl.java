@@ -53,6 +53,7 @@ public class ProductServiceImpl implements ProductService {
     private final ProductImageRepository productImageRepository;
     private final InventoryRepository inventoryRepository;
     private final ShopRepository shopRepository;
+    private final com.example.demo.repository.UserRepository userRepository;
     private final com.example.demo.repository.CategoryRepository categoryRepository;
     private final com.example.demo.repository.BrandRepository brandRepository;
 
@@ -599,6 +600,413 @@ public class ProductServiceImpl implements ProductService {
             productImageRepository.deleteAll(images);
             productRepository.delete(product);
             log.info("Permanently deleted product #{}", productId);
+        }
+    }
+
+    private ProductDetailResponse mapToDetailResponse(Product product) {
+        List<ProductVariant> variantEntities = productVariantRepository.findByProductIdOrderByPriceAsc(product.getId());
+        List<Long> variantIds = variantEntities.stream().map(ProductVariant::getId).collect(Collectors.toList());
+
+        Map<Long, Inventory> inventoryMap = inventoryRepository.findByVariantIdIn(variantIds).stream()
+                .collect(Collectors.toMap(Inventory::getVariantId, inv -> inv, (a, b) -> a));
+
+        List<ProductVariantResponse> variants = variantEntities.stream()
+                .map(v -> {
+                    Inventory inv = inventoryMap.get(v.getId());
+                    int stock = inv != null ? inv.getQuantity() : 0;
+                    int avail = inv != null ? inv.getAvailableQuantity() : 0;
+                    return ProductVariantResponse.fromEntity(v, stock, avail);
+                })
+                .collect(Collectors.toList());
+
+        List<ProductImageResponse> images = productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(product.getId()).stream()
+                .map(ProductImageResponse::fromEntity)
+                .collect(Collectors.toList());
+
+        BigDecimal minPrice = null;
+        BigDecimal maxPrice = null;
+        for (ProductVariant v : variantEntities) {
+            BigDecimal effective = v.getSalePrice() != null ? v.getSalePrice() : v.getPrice();
+            if (minPrice == null || effective.compareTo(minPrice) < 0) minPrice = effective;
+            if (maxPrice == null || effective.compareTo(maxPrice) > 0) maxPrice = effective;
+        }
+
+        return ProductDetailResponse.fromEntity(product, variants, images, minPrice, maxPrice);
+    }
+
+    private com.example.demo.entity.Shop verifyShopAccess(Long shopId, String currentUsername) {
+        if (currentUsername == null || currentUsername.isBlank()) {
+            throw new com.example.demo.exception.UnauthorizedException("Yêu cầu đăng nhập để thực hiện thao tác");
+        }
+        com.example.demo.entity.User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin tài khoản: " + currentUsername));
+
+        com.example.demo.entity.Shop shop = shopRepository.findById(shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng với ID: " + shopId));
+
+        boolean isAdmin = user.getRole() == com.example.demo.entity.Role.ADMIN ||
+                user.getRole() == com.example.demo.entity.Role.ROLE_ADMIN ||
+                (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
+                        "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
+
+        if (isAdmin) {
+            return shop;
+        }
+
+        boolean isOwner = Objects.equals(shop.getOwnerId(), user.getId());
+        if (isOwner) {
+            return shop;
+        }
+
+        long activeMemberships = shopRepository.countActiveMemberInShop(shopId, user.getId());
+        if (activeMemberships > 0) {
+            return shop;
+        }
+
+        throw new com.example.demo.exception.ForbiddenException("Bạn không có quyền quản lý sản phẩm của cửa hàng #" + shopId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ProductSummaryResponse> getShopManagedProducts(Long shopId, ProductFilterCriteria criteria, String currentUsername) {
+        verifyShopAccess(shopId, currentUsername);
+        final ProductFilterCriteria finalCriteria = criteria != null ? criteria : ProductFilterCriteria.builder().build();
+        finalCriteria.setShopId(shopId);
+
+        int page = Math.max(0, finalCriteria.getPage());
+        int size = finalCriteria.getSize() > 0 ? finalCriteria.getSize() : 12;
+
+        String sortBy = "createdAt";
+        if (finalCriteria.getSortBy() != null && ALLOWED_SORT_FIELDS.contains(finalCriteria.getSortBy())) {
+            sortBy = finalCriteria.getSortBy();
+        }
+
+        Sort.Direction direction = "asc".equalsIgnoreCase(finalCriteria.getSortDir()) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+
+        Specification<Product> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("shopId"), shopId));
+
+            if (finalCriteria.getStatus() != null) {
+                predicates.add(cb.equal(root.get("status"), finalCriteria.getStatus()));
+            } else {
+                predicates.add(cb.isNull(root.get("deletedAt")));
+            }
+
+            if (finalCriteria.getKeyword() != null && !finalCriteria.getKeyword().isBlank()) {
+                String pattern = "%" + finalCriteria.getKeyword().trim().toLowerCase() + "%";
+                predicates.add(cb.like(cb.lower(root.get("name")), pattern));
+            }
+
+            if (finalCriteria.getCategoryId() != null) {
+                predicates.add(cb.equal(root.get("category").get("id"), finalCriteria.getCategoryId()));
+            }
+
+            if (finalCriteria.getBrandId() != null) {
+                predicates.add(cb.equal(root.get("brandId"), finalCriteria.getBrandId()));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Page<Product> productPage = productRepository.findAll(spec, pageable);
+        List<ProductSummaryResponse> content = productPage.getContent().stream()
+                .map(this::toSummaryResponse)
+                .collect(Collectors.toList());
+
+        return PageResponse.<ProductSummaryResponse>builder()
+                .content(content)
+                .page(productPage.getNumber())
+                .size(productPage.getSize())
+                .totalElements(productPage.getTotalElements())
+                .totalPages(productPage.getTotalPages())
+                .first(productPage.isFirst())
+                .last(productPage.isLast())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public ProductDetailResponse createShopProduct(Long shopId, com.example.demo.dto.request.CreateProductRequest request, String currentUsername) {
+        verifyShopAccess(shopId, currentUsername);
+        request.setShopId(shopId);
+        return createProduct(request);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProductDetailResponse getShopProductById(Long shopId, Long productId, String currentUsername) {
+        verifyShopAccess(shopId, currentUsername);
+        Product product = productRepository.findByIdAndShopId(productId, shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+        return mapToDetailResponse(product);
+    }
+
+    @Override
+    @Transactional
+    public ProductDetailResponse updateShopProduct(Long shopId, Long productId, com.example.demo.dto.request.UpdateProductRequest request, String currentUsername) {
+        verifyShopAccess(shopId, currentUsername);
+        Product product = productRepository.findByIdAndShopId(productId, shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+        return updateProduct(productId, request);
+    }
+
+    @Override
+    @Transactional
+    public ProductDetailResponse updateShopProductStatus(Long shopId, Long productId, ProductStatus status, String currentUsername) {
+        verifyShopAccess(shopId, currentUsername);
+        Product product = productRepository.findByIdAndShopId(productId, shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+        product.setStatus(status != null ? status : ProductStatus.ACTIVE);
+        if (product.getStatus() == ProductStatus.INACTIVE && product.getDeletedAt() == null) {
+            product.setDeletedAt(java.time.LocalDateTime.now());
+        } else if (product.getStatus() == ProductStatus.ACTIVE) {
+            product.setDeletedAt(null);
+        }
+        productRepository.save(product);
+        return mapToDetailResponse(product);
+    }
+
+    @Override
+    @Transactional
+    public void deleteShopProduct(Long shopId, Long productId, boolean force, String currentUsername) {
+        verifyShopAccess(shopId, currentUsername);
+        Product product = productRepository.findByIdAndShopId(productId, shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+
+        long orderCount = productRepository.countOrderItemsByProductId(productId);
+        if (orderCount > 0) {
+            product.setStatus(ProductStatus.INACTIVE);
+            product.setDeletedAt(java.time.LocalDateTime.now());
+            productRepository.save(product);
+            log.info("Product #{} in shop #{} has orders (count={}), marked as INACTIVE instead of deleting", productId, shopId, orderCount);
+            return;
+        }
+
+        deleteProduct(productId, force);
+    }
+
+    @Override
+    @Transactional
+    public ProductVariantResponse createShopProductVariant(Long shopId, Long productId, com.example.demo.dto.request.CreateProductVariantRequest request, String currentUsername) {
+        verifyShopAccess(shopId, currentUsername);
+        Product product = productRepository.findByIdAndShopId(productId, shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+
+        if (request.getSku() == null || request.getSku().isBlank()) {
+            request.setSku("SKU-" + System.currentTimeMillis() + "-" + productId);
+        }
+
+        if (productVariantRepository.existsBySku(request.getSku())) {
+            throw new com.example.demo.exception.ConflictException("Mã SKU đã tồn tại trên hệ thống: " + request.getSku());
+        }
+
+        if (request.getPrice() == null || request.getPrice().compareTo(BigDecimal.ZERO) < 0) {
+            throw new com.example.demo.exception.BadRequestException("Giá sản phẩm không hợp lệ");
+        }
+
+        ProductVariant variant = ProductVariant.builder()
+                .product(product)
+                .sku(request.getSku())
+                .variantName(request.getVariantName() != null ? request.getVariantName() : product.getName())
+                .price(request.getPrice())
+                .salePrice(request.getSalePrice())
+                .weightGrams(request.getWeightGrams() != null ? request.getWeightGrams() : 300)
+                .attributes(request.getAttributes())
+                .status(ProductVariantStatus.ACTIVE)
+                .build();
+
+        ProductVariant savedVariant = productVariantRepository.save(variant);
+
+        int stockQty = request.getStockQuantity() != null && request.getStockQuantity() >= 0 ? request.getStockQuantity() : 100;
+        Inventory inventory = Inventory.builder()
+                .variantId(savedVariant.getId())
+                .quantity(stockQty)
+                .reservedQuantity(0)
+                .build();
+        inventoryRepository.save(inventory);
+
+        return ProductVariantResponse.fromEntity(savedVariant, stockQty, stockQty);
+    }
+
+    @Override
+    @Transactional
+    public ProductVariantResponse updateShopProductVariant(Long shopId, Long productId, Long variantId, com.example.demo.dto.request.CreateProductVariantRequest request, String currentUsername) {
+        verifyShopAccess(shopId, currentUsername);
+        productRepository.findByIdAndShopId(productId, shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+
+        ProductVariant variant = productVariantRepository.findByIdAndProductId(variantId, productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy biến thể #" + variantId + " thuộc sản phẩm #" + productId));
+
+        if (request.getSku() != null && !request.getSku().isBlank() && !request.getSku().equalsIgnoreCase(variant.getSku())) {
+            if (productVariantRepository.existsBySkuAndIdNot(request.getSku(), variantId)) {
+                throw new com.example.demo.exception.ConflictException("Mã SKU đã được sử dụng: " + request.getSku());
+            }
+            variant.setSku(request.getSku());
+        }
+
+        if (request.getVariantName() != null && !request.getVariantName().isBlank()) {
+            variant.setVariantName(request.getVariantName());
+        }
+
+        if (request.getPrice() != null) {
+            if (request.getPrice().compareTo(BigDecimal.ZERO) < 0) {
+                throw new com.example.demo.exception.BadRequestException("Giá sản phẩm không hợp lệ");
+            }
+            variant.setPrice(request.getPrice());
+        }
+
+        variant.setSalePrice(request.getSalePrice());
+        if (request.getWeightGrams() != null) {
+            variant.setWeightGrams(request.getWeightGrams());
+        }
+        if (request.getAttributes() != null) {
+            variant.setAttributes(request.getAttributes());
+        }
+
+        ProductVariant savedVariant = productVariantRepository.save(variant);
+
+        Inventory inv = inventoryRepository.findById(variantId).orElse(null);
+        int currentQty = inv != null ? inv.getQuantity() : 0;
+        int reserved = inv != null ? inv.getReservedQuantity() : 0;
+        if (request.getStockQuantity() != null && request.getStockQuantity() >= 0) {
+            currentQty = request.getStockQuantity();
+            if (inv != null) {
+                inv.setQuantity(currentQty);
+                inventoryRepository.save(inv);
+            } else {
+                inventoryRepository.save(Inventory.builder().variantId(variantId).quantity(currentQty).reservedQuantity(0).build());
+            }
+        }
+
+        return ProductVariantResponse.fromEntity(savedVariant, currentQty, Math.max(0, currentQty - reserved));
+    }
+
+    @Override
+    @Transactional
+    public void deleteShopProductVariant(Long shopId, Long productId, Long variantId, boolean force, String currentUsername) {
+        verifyShopAccess(shopId, currentUsername);
+        productRepository.findByIdAndShopId(productId, shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+
+        ProductVariant variant = productVariantRepository.findByIdAndProductId(variantId, productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy biến thể #" + variantId + " thuộc sản phẩm #" + productId));
+
+        long orderCount = productVariantRepository.countOrderItemsByVariantId(variantId);
+        if (orderCount > 0) {
+            variant.setStatus(ProductVariantStatus.INACTIVE);
+            productVariantRepository.save(variant);
+            log.info("Variant #{} has order history, marked as INACTIVE", variantId);
+            return;
+        }
+
+        if (force) {
+            inventoryRepository.deleteById(variantId);
+            productVariantRepository.delete(variant);
+            log.info("Permanently deleted variant #{}", variantId);
+        } else {
+            variant.setStatus(ProductVariantStatus.INACTIVE);
+            productVariantRepository.save(variant);
+            log.info("Deactivated variant #{}", variantId);
+        }
+    }
+
+    @Override
+    @Transactional
+    public ProductImageResponse addShopProductImage(Long shopId, Long productId, com.example.demo.dto.request.CreateProductImageRequest request, String currentUsername) {
+        verifyShopAccess(shopId, currentUsername);
+        Product product = productRepository.findByIdAndShopId(productId, shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+
+        if (request.getImageUrl() == null || request.getImageUrl().isBlank()) {
+            throw new com.example.demo.exception.BadRequestException("URL hình ảnh không được để trống");
+        }
+
+        boolean isPrimary = Boolean.TRUE.equals(request.getIsPrimary());
+        if (isPrimary) {
+            List<ProductImage> existing = productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(productId);
+            for (ProductImage img : existing) {
+                if (img.isPrimary()) {
+                    img.setPrimary(false);
+                    productImageRepository.save(img);
+                }
+            }
+        } else {
+            long total = productImageRepository.countByProductId(productId);
+            if (total == 0) {
+                isPrimary = true;
+            }
+        }
+
+        int sortOrder = request.getSortOrder() != null ? request.getSortOrder() : 0;
+        ProductImage image = ProductImage.builder()
+                .product(product)
+                .imageUrl(request.getImageUrl())
+                .altText(request.getAltText() != null ? request.getAltText() : product.getName())
+                .isPrimary(isPrimary)
+                .sortOrder(sortOrder)
+                .build();
+
+        ProductImage saved = productImageRepository.save(image);
+        return ProductImageResponse.fromEntity(saved);
+    }
+
+    @Override
+    @Transactional
+    public ProductImageResponse updateShopProductImage(Long shopId, Long productId, Long imageId, com.example.demo.dto.request.UpdateProductImageRequest request, String currentUsername) {
+        verifyShopAccess(shopId, currentUsername);
+        productRepository.findByIdAndShopId(productId, shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+
+        ProductImage image = productImageRepository.findByIdAndProductId(imageId, productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hình ảnh #" + imageId + " thuộc sản phẩm #" + productId));
+
+        if (request.getIsPrimary() != null && request.getIsPrimary()) {
+            List<ProductImage> existing = productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(productId);
+            for (ProductImage other : existing) {
+                if (!other.getId().equals(imageId) && other.isPrimary()) {
+                    other.setPrimary(false);
+                    productImageRepository.save(other);
+                }
+            }
+            image.setPrimary(true);
+        } else if (request.getIsPrimary() != null) {
+            image.setPrimary(request.getIsPrimary());
+        }
+
+        if (request.getSortOrder() != null) {
+            image.setSortOrder(request.getSortOrder());
+        }
+        if (request.getAltText() != null) {
+            image.setAltText(request.getAltText());
+        }
+
+        ProductImage saved = productImageRepository.save(image);
+        return ProductImageResponse.fromEntity(saved);
+    }
+
+    @Override
+    @Transactional
+    public void deleteShopProductImage(Long shopId, Long productId, Long imageId, String currentUsername) {
+        verifyShopAccess(shopId, currentUsername);
+        productRepository.findByIdAndShopId(productId, shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+
+        ProductImage image = productImageRepository.findByIdAndProductId(imageId, productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hình ảnh #" + imageId + " thuộc sản phẩm #" + productId));
+
+        boolean wasPrimary = image.isPrimary();
+        productImageRepository.delete(image);
+
+        if (wasPrimary) {
+            List<ProductImage> remaining = productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(productId);
+            if (!remaining.isEmpty()) {
+                ProductImage newPrimary = remaining.get(0);
+                newPrimary.setPrimary(true);
+                productImageRepository.save(newPrimary);
+            }
         }
     }
 
