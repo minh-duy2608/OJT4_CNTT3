@@ -56,7 +56,10 @@ export const ProductDetailPage = () => {
           if (!isMounted || !data) return;
           const minP = data.minPrice ?? 0;
           const maxP = data.maxPrice ?? minP;
-          const primaryImg = data.primaryImageUrl || (data.images && data.images[0]?.imageUrl) || fallbackProduct.image;
+          const sortedImages = Array.isArray(data.images)
+            ? [...data.images].sort((a, b) => (b.primary || b.isPrimary ? 1 : 0) - (a.primary || a.isPrimary ? 1 : 0))
+            : [];
+          const primaryImg = data.primaryImageUrl || sortedImages[0]?.imageUrl || fallbackProduct.image;
 
           const liveProduct = {
             id: data.id,
@@ -68,7 +71,7 @@ export const ProductDetailPage = () => {
             formattedOriginalPrice: maxP > minP ? formatVND(maxP) : (minP ? formatVND(minP * 1.1) : ''),
             image: primaryImg,
             primaryImageUrl: primaryImg,
-            images: data.images || [],
+            images: sortedImages,
             variants: data.variants || [],
             category: data.category?.name || fallbackProduct.category,
             brand: data.brand?.name || 'Cyber Official',
