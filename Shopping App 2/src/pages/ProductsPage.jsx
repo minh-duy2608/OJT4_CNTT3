@@ -15,7 +15,6 @@ import {
   Grid 
 } from 'lucide-react';
 import { ProductCard } from '../components/ProductCard';
-import { INITIAL_PRODUCTS } from '../data/products';
 import { productApi } from '../services/productApi';
 import { brandApi } from '../services/brandApi';
 import { 
@@ -61,7 +60,7 @@ export const ProductsPage = () => {
   const [apiProducts, setApiProducts] = useState(null);
   const [apiTotalElements, setApiTotalElements] = useState(0);
   const [apiTotalPages, setApiTotalPages] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [allBrands, setAllBrands] = useState([]);
 
   // Fetch available brands for quick filter
@@ -146,18 +145,16 @@ export const ProductsPage = () => {
         setApiProducts(res.content);
         setApiTotalElements(res.totalElements || res.content.length);
         setApiTotalPages(res.totalPages || Math.ceil((res.totalElements || res.content.length) / ITEMS_PER_PAGE));
-      } else if (res && Array.isArray(res.content) && res.content.length === 0 && (searchKeyword.trim() || brandParam || categoryParam)) {
-        // Explicit search or category with 0 matches
+      } else {
         setApiProducts([]);
         setApiTotalElements(0);
         setApiTotalPages(1);
-      } else {
-        // Fallback to static mock products if backend has no catalog yet
-        setApiProducts(null);
       }
     } catch (err) {
-      console.warn('API getProducts fallback to mock data:', err);
-      setApiProducts(null);
+      console.warn('API getProducts error:', err);
+      setApiProducts([]);
+      setApiTotalElements(0);
+      setApiTotalPages(1);
     } finally {
       setIsLoading(false);
     }
@@ -224,64 +221,10 @@ export const ProductsPage = () => {
     setCurrentPage(1);
   };
 
-  // Lọc danh sách sản phẩm fallback nếu không có dữ liệu từ backend
-  const fallbackFilteredProducts = useMemo(() => {
-    let list = [...INITIAL_PRODUCTS];
-
-    const query = searchKeyword.trim().toLowerCase();
-    if (query) {
-      list = list.filter(
-        (p) =>
-          p.name.toLowerCase().includes(query) ||
-          p.category?.toLowerCase().includes(query) ||
-          (p.description && p.description.toLowerCase().includes(query))
-      );
-    }
-
-    if (categoryParam) {
-      if (currentCategoryDef) {
-        list = list.filter(
-          (p) =>
-            p.category === currentCategoryDef.key ||
-            p.category === currentCategoryDef.slug ||
-            currentCategoryDef.aliases.includes(p.category) ||
-            String(p.categoryId) === String(currentCategoryDef.id)
-        );
-      } else {
-        list = list.filter((p) => p.category === categoryParam);
-      }
-    }
-
-    if (brandParam) {
-      const selectedBrandObj = allBrands.find(
-        (b) => String(b.id) === String(brandParam) || b.slug === brandParam || b.name.toLowerCase() === brandParam.toLowerCase()
-      );
-      const brandName = selectedBrandObj ? selectedBrandObj.name.toLowerCase() : brandParam.toLowerCase();
-      list = list.filter(
-        (p) =>
-          (p.brand && p.brand.toLowerCase().includes(brandName)) ||
-          p.name.toLowerCase().includes(brandName)
-      );
-    }
-
-    if (!query && !categoryParam && !brandParam) {
-      if (activeTab === 'new') {
-        list = [...INITIAL_PRODUCTS];
-      } else if (activeTab === 'bestseller') {
-        list = list.filter((p) => p.tag === 'bestseller' || p.price > 10000000);
-      } else if (activeTab === 'featured') {
-        list = list.filter((p) => p.tag === 'featured' || p.isLiked);
-      }
-    }
-
-    return list;
-  }, [searchKeyword, categoryParam, brandParam, activeTab, currentCategoryDef, allBrands]);
-
   // Determine current active product list
-  const isUsingApi = apiProducts !== null;
-  const currentProducts = isUsingApi ? apiProducts : fallbackFilteredProducts.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
-  const totalItems = isUsingApi ? apiTotalElements : fallbackFilteredProducts.length;
-  const totalPages = isUsingApi ? apiTotalPages : Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE));
+  const currentProducts = apiProducts || [];
+  const totalItems = apiTotalElements;
+  const totalPages = Math.max(1, apiTotalPages);
 
   // Đổi trang & cuộn mượt về đầu danh sách sản phẩm
   const handlePageChange = (newPage) => {
@@ -421,9 +364,19 @@ export const ProductsPage = () => {
 
       {/* 5. LƯỚI SẢN PHẨM (CARD GRID) */}
       {isLoading ? (
-        <div style={{ textAlign: 'center', padding: '4rem 1rem', color: '#71717a' }}>
-          <div style={{ display: 'inline-block', width: '32px', height: '32px', border: '3px solid #e4e4e7', borderTopColor: '#000000', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-          <p style={{ marginTop: '0.75rem', fontSize: '0.9rem' }}>Đang tải danh sách sản phẩm...</p>
+        <div className="products-card-grid" aria-label="Đang tải danh sách sản phẩm...">
+          {Array.from({ length: 8 }).map((_, idx) => (
+            <div key={idx} className="cyber-product-card" style={{ pointerEvents: 'none', opacity: 0.6 }}>
+              <div className="product-card-thumb-wrap" style={{ background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: '120px', height: '120px', background: '#e2e8f0', borderRadius: '8px' }} />
+              </div>
+              <div className="product-card-body" style={{ padding: '1rem', textAlign: 'center' }}>
+                <div style={{ width: '80%', height: '16px', background: '#e2e8f0', borderRadius: '4px', margin: '0 auto 10px' }} />
+                <div style={{ width: '50%', height: '20px', background: '#e2e8f0', borderRadius: '4px', margin: '0 auto 14px' }} />
+                <div style={{ width: '100%', height: '40px', background: '#f1f5f9', borderRadius: '8px' }} />
+              </div>
+            </div>
+          ))}
         </div>
       ) : currentProducts.length > 0 ? (
         <div className="products-card-grid">
