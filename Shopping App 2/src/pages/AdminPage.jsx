@@ -995,12 +995,34 @@ export const AdminPage = () => {
     setIsUploadingImage(true);
     try {
       const newImages = [];
+      let hasSmallImage = false;
+
       for (const file of files) {
+        // Kiểm tra kích thước tự nhiên của ảnh gốc
+        let imgWidth = 0;
+        let imgHeight = 0;
+        try {
+          const dims = await new Promise((resolve) => {
+            const probe = new window.Image();
+            probe.onload = () => resolve({ w: probe.naturalWidth, h: probe.naturalHeight });
+            probe.onerror = () => resolve({ w: 0, h: 0 });
+            probe.src = URL.createObjectURL(file);
+          });
+          imgWidth = dims.w;
+          imgHeight = dims.h;
+        } catch (_) {}
+
+        if (imgWidth > 0 && imgHeight > 0 && (imgWidth < 300 || imgHeight < 300)) {
+          hasSmallImage = true;
+        }
+
         try {
           const res = await productApi.uploadImage(file);
           if (res?.url) {
             newImages.push({
               imageUrl: res.url,
+              width: imgWidth,
+              height: imgHeight,
               isPrimary: productFormData.images.length === 0 && newImages.length === 0,
               sortOrder: productFormData.images.length + newImages.length
             });
@@ -1014,6 +1036,8 @@ export const AdminPage = () => {
           });
           newImages.push({
             imageUrl: dataUrl,
+            width: imgWidth,
+            height: imgHeight,
             isPrimary: productFormData.images.length === 0 && newImages.length === 0,
             sortOrder: productFormData.images.length + newImages.length
           });
@@ -1024,7 +1048,12 @@ export const AdminPage = () => {
         ...prev,
         images: [...prev.images, ...newImages]
       }));
-      triggerAlert(`Đã thêm thành công ${newImages.length} hình ảnh sản phẩm!`, 'success');
+
+      if (hasSmallImage) {
+        triggerAlert(`Đã tải lên ${newImages.length} ảnh. Lưu ý: có ảnh kích thước nhỏ (<300px), khuyên dùng ảnh gốc từ 400x400px trở lên để đảm bảo độ sắc nét cao nhất!`, 'warning');
+      } else {
+        triggerAlert(`Đã thêm thành công ${newImages.length} hình ảnh sản phẩm sắc nét!`, 'success');
+      }
     } catch (err) {
       console.error('Upload error:', err);
       triggerAlert('Có lỗi khi tải ảnh sản phẩm lên.', 'error');
@@ -3386,12 +3415,29 @@ export const AdminPage = () => {
                         <img
                           src={img.imageUrl}
                           alt={`Sản phẩm ${idx + 1}`}
+                          onLoad={(e) => {
+                            if (!img.width && e.target.naturalWidth) {
+                              img.width = e.target.naturalWidth;
+                              img.height = e.target.naturalHeight;
+                            }
+                          }}
                           onError={(e) => {
                             e.target.onerror = null;
                             e.target.src = 'https://placehold.co/100x100?text=Loi+Anh';
                           }}
                         />
                       </div>
+                      {img.width ? (
+                        <div style={{
+                          fontSize: '10px',
+                          marginTop: '3px',
+                          fontWeight: 600,
+                          color: (img.width < 300 || img.height < 300) ? '#ea580c' : '#16a34a',
+                          textAlign: 'center'
+                        }}>
+                          {img.width}×{img.height}px {(img.width < 300 || img.height < 300) ? '(Thấp)' : '(Nét)'}
+                        </div>
+                      ) : null}
                       <div className="admin-prod-img-actions">
                         {img.isPrimary ? (
                           <span className="admin-prod-img-badge-primary">
