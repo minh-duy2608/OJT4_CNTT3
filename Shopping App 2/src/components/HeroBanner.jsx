@@ -7,6 +7,7 @@ import appleWatchImg from '../assets/products/apple-watch.png';
 import airpodsMaxImg from '../assets/products/airpods-max.png';
 import cameraImg from '../assets/products/blackmagic-camera.png';
 import { productApi } from '../services/productApi';
+import { useOrders } from '../context/OrderContext';
 import './HeroBanner.css';
 
 // 5 theme màu tối cao cấp chuẩn thiết kế Figma
@@ -131,60 +132,120 @@ export const HeroBanner = () => {
   const [isPaused, setIsPaused] = useState(false);
   const navigate = useNavigate();
   const bannerRef = useRef(null);
+  const { orders } = useOrders();
 
-  // Fetch top 5 sản phẩm bán chạy nhất từ Backend API
+  // Fetch top 5 sản phẩm bán chạy nhất: Kết hợp doanh số Backend API & đơn hàng người dùng vừa mua
   useEffect(() => {
     let isMounted = true;
-    productApi.getTopBestsellers()
-      .then((bestsellers) => {
-        if (!isMounted || !Array.isArray(bestsellers) || bestsellers.length === 0) return;
 
-        // Lấy tối đa 5 sản phẩm bán chạy nhất
-        const top5 = bestsellers.slice(0, 5);
-        const mappedSlides = top5.map((product, idx) => {
-          const { light, bold } = formatBannerTitle(product.name);
-          const theme = SLIDE_THEMES[idx % SLIDE_THEMES.length];
-          const kicker = BEST_SELLER_KICKERS[idx] || `Top ${idx + 1} Bán chạy`;
-
-          // Lấy ảnh thật của sản phẩm: ưu tiên primaryImageUrl hoặc ảnh đầu tiên
-          const realImage = product.primaryImageUrl 
-            || (product.images && product.images[0]?.imageUrl) 
-            || (FALLBACK_SLIDES[idx]?.image || heroIphoneDual);
-
-          // Lấy mô tả tóm tắt nổi bật
-          const desc = product.shortDescription 
-            || (typeof product.description === 'string' && product.description.length > 0 ? product.description : null)
-            || (FALLBACK_SLIDES[idx]?.description)
-            || 'Được tạo ra để thay đổi mọi thứ để tốt hơn. Hiệu năng vượt trội trong tầm tay.';
-
-          return {
-            id: `real-prod-${product.id}`,
-            productId: product.id,
-            kicker,
-            titleLight: light,
-            titleBold: bold,
-            description: desc,
-            buttonText: 'Mua ngay',
-            image: realImage,
-            alt: product.name,
-            imageClass: idx === 0 ? 'hero-img-dual-phone' : 'hero-img-standard',
-            themeBg: theme.bg,
-            glowColor: theme.glow
-          };
-        });
-
-        if (mappedSlides.length > 0) {
-          setSlides(mappedSlides);
+    // Tính tổng số lượng bán từ đơn hàng thực tế của khách hàng (localStorage OrderContext)
+    const localSalesMap = {};
+    if (Array.isArray(orders)) {
+      orders.forEach((order) => {
+        if (order.status === 'CANCELLED') return;
+        if (Array.isArray(order.items)) {
+          order.items.forEach((item) => {
+            const qty = Number(item.quantity) || 1;
+            const pId = item.productId || (typeof item.id === 'string' ? parseInt(item.id.split('-')[0], 10) : item.id);
+            if (pId && !isNaN(pId)) {
+              localSalesMap[pId] = (localSalesMap[pId] || 0) + qty;
+            }
+            if (item.name) {
+              const cleanName = item.name.toLowerCase().trim();
+              localSalesMap[cleanName] = (localSalesMap[cleanName] || 0) + qty;
+            }
+          });
         }
-      })
-      .catch((err) => {
-        console.warn('HeroBanner bestsellers error, using fallback:', err);
       });
+    }
+
+    Promise.all([
+      productApi.getTopBestsellers().catch(() => []),
+      productApi.getProducts({ size: 30 }).catch(() => ({ content: [] }))
+    ]).then(([bestsellers, catalog]) => {
+      if (!isMounted) return;
+
+      const allList = [];
+      const seen = new Set();
+      const addProd = (p) => {
+        if (!p || !p.id || seen.has(p.id)) return;
+        seen.add(p.id);
+        allList.push(p);
+      };
+
+      if (Array.isArray(bestsellers)) bestsellers.forEach(addProd);
+      const catalogItems = catalog?.content || (Array.isArray(catalog) ? catalog : []);
+      catalogItems.forEach(addProd);
+
+      if (allList.length === 0) return;
+
+      // Tính tổng doanh số cho từng sản phẩm
+      const scoredList = allList.map((product) => {
+        const idSales = localSalesMap[product.id] || 0;
+        const nameSales = localSalesMap[product.name?.toLowerCase().trim()] || 0;
+        const localSales = Math.max(idSales, nameSales);
+        const backendSales = product.totalSold || 0;
+        const totalSales = localSales + backendSales;
+        return {
+          ...product,
+          totalSales,
+          localSales
+        };
+      });
+
+      // Sắp xếp: ưu tiên sản phẩm có doanh số bán cao nhất lên đầu
+      scoredList.sort((a, b) => {
+        if (b.totalSales !== a.totalSales) {
+          return b.totalSales - a.totalSales;
+        }
+        return a.id - b.id;
+      });
+
+      const top5 = scoredList.slice(0, 5);
+      const mappedSlides = top5.map((product, idx) => {
+        const { light, bold } = formatBannerTitle(product.name);
+        const theme = SLIDE_THEMES[idx % SLIDE_THEMES.length];
+        const soldText = product.totalSales > 0 ? ` (Đã bán ${product.totalSales})` : '';
+        const kicker = `${BEST_SELLER_KICKERS[idx] || `Top ${idx + 1} Bán chạy`}${soldText}`;
+
+        // Lấy ảnh thật của sản phẩm: ưu tiên primaryImageUrl hoặc ảnh đầu tiên
+        const realImage = product.primaryImageUrl 
+          || (product.images && product.images[0]?.imageUrl) 
+          || (FALLBACK_SLIDES[idx]?.image || heroIphoneDual);
+
+        // Lấy mô tả tóm tắt nổi bật
+        const desc = product.shortDescription 
+          || (typeof product.description === 'string' && product.description.length > 0 ? product.description : null)
+          || (FALLBACK_SLIDES[idx]?.description)
+          || 'Được tạo ra để thay đổi mọi thứ để tốt hơn. Hiệu năng vượt trội trong tầm tay.';
+
+        return {
+          id: `real-prod-${product.id}`,
+          productId: product.id,
+          kicker,
+          titleLight: light,
+          titleBold: bold,
+          description: desc,
+          buttonText: 'Mua ngay',
+          image: realImage,
+          alt: product.name,
+          imageClass: idx === 0 ? 'hero-img-dual-phone' : 'hero-img-standard',
+          themeBg: theme.bg,
+          glowColor: theme.glow
+        };
+      });
+
+      if (mappedSlides.length > 0) {
+        setSlides(mappedSlides);
+      }
+    }).catch((err) => {
+      console.warn('HeroBanner bestsellers error, using fallback:', err);
+    });
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [orders]);
 
   const totalSlides = slides.length;
 
