@@ -64,7 +64,8 @@ public class SecurityConfig {
                                 "/brands/**", "/api/v1/brands/**",
                                 "/products", "/api/v1/products",
                                 "/products/**", "/api/v1/products/**",
-                                "/shops/*/products", "/api/v1/shops/*/products"
+                                "/shops/*/products", "/api/v1/shops/*/products",
+                                "/shops/*/products/**", "/api/v1/shops/*/products/**"
                         ).permitAll()
                         // Public Authentication & Resource Endpoints
                         .requestMatchers(
