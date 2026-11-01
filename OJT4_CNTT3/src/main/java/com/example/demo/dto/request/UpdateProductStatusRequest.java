@@ -16,3 +16,4 @@ public class UpdateProductStatusRequest {
     @NotNull(message = "Trạng thái không được để trống")
     private ProductStatus status;
 }
+

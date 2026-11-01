@@ -7,3 +7,4 @@ public class ForbiddenException extends AppException {
         super(message, HttpStatus.FORBIDDEN);
     }
 }
+

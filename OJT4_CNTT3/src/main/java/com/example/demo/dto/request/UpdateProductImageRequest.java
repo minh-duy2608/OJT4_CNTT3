@@ -17,3 +17,4 @@ public class UpdateProductImageRequest {
 
     private Integer sortOrder;
 }
+
