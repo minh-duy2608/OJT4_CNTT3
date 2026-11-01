@@ -91,6 +91,15 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<ProductSummaryResponse> getTop5Bestsellers() {
+        List<Product> products = productRepository.findTop5Bestsellers();
+        return products.stream()
+                .map(this::toSummaryResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public ProductDetailResponse getProductById(Long productId) {
         Product product = productRepository.findByIdAndStatusAndDeletedAtIsNull(productId, ProductStatus.ACTIVE)
                 .or(() -> productRepository.findByIdAndDeletedAtIsNull(productId))
