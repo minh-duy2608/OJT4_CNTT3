@@ -89,6 +89,14 @@ export const addressApi = {
   },
 
   /**
+   * Chi tiết địa chỉ giao hàng
+   * GET /api/v1/addresses/{id}
+   */
+  async getById(id) {
+    return await request(`/${id}`, { method: 'GET' });
+  },
+
+  /**
    * Thêm địa chỉ nhận hàng mới
    * POST /api/v1/addresses
    */
@@ -101,13 +109,25 @@ export const addressApi = {
   },
 
   /**
-   * Cập nhật địa chỉ nhận hàng
+   * Cập nhật địa chỉ nhận hàng (PUT)
    * PUT /api/v1/addresses/{id}
    */
   async update(id, data) {
     const payload = formatAddressPayload(data);
     return await request(`/${id}`, {
       method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  /**
+   * Cập nhật địa chỉ nhận hàng (PATCH)
+   * PATCH /api/v1/addresses/{id}
+   */
+  async patch(id, data) {
+    const payload = formatAddressPayload(data);
+    return await request(`/${id}`, {
+      method: 'PATCH',
       body: JSON.stringify(payload)
     });
   },

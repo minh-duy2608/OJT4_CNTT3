@@ -98,6 +98,15 @@ export const cartApi = {
   },
 
   /**
+   * STT 78: DELETE /cart/items - Xóa toàn bộ sản phẩm trong giỏ
+   */
+  async clearCartItems() {
+    return await request('/cart/items', {
+      method: 'DELETE'
+    });
+  },
+
+  /**
    * Đồng bộ các sản phẩm từ local lên server
    */
   async syncCart(items) {

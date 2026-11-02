@@ -85,10 +85,17 @@ public class OrderServiceImpl implements OrderService {
             shippingAddress = "Địa chỉ nhận hàng mặc định";
         }
 
-        // 2. Xác định shopId
+        // 2. Xác định shopId và kiểm tra trạng thái hoạt động của Shop
         Long targetShopId = request.getShopId();
         if (targetShopId == null) {
             targetShopId = shopRepository.findAll().stream().findFirst().map(Shop::getId).orElse(1L);
+        }
+
+        final Long resolvedShopId = targetShopId;
+        Shop shop = shopRepository.findById(resolvedShopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + resolvedShopId));
+        if (shop.getStatus() != ShopStatus.ACTIVE) {
+            throw new BadRequestException("Cửa hàng '" + shop.getName() + "' hiện đang tạm ngừng hoạt động (" + shop.getStatus() + "). Không thể tạo đơn hàng mới.");
         }
 
         // 3. Khởi tạo mã đơn hàng duy nhất

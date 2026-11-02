@@ -662,6 +662,13 @@ public class ProductServiceImpl implements ProductService {
             return shop;
         }
 
+        if (shop.getStatus() == com.example.demo.entity.ShopStatus.SUSPENDED) {
+            throw new com.example.demo.exception.ForbiddenException("Cửa hàng #" + shopId + " đang bị tạm ngừng kinh doanh (SUSPENDED). Mọi thao tác quản lý sản phẩm bị tạm khóa.");
+        }
+        if (shop.getStatus() == com.example.demo.entity.ShopStatus.REJECTED) {
+            throw new com.example.demo.exception.ForbiddenException("Cửa hàng #" + shopId + " đã bị từ chối phê duyệt (REJECTED).");
+        }
+
         boolean isOwner = Objects.equals(shop.getOwnerId(), user.getId());
         if (isOwner) {
             return shop;

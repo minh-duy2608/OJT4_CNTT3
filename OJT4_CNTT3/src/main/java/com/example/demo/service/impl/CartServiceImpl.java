@@ -31,6 +31,7 @@ public class CartServiceImpl implements CartService {
     private final ProductVariantRepository productVariantRepository;
     private final ProductImageRepository productImageRepository;
     private final InventoryRepository inventoryRepository;
+    private final ShopRepository shopRepository;
 
     @Override
     @Transactional
@@ -49,9 +50,35 @@ public class CartServiceImpl implements CartService {
         ProductVariant variant = productVariantRepository.findById(request.getVariantId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy biến thể #" + request.getVariantId()));
 
+        Product product = variant.getProduct();
+        if (product == null || product.getStatus() != ProductStatus.ACTIVE || product.getDeletedAt() != null) {
+            throw new BadRequestException("Sản phẩm đã ngừng kinh doanh hoặc không còn tồn tại");
+        }
+        if (variant.getStatus() != ProductVariantStatus.ACTIVE) {
+            throw new BadRequestException("Phiên bản sản phẩm đã ngừng kinh doanh");
+        }
+
+        // Kiểm tra trạng thái hoạt động của Cửa hàng
+        if (product.getShopId() != null) {
+            Shop shop = shopRepository.findById(product.getShopId()).orElse(null);
+            if (shop != null && shop.getStatus() != ShopStatus.ACTIVE) {
+                throw new BadRequestException("Cửa hàng '" + shop.getName() + "' hiện đang tạm ngừng hoạt động (" + shop.getStatus() + ")");
+            }
+        }
+
         int addQty = request.getQuantity() != null && request.getQuantity() > 0 ? request.getQuantity() : 1;
 
+        // Kiểm tra tồn kho khả dụng
+        Inventory inventory = inventoryRepository.findById(variant.getId()).orElse(null);
+        int availableStock = inventory != null ? inventory.getAvailableQuantity() : 0;
+
         Optional<CartItem> existingOpt = cartItemRepository.findByCartIdAndVariantId(cart.getId(), variant.getId());
+        int currentInCart = existingOpt.map(CartItem::getQuantity).orElse(0);
+
+        if (currentInCart + addQty > availableStock) {
+            throw new BadRequestException("Số lượng tồn kho không đủ (chỉ còn " + availableStock + " sản phẩm khả dụng)");
+        }
+
         if (existingOpt.isPresent()) {
             CartItem item = existingOpt.get();
             item.setQuantity(item.getQuantity() + addQty);
@@ -84,6 +111,11 @@ public class CartServiceImpl implements CartService {
         if (quantity <= 0) {
             cartItemRepository.delete(item);
         } else {
+            Inventory inventory = inventoryRepository.findById(item.getVariantId()).orElse(null);
+            int availableStock = inventory != null ? inventory.getAvailableQuantity() : 0;
+            if (quantity > availableStock) {
+                throw new BadRequestException("Số lượng vượt quá tồn kho khả dụng (chỉ còn " + availableStock + " sản phẩm)");
+            }
             item.setQuantity(quantity);
             cartItemRepository.save(item);
         }

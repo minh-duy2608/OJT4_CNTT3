@@ -35,6 +35,15 @@ public class AddressServiceImpl implements AddressService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public AddressResponse getAddressById(String currentUsername, Long addressId) {
+        User user = findUser(currentUsername);
+        Address address = addressRepository.findByIdAndUser(addressId, user)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy địa chỉ với ID: " + addressId));
+        return AddressResponse.fromEntity(address);
+    }
+
+    @Override
     @Transactional
     public AddressResponse createAddress(String currentUsername, AddressRequest request) {
         User user = findUser(currentUsername);

@@ -9,6 +9,8 @@ public interface AddressService {
 
     List<AddressResponse> getUserAddresses(String currentUsername);
 
+    AddressResponse getAddressById(String currentUsername, Long addressId);
+
     AddressResponse createAddress(String currentUsername, AddressRequest request);
 
     AddressResponse updateAddress(String currentUsername, Long addressId, AddressRequest request);

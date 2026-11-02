@@ -24,6 +24,7 @@ import { productApi } from '../services/productApi';
 import { shopApi } from '../services/shopApi';
 import { formatVND } from '../data/products';
 import { RegisterShopModal } from './RegisterShopModal';
+import { WishlistModal } from './WishlistModal';
 import './Header.css';
 
 // Logo SVG icon hình tam giác công nghệ của Cyber
@@ -49,6 +50,7 @@ export const Header = () => {
   const { cartCount, cartBumping } = useCart();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAuthDropdown, setShowAuthDropdown] = useState(false);
+  const [isWishlistModalOpen, setIsWishlistModalOpen] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -395,10 +397,21 @@ export const Header = () => {
 
           {/* Nhóm Icons tác vụ: Yêu thích, Giỏ hàng, Tài khoản */}
           <div className="cyber-actions">
-            {/* Wishlist */}
-            <Link to="/products" className="cyber-action-btn" aria-label="Danh sách yêu thích">
+            {/* Wishlist - STT 79 */}
+            <button 
+              type="button" 
+              onClick={() => {
+                if (!isAuthenticated) {
+                  navigate('/login?redirect=/');
+                } else {
+                  setIsWishlistModalOpen(true);
+                }
+              }}
+              className="cyber-action-btn" 
+              aria-label="Danh sách yêu thích"
+            >
               <Heart size={21} strokeWidth={1.8} />
-            </Link>
+            </button>
 
             {/* Giỏ hàng với hiệu ứng nhảy khi sản phẩm bay vào */}
             <Link 
@@ -620,6 +633,12 @@ export const Header = () => {
           </ul>
         </div>
       </nav>
+
+      {/* Modal danh sách yêu thích cho Khách hàng (STT 79-82) */}
+      <WishlistModal
+        isOpen={isWishlistModalOpen}
+        onClose={() => setIsWishlistModalOpen(false)}
+      />
 
       {/* Modal đăng ký mở Shop cho Khách hàng */}
       <RegisterShopModal

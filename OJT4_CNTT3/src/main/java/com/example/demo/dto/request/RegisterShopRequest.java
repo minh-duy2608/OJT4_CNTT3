@@ -37,3 +37,4 @@ public class RegisterShopRequest {
 
     private String bannerUrl;
 }
+

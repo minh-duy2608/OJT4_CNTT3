@@ -91,5 +91,35 @@ export const shopApi = {
       method: 'PUT',
       body: JSON.stringify(payload)
     });
+  },
+
+  /**
+   * STT 67: GET /admin/shops - Danh sách tất cả cửa hàng (ADMIN)
+   */
+  async getAdminShops({ keyword, status, page = 0, size = 10 } = {}) {
+    const params = new URLSearchParams();
+    if (keyword) params.append('keyword', keyword);
+    if (status) params.append('status', status);
+    params.append('page', page);
+    params.append('size', size);
+    return await request(`/admin/shops?${params.toString()}`, { method: 'GET' });
+  },
+
+  /**
+   * STT 68: GET /admin/shops/{shopId} - Chi tiết cửa hàng phục vụ quản trị (ADMIN)
+   */
+  async getAdminShopById(shopId) {
+    return await request(`/admin/shops/${shopId}`, { method: 'GET' });
+  },
+
+  /**
+   * STT 69: PATCH /admin/shops/{shopId}/status - Duyệt, từ chối, tạm ngừng hoặc mở lại cửa hàng (ADMIN)
+   */
+  async updateAdminShopStatus(shopId, { status, rejectionReason }) {
+    return await request(`/admin/shops/${shopId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, rejectionReason })
+    });
   }
 };
+

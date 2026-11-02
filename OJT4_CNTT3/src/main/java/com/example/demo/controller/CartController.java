@@ -71,9 +71,9 @@ public class CartController {
     }
 
     /**
-     * Xóa sạch toàn bộ giỏ hàng
+     * Xóa sạch toàn bộ giỏ hàng (STT 78: DELETE /cart/items hoặc DELETE /cart)
      */
-    @DeleteMapping
+    @DeleteMapping({"", "/items"})
     public ResponseEntity<ApiResponse<Void>> clearCart(Principal principal) {
         String username = principal != null ? principal.getName() : null;
         cartService.clearCart(username);

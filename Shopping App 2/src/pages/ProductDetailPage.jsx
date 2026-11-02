@@ -16,7 +16,8 @@ import {
   Store,
   Layers,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  Tag
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +25,8 @@ import { formatVND } from '../data/products';
 import { ProductCard } from '../components/ProductCard';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { productApi } from '../services/productApi';
+import { wishlistApi } from '../services/wishlistApi';
+import { couponApi } from '../services/couponApi';
 import { parseProductSpecs } from '../utils/productSpecs';
 import './ProductDetailPage.css';
 
@@ -40,9 +43,22 @@ export const ProductDetailPage = () => {
   const [copiedLink, setCopiedLink] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [relatedProducts, setRelatedProducts] = useState([]);
+  const [shopCoupons, setShopCoupons] = useState([]);
 
   // Model box yêu cầu đăng nhập
   const [showAuthRequiredModal, setShowAuthRequiredModal] = useState(false);
+
+  // Kiểm tra sản phẩm đã nằm trong Wishlist chưa
+  useEffect(() => {
+    if (isAuthenticated && id) {
+      wishlistApi.getWishlist()
+        .then((res) => {
+          const items = res?.items || [];
+          setIsLiked(items.some((it) => String(it.productId) === String(id)));
+        })
+        .catch(() => {});
+    }
+  }, [id, isAuthenticated]);
 
   // Fetch product detail from API (STT 40)
   useEffect(() => {
@@ -58,6 +74,8 @@ export const ProductDetailPage = () => {
             ? [...data.images].sort((a, b) => (b.primary || b.isPrimary ? 1 : 0) - (a.primary || a.isPrimary ? 1 : 0))
             : [];
           const primaryImg = data.primaryImageUrl || sortedImages[0]?.imageUrl || '';
+
+          const resolvedShopId = data.shopId || data.shop?.id || null;
 
           const liveProduct = {
             id: data.id,
@@ -75,6 +93,7 @@ export const ProductDetailPage = () => {
             categoryId: data.categoryId || data.category?.id,
             brand: data.brandName || data.brand?.name || 'Cyber Official',
             brandLogo: data.brand?.logoUrl,
+            shopId: resolvedShopId,
             shop: data.shopName || data.shop?.name || 'Cyber Flagship Store',
             inStock: data.inStock !== false,
             warrantyMonths: data.warrantyMonths || 12
@@ -82,6 +101,17 @@ export const ProductDetailPage = () => {
 
           setProduct(liveProduct);
           setSelectedImage(primaryImg);
+
+          // Tải mã giảm giá của cửa hàng (STT 89)
+          if (resolvedShopId) {
+            couponApi.getShopCoupons(resolvedShopId)
+              .then((coupons) => {
+                if (isMounted && Array.isArray(coupons)) {
+                  setShopCoupons(coupons);
+                }
+              })
+              .catch(() => {});
+          }
 
           // Tải sản phẩm liên quan cùng danh mục từ Backend API
           if (data.categoryId) {
@@ -161,6 +191,27 @@ export const ProductDetailPage = () => {
       variantsMap: map
     };
   }, [product?.variants]);
+
+  // Xử lý Thêm/Xóa sản phẩm vào Danh sách yêu thích (Wishlist - STT 80, 81)
+  const handleToggleWishlist = async () => {
+    if (!isAuthenticated) {
+      setShowAuthRequiredModal(true);
+      return;
+    }
+    try {
+      if (isLiked) {
+        await wishlistApi.removeFromWishlist(id);
+        setIsLiked(false);
+        showToast('Đã xóa khỏi danh sách yêu thích');
+      } else {
+        await wishlistApi.addToWishlist(id);
+        setIsLiked(true);
+        showToast('Đã thêm sản phẩm vào danh sách yêu thích');
+      }
+    } catch (err) {
+      showToast(err.message || 'Lỗi thao tác yêu thích', 'error');
+    }
+  };
 
   // State chọn phiên bản & màu sắc - Khởi tạo rỗng để người dùng BẮT BUỘC phải bấm chọn trước khi mua
   const [selectedStorage, setSelectedStorage] = useState('');
@@ -331,7 +382,7 @@ export const ProductDetailPage = () => {
             <button 
               type="button" 
               className={`detail-wishlist-float ${isLiked ? 'is-active' : ''}`}
-              onClick={() => setIsLiked(!isLiked)}
+              onClick={handleToggleWishlist}
               aria-label={isLiked ? "Bỏ yêu thích" : "Yêu thích"}
             >
               <Heart size={22} fill={isLiked ? '#ef4444' : 'none'} color={isLiked ? '#ef4444' : '#a1a1aa'} />
@@ -424,6 +475,35 @@ export const ProductDetailPage = () => {
               </span>
             )}
           </div>
+
+          {/* Mã giảm giá của Cửa hàng (Coupons - STT 89) */}
+          {shopCoupons.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '14px 0', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#059669', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Tag size={15} /> Voucher Shop:
+              </span>
+              {shopCoupons.map((c) => (
+                <span
+                  key={c.id}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    backgroundColor: '#ecfdf5',
+                    border: '1px dashed #059669',
+                    color: '#065f46',
+                    fontSize: '0.8rem',
+                    fontWeight: 700
+                  }}
+                  title={c.description || `Giảm ${c.discountType === 'PERCENT' ? `${c.discountValue}%` : formatVND(c.discountValue)}`}
+                >
+                  {c.code} ({c.discountType === 'PERCENT' ? `-${c.discountValue}%` : `-${formatVND(c.discountValue)}`})
+                </span>
+              ))}
+            </div>
+          )}
 
           {/* Cảnh báo khi người dùng bấm Mua ngay mà chưa chọn phiên bản & màu sắc */}
           {attemptedAction && (!selectedStorage || !selectedColor) && (

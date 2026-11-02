@@ -22,18 +22,36 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/addresses")
+@RequestMapping({"/addresses", "/api/v1/addresses"})
 @RequiredArgsConstructor
 public class AddressController {
 
     private final AddressService addressService;
 
+    /**
+     * STT 83: GET /addresses - Danh sách địa chỉ của khách hàng (CLIENT)
+     */
     @GetMapping
     public ResponseEntity<ApiResponse<List<AddressResponse>>> getMyAddresses(Authentication authentication) {
         List<AddressResponse> addresses = addressService.getUserAddresses(authentication.getName());
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách địa chỉ thành công", addresses));
     }
 
+    /**
+     * STT 85: GET /addresses/{addressId} - Chi tiết địa chỉ (CLIENT)
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<AddressResponse>> getAddressById(
+            Authentication authentication,
+            @PathVariable Long id
+    ) {
+        AddressResponse address = addressService.getAddressById(authentication.getName(), id);
+        return ResponseEntity.ok(ApiResponse.success("Lấy chi tiết địa chỉ thành công", address));
+    }
+
+    /**
+     * STT 84: POST /addresses - Tạo địa chỉ giao hàng (CLIENT)
+     */
     @PostMapping
     public ResponseEntity<ApiResponse<AddressResponse>> createAddress(
             Authentication authentication,
@@ -44,7 +62,10 @@ public class AddressController {
                 .body(ApiResponse.success("Thêm địa chỉ nhận hàng mới thành công", address));
     }
 
-    @PutMapping("/{id}")
+    /**
+     * STT 86: PATCH /addresses/{addressId} (hoặc PUT) - Cập nhật địa chỉ (CLIENT)
+     */
+    @RequestMapping(value = "/{id}", method = {org.springframework.web.bind.annotation.RequestMethod.PATCH, org.springframework.web.bind.annotation.RequestMethod.PUT})
     public ResponseEntity<ApiResponse<AddressResponse>> updateAddress(
             Authentication authentication,
             @PathVariable Long id,
@@ -54,6 +75,9 @@ public class AddressController {
         return ResponseEntity.ok(ApiResponse.success("Cập nhật địa chỉ thành công", address));
     }
 
+    /**
+     * STT 88: PATCH /addresses/{addressId}/default - Đặt địa chỉ mặc định (CLIENT)
+     */
     @PatchMapping("/{id}/default")
     public ResponseEntity<ApiResponse<AddressResponse>> setDefaultAddress(
             Authentication authentication,
@@ -63,6 +87,9 @@ public class AddressController {
         return ResponseEntity.ok(ApiResponse.success("Đã đặt làm địa chỉ nhận hàng mặc định duy nhất", address));
     }
 
+    /**
+     * STT 87: DELETE /addresses/{addressId} - Xóa địa chỉ (CLIENT)
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteAddress(
             Authentication authentication,

@@ -1,6 +1,8 @@
 package com.example.demo.service.impl;
 
+import com.example.demo.dto.request.AdminUpdateShopStatusRequest;
 import com.example.demo.dto.request.RegisterShopRequest;
+import com.example.demo.dto.response.PageResponse;
 import com.example.demo.dto.response.ShopDetailResponse;
 import com.example.demo.entity.Role;
 import com.example.demo.entity.RoleEntity;
@@ -17,10 +19,15 @@ import com.example.demo.repository.UserRepository;
 import com.example.demo.service.ShopService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.text.Normalizer;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -208,6 +215,60 @@ public class ShopServiceImpl implements ShopService {
         return ShopDetailResponse.fromEntity(updated, isOwner, isAdmin);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ShopDetailResponse> getAdminShops(String keyword, ShopStatus status, int page, int size) {
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size), Sort.by(Sort.Direction.DESC, "createdAt"));
+        String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
+        Page<Shop> shopPage = shopRepository.searchShops(kw, status, pageable);
+        List<ShopDetailResponse> content = shopPage.getContent().stream()
+                .map(s -> ShopDetailResponse.fromEntity(s, false, true))
+                .toList();
+        return PageResponse.<ShopDetailResponse>builder()
+                .content(content)
+                .page(shopPage.getNumber())
+                .size(shopPage.getSize())
+                .totalElements(shopPage.getTotalElements())
+                .totalPages(shopPage.getTotalPages())
+                .first(shopPage.isFirst())
+                .last(shopPage.isLast())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ShopDetailResponse getAdminShopById(Long shopId) {
+        Shop shop = shopRepository.findById(shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
+        return ShopDetailResponse.fromEntity(shop, false, true);
+    }
+
+    @Override
+    @Transactional
+    public ShopDetailResponse updateShopStatus(Long shopId, AdminUpdateShopStatusRequest request, String adminUsername) {
+        User adminUser = getCurrentUser(adminUsername);
+        if (!isUserAdmin(adminUser)) {
+            throw new ForbiddenException("Chỉ Quản trị viên (ADMIN) mới có quyền thay đổi trạng thái cửa hàng");
+        }
+
+        Shop shop = shopRepository.findById(shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
+
+        ShopStatus oldStatus = shop.getStatus();
+        ShopStatus newStatus = request.getStatus();
+
+        shop.setStatus(newStatus);
+        shop.setReviewedBy(adminUser.getId());
+        shop.setReviewedAt(LocalDateTime.now());
+        if (request.getRejectionReason() != null) {
+            shop.setRejectionReason(request.getRejectionReason());
+        }
+
+        Shop saved = shopRepository.save(shop);
+        log.info("Admin {} changed shop #{} status from {} to {}", adminUsername, shopId, oldStatus, newStatus);
+        return ShopDetailResponse.fromEntity(saved, false, true);
+    }
+
     private User getCurrentUser(String username) {
         if (username == null || username.isBlank()) {
             throw new UnauthorizedException("Yêu cầu đăng nhập");
@@ -238,3 +299,4 @@ public class ShopServiceImpl implements ShopService {
         return slug.isBlank() ? "shop-" + System.currentTimeMillis() : slug;
     }
 }
+
