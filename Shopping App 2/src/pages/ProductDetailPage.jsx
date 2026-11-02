@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
-import { INITIAL_PRODUCTS, formatVND } from '../data/products';
+import { formatVND } from '../data/products';
 import { ProductCard } from '../components/ProductCard';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { productApi } from '../services/productApi';
@@ -33,15 +33,13 @@ export const ProductDetailPage = () => {
   const { addToCart, showToast } = useCart();
   const { isAuthenticated } = useAuth();
 
-  // Tìm sản phẩm mock dự phòng
-  const fallbackProduct = INITIAL_PRODUCTS.find((p) => String(p.id) === String(id)) || INITIAL_PRODUCTS[0];
-
-  const [product, setProduct] = useState(fallbackProduct);
-  const [selectedImage, setSelectedImage] = useState(fallbackProduct.image);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isLiked, setIsLiked] = useState(Boolean(fallbackProduct.isLiked));
+  const [product, setProduct] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLiked, setIsLiked] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [quantity, setQuantity] = useState(1);
+  const [relatedProducts, setRelatedProducts] = useState([]);
 
   // Model box yêu cầu đăng nhập
   const [showAuthRequiredModal, setShowAuthRequiredModal] = useState(false);
@@ -59,13 +57,13 @@ export const ProductDetailPage = () => {
           const sortedImages = Array.isArray(data.images)
             ? [...data.images].sort((a, b) => (b.primary || b.isPrimary ? 1 : 0) - (a.primary || a.isPrimary ? 1 : 0))
             : [];
-          const primaryImg = data.primaryImageUrl || sortedImages[0]?.imageUrl || fallbackProduct.image;
+          const primaryImg = data.primaryImageUrl || sortedImages[0]?.imageUrl || '';
 
           const liveProduct = {
             id: data.id,
             name: data.name,
             shortDescription: data.shortDescription || '',
-            description: data.description || fallbackProduct.description || '',
+            description: data.description || '',
             price: minP,
             formattedPrice: minP ? formatVND(minP) : 'Liên hệ',
             formattedOriginalPrice: maxP > minP ? formatVND(maxP) : (minP ? formatVND(minP * 1.1) : ''),
@@ -73,22 +71,32 @@ export const ProductDetailPage = () => {
             primaryImageUrl: primaryImg,
             images: sortedImages,
             variants: data.variants || [],
-            category: data.category?.name || fallbackProduct.category,
-            brand: data.brand?.name || 'Cyber Official',
+            category: data.categoryName || data.category?.name || 'Công nghệ',
+            categoryId: data.categoryId || data.category?.id,
+            brand: data.brandName || data.brand?.name || 'Cyber Official',
             brandLogo: data.brand?.logoUrl,
-            shop: data.shop?.name || 'Cyber Flagship Store',
+            shop: data.shopName || data.shop?.name || 'Cyber Flagship Store',
             inStock: data.inStock !== false,
             warrantyMonths: data.warrantyMonths || 12
           };
 
           setProduct(liveProduct);
           setSelectedImage(primaryImg);
+
+          // Tải sản phẩm liên quan cùng danh mục từ Backend API
+          if (data.categoryId) {
+            productApi.getProducts({ categoryId: data.categoryId, size: 5 })
+              .then((relRes) => {
+                if (!isMounted) return;
+                const items = (relRes?.content || []).filter((p) => String(p.id) !== String(data.id)).slice(0, 4);
+                setRelatedProducts(items);
+              })
+              .catch(() => {});
+          }
         })
         .catch((err) => {
-          console.warn('API getProductById fallback to mock:', err);
-          const found = INITIAL_PRODUCTS.find((p) => String(p.id) === String(id)) || INITIAL_PRODUCTS[0];
-          setProduct(found);
-          setSelectedImage(found.image);
+          console.warn('API getProductById error:', err);
+          if (isMounted) setProduct(null);
         })
         .finally(() => {
           if (isMounted) setIsLoading(false);
@@ -101,12 +109,12 @@ export const ProductDetailPage = () => {
 
   // 1. Phân tích các thông số kỹ thuật (Specifications) từ mô tả sản phẩm
   const { specs, cleanDescription } = useMemo(() => {
-    return parseProductSpecs(product.description || '');
-  }, [product.description]);
+    return parseProductSpecs(product?.description || '');
+  }, [product?.description]);
 
   // 2. Phân tích các biến thể (Variants): Tách biệt Dung lượng / Phiên bản và Màu sắc
   const { storageOptions, colorOptions, variantsMap } = useMemo(() => {
-    const rawVariants = Array.isArray(product.variants) ? product.variants : [];
+    const rawVariants = Array.isArray(product?.variants) ? product.variants : [];
     const storages = new Set();
     const colors = new Set();
     const map = {};
@@ -284,8 +292,23 @@ export const ProductDetailPage = () => {
     });
   };
 
-  // Các sản phẩm tương tự
-  const relatedProducts = INITIAL_PRODUCTS.filter((p) => p.id !== product.id).slice(0, 4);
+  if (isLoading || !product) {
+    return (
+      <div className="container detail-page-wrapper" style={{ padding: '4rem 1rem', textAlign: 'center' }}>
+        <div style={{ display: 'inline-block', width: '36px', height: '36px', border: '3px solid #e4e4e7', borderTopColor: '#000000', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+        <p style={{ marginTop: '1rem', color: '#71717a', fontSize: '0.95rem', fontWeight: 500 }}>
+          {isLoading ? 'Đang tải thông tin chi tiết sản phẩm...' : 'Không tìm thấy thông tin sản phẩm.'}
+        </p>
+        {!isLoading && !product && (
+          <div style={{ marginTop: '1.5rem' }}>
+            <Link to="/products" className="detail-btn-cart" style={{ display: 'inline-flex', padding: '0.75rem 1.5rem', textDecoration: 'none' }}>
+              Quay lại danh sách sản phẩm
+            </Link>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="container detail-page-wrapper">

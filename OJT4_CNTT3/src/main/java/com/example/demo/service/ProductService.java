@@ -17,6 +17,11 @@ public interface ProductService {
     PageResponse<ProductSummaryResponse> getProducts(ProductFilterCriteria criteria);
 
     /**
+     * GET /products/bestsellers - Lấy top 5 sản phẩm bán chạy nhất (Public)
+     */
+    List<ProductSummaryResponse> getTop5Bestsellers();
+
+    /**
      * STT 40: GET /products/{productId} - Chi tiết sản phẩm (Public)
      */
     ProductDetailResponse getProductById(Long productId);

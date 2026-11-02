@@ -86,6 +86,21 @@ function buildProductQueryParams(params = {}) {
 
 export const productApi = {
   /**
+   * GET /products/bestsellers - Lấy top 5 sản phẩm bán chạy nhất (Public)
+   */
+  async getTopBestsellers() {
+    try {
+      const res = await request('/products/bestsellers', { method: 'GET' });
+      if (Array.isArray(res) && res.length > 0) return res;
+      if (res?.data && Array.isArray(res.data) && res.data.length > 0) return res.data;
+    } catch (e) {
+      console.warn('API getTopBestsellers error, fallback to getProducts:', e);
+    }
+    const fallback = await this.getProducts({ size: 5, sort: 'createdAt', sortDir: 'desc' });
+    return fallback?.content || [];
+  },
+
+  /**
    * STT 39: GET /products - Danh sách sản phẩm có phân trang và lọc đa tiêu chí (Public)
    * @param {Object} params - { keyword, categoryId, brandId, shopId, minPrice, maxPrice, inStock, page, size, sort, sortDir }
    */

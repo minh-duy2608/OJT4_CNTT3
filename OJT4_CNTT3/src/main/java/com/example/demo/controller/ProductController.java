@@ -62,6 +62,15 @@ public class ProductController {
     }
 
     /**
+     * GET /products/bestsellers - Lấy top 5 sản phẩm bán chạy nhất (Public)
+     */
+    @GetMapping("/bestsellers")
+    public ResponseEntity<ApiResponse<List<ProductSummaryResponse>>> getTop5Bestsellers() {
+        List<ProductSummaryResponse> response = productService.getTop5Bestsellers();
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách top 5 sản phẩm bán chạy thành công", response));
+    }
+
+    /**
      * STT 40: GET /products/{productId} - Chi tiết sản phẩm (Public)
      */
     @GetMapping("/{productId}")

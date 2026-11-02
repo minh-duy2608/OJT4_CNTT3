@@ -67,6 +67,17 @@ public class SecurityConfig {
                                 "/shops/*/products", "/api/v1/shops/*/products",
                                 "/shops/*/products/**", "/api/v1/shops/*/products/**"
                         ).permitAll()
+                        .requestMatchers(
+                                org.springframework.http.HttpMethod.HEAD,
+                                "/categories", "/api/v1/categories",
+                                "/categories/**", "/api/v1/categories/**",
+                                "/brands", "/api/v1/brands",
+                                "/brands/**", "/api/v1/brands/**",
+                                "/products", "/api/v1/products",
+                                "/products/**", "/api/v1/products/**",
+                                "/shops/*/products", "/api/v1/shops/*/products",
+                                "/shops/*/products/**", "/api/v1/shops/*/products/**"
+                        ).permitAll()
                         // Public Authentication & Resource Endpoints
                         .requestMatchers(
                                 "/auth/register", "/api/v1/auth/register",

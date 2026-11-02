@@ -230,6 +230,7 @@ export const CheckoutPage = () => {
         shippingAddress: selectedAddr,
         items: itemsToCheckout.map((item) => ({
           id: item.id,
+          productId: item.productId || (typeof item.id === 'string' ? parseInt(item.id.split('-')[0], 10) : item.id),
           name: item.name,
           price: item.price,
           quantity: item.quantity,

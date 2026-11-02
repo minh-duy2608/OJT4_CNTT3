@@ -42,4 +42,15 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     @org.springframework.data.jpa.repository.Query(value = "SELECT COUNT(*) FROM cart_items ci JOIN product_variants pv ON ci.variant_id = pv.id WHERE pv.product_id = :productId", nativeQuery = true)
     long countCartItemsByProductId(@org.springframework.data.repository.query.Param("productId") Long productId);
+
+    @org.springframework.data.jpa.repository.Query(value = """
+        SELECT p.* FROM products p
+        LEFT JOIN product_variants pv ON pv.product_id = p.id
+        LEFT JOIN order_items oi ON oi.variant_id = pv.id
+        WHERE p.status = 'ACTIVE' AND p.deleted_at IS NULL
+        GROUP BY p.id
+        ORDER BY COALESCE(SUM(oi.quantity), 0) DESC, p.id ASC
+        LIMIT 5
+        """, nativeQuery = true)
+    java.util.List<Product> findTop5Bestsellers();
 }
