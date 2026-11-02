@@ -21,3 +21,4 @@ public class CouponProduct {
     @EmbeddedId
     private CouponProductId id;
 }
+

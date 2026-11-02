@@ -6,3 +6,4 @@ public enum CouponStatus {
     INACTIVE,
     EXPIRED
 }
+

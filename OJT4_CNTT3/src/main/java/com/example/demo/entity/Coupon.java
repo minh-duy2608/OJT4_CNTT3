@@ -88,3 +88,4 @@ public class Coupon {
         updatedAt = LocalDateTime.now();
     }
 }
+

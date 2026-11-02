@@ -19,3 +19,4 @@ public class WishlistResponse {
     private List<WishlistItemResponse> items;
     private int totalItems;
 }
+

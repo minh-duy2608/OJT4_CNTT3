@@ -13,3 +13,4 @@ public interface WishlistRepository extends JpaRepository<Wishlist, Long> {
 
     Optional<Wishlist> findFirstByUserIdOrderByIdAsc(Long userId);
 }
+

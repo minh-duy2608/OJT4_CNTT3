@@ -87,3 +87,4 @@ export const inventoryApi = {
     return await request(`/shops/${shopId}/inventory/low-stock?threshold=${threshold}`, { method: 'GET' });
   }
 };
+

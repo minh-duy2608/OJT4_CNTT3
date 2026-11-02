@@ -18,3 +18,4 @@ public class AdminUpdateShopStatusRequest {
 
     private String rejectionReason;
 }
+

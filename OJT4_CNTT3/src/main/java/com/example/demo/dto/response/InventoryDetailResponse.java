@@ -30,3 +30,4 @@ public class InventoryDetailResponse {
     private String variantStatus;
     private LocalDateTime updatedAt;
 }
+

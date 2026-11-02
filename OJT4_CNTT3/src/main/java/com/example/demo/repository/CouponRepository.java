@@ -24,3 +24,4 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
            "ORDER BY c.discountValue DESC")
     List<Coupon> findActivePublicCouponsByShopId(@Param("shopId") Long shopId, @Param("now") LocalDateTime now);
 }
+

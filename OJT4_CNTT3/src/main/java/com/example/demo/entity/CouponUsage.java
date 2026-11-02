@@ -47,3 +47,4 @@ public class CouponUsage {
         if (status == null) status = "APPLIED";
     }
 }
+

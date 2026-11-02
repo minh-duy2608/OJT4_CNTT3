@@ -12,3 +12,4 @@ public interface CouponUsageRepository extends JpaRepository<CouponUsage, Long> 
     @Query("SELECT COUNT(u) FROM CouponUsage u WHERE u.couponId = :couponId AND u.userId = :userId AND u.status = 'APPLIED'")
     long countAppliedUsagesByCouponAndUser(@Param("couponId") Long couponId, @Param("userId") Long userId);
 }
+

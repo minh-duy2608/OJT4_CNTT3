@@ -15,3 +15,4 @@ public class AddToWishlistRequest {
     @NotNull(message = "Mã sản phẩm (productId) không được để trống")
     private Long productId;
 }
+

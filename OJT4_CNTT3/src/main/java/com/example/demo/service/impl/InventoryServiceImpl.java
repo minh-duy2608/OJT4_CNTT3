@@ -210,3 +210,4 @@ public class InventoryServiceImpl implements InventoryService {
         throw new ForbiddenException("Bạn không có quyền quản lý kho của cửa hàng #" + shopId);
     }
 }
+

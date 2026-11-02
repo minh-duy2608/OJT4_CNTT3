@@ -197,3 +197,4 @@ export const WishlistModal = ({ isOpen, onClose }) => {
     </div>
   );
 };
+

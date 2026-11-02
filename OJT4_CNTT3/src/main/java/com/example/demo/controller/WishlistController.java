@@ -70,3 +70,4 @@ public class WishlistController {
         return ResponseEntity.ok(ApiResponse.success("Đã xóa toàn bộ danh sách yêu thích", null));
     }
 }
+

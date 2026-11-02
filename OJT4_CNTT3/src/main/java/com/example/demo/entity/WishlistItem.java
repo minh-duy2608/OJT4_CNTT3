@@ -33,3 +33,4 @@ public class WishlistItem {
         if (createdAt == null) createdAt = LocalDateTime.now();
     }
 }
+

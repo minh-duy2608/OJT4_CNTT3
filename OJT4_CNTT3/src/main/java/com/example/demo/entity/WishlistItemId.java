@@ -26,3 +26,4 @@ public class WishlistItemId implements Serializable {
     @Column(name = "product_id", nullable = false)
     private Long productId;
 }
+

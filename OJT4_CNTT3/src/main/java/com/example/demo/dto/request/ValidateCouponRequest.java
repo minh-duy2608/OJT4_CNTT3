@@ -21,3 +21,4 @@ public class ValidateCouponRequest {
 
     private List<ValidateCouponItem> items;
 }
+

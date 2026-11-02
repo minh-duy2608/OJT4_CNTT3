@@ -87,3 +87,4 @@ public class ShopInventoryController {
         return ResponseEntity.ok(ApiResponse.success("Điều chỉnh tồn kho thành công", response));
     }
 }
+

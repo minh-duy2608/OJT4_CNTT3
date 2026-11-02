@@ -25,3 +25,4 @@ public interface WishlistService {
      */
     void clearWishlist(String currentUsername);
 }
+

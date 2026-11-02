@@ -28,3 +28,4 @@ public interface InventoryService {
      */
     List<InventoryDetailResponse> getLowStockInventory(Long shopId, Integer threshold, String username);
 }
+

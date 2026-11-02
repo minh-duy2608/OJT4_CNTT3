@@ -18,3 +18,4 @@ public interface CouponService {
      */
     ValidateCouponResponse validateCoupon(ValidateCouponRequest request, String currentUsername);
 }
+

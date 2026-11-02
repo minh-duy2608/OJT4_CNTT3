@@ -26,3 +26,4 @@ public class ValidateCouponResponse {
     private BigDecimal orderSubtotal;
     private BigDecimal finalTotal;
 }
+

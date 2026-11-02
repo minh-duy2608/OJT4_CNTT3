@@ -21,3 +21,4 @@ public class CouponProductId implements Serializable {
     @Column(name = "product_id", nullable = false)
     private Long productId;
 }
+

@@ -20,3 +20,4 @@ public class ValidateCouponItem {
     @Builder.Default
     private Integer quantity = 1;
 }
+

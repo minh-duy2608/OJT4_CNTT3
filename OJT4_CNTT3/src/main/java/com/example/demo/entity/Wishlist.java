@@ -44,3 +44,4 @@ public class Wishlist {
         if (name == null || name.isBlank()) name = "Yêu thích";
     }
 }
+

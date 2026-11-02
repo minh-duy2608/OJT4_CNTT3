@@ -4,3 +4,4 @@ public enum CouponDiscountType {
     PERCENTAGE,
     FIXED_AMOUNT
 }
+

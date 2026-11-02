@@ -30,3 +30,4 @@ public class WishlistItemResponse {
     private boolean inStock;
     private LocalDateTime addedAt;
 }
+
