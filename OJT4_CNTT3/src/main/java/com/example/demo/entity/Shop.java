@@ -100,5 +100,9 @@ public class Shop {
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
+
+    public String getShopName() {
+        return this.name;
+    }
 }
 

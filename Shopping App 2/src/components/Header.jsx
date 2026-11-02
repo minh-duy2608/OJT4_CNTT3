@@ -15,12 +15,15 @@ import {
   LogOut,
   ChevronDown,
   Package,
-  ShieldCheck
+  ShieldCheck,
+  Store
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { productApi } from '../services/productApi';
+import { shopApi } from '../services/shopApi';
 import { formatVND } from '../data/products';
+import { RegisterShopModal } from './RegisterShopModal';
 import './Header.css';
 
 // Logo SVG icon hình tam giác công nghệ của Cyber
@@ -42,13 +45,17 @@ const CyberIcon = ({ className = "cyber-logo-icon" }) => (
 );
 
 export const Header = () => {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, refreshUser } = useAuth();
   const { cartCount, cartBumping } = useCart();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAuthDropdown, setShowAuthDropdown] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Shop state & Registration modal
+  const [isRegisterShopModalOpen, setIsRegisterShopModalOpen] = useState(false);
+  const [myShop, setMyShop] = useState(null);
 
   // State tìm kiếm gợi ý tức thì (Live Search Typeahead - STT 43: GET /products/search)
   const [searchSuggestions, setSearchSuggestions] = useState([]);
@@ -120,6 +127,35 @@ export const Header = () => {
     }
     return false;
   }, [user]);
+
+  // Kiểm tra vai trò Kênh Người Bán (SHOP_MANAGER / SHOP_OWNER)
+  const isShopManager = useMemo(() => {
+    if (!user) return false;
+    const r = (user.role || '').toUpperCase();
+    if (r === 'SHOP_MANAGER' || r === 'ROLE_SHOP_MANAGER' || r === 'SHOP_OWNER') return true;
+    if (Array.isArray(user.roles)) {
+      return user.roles.some(item => {
+        const code = (typeof item === 'string' ? item : item?.code || '').toUpperCase();
+        return code === 'SHOP_MANAGER' || code === 'ROLE_SHOP_MANAGER' || code === 'SHOP_OWNER';
+      });
+    }
+    return false;
+  }, [user]);
+
+  // Lấy thông tin Shop của user hiện tại nếu đã có
+  useEffect(() => {
+    if (isAuthenticated) {
+      shopApi.getMyShop()
+        .then((res) => {
+          if (res?.data) {
+            setMyShop(res.data);
+          }
+        })
+        .catch(() => {});
+    } else {
+      setMyShop(null);
+    }
+  }, [isAuthenticated, user?.role]);
 
   // Xác định danh mục công nghệ đang chọn trên sub-nav
   const activeCategoryKey = useMemo(() => {
@@ -283,16 +319,75 @@ export const Header = () => {
                   Liên hệ
                 </NavLink>
               </li>
+              {/* Nếu là Admin: Hiện Quản trị và Kênh Cửa hàng */}
               {isAuthenticated && isUserAdmin && (
+                <>
+                  <li>
+                    <NavLink 
+                      to="/admin" 
+                      className={({ isActive }) => `cyber-nav-link ${isActive ? 'active' : ''}`}
+                      style={{ color: '#2563eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <ShieldCheck size={16} />
+                      Quản trị
+                    </NavLink>
+                  </li>
+                  <li>
+                    <NavLink 
+                      to="/admin?tab=shops" 
+                      className="cyber-nav-link"
+                      style={{ color: '#059669', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <Store size={16} />
+                      Kênh Cửa hàng
+                    </NavLink>
+                  </li>
+                </>
+              )}
+
+              {/* Nếu là Shop Manager (không phải admin): Hiện Kênh Người Bán */}
+              {isAuthenticated && isShopManager && !isUserAdmin && (
                 <li>
                   <NavLink 
-                    to="/admin" 
-                    className={({ isActive }) => `cyber-nav-link ${isActive ? 'active' : ''}`}
-                    style={{ color: '#2563eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
+                    to="/admin?tab=shops" 
+                    className="cyber-nav-link"
+                    style={{ color: '#059669', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
                   >
-                    <ShieldCheck size={16} />
-                    Quản trị
+                    <Store size={16} />
+                    Kênh Người Bán
                   </NavLink>
+                </li>
+              )}
+
+              {/* Nếu là Khách hàng (chưa mở shop) hoặc Khách vãng lai: Hiện nút Đăng ký mở Shop */}
+              {(!isAuthenticated || (!isUserAdmin && !isShopManager)) && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isAuthenticated) {
+                        navigate('/login?redirect=/');
+                      } else {
+                        setIsRegisterShopModalOpen(true);
+                      }
+                    }}
+                    className="cyber-nav-link"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#059669',
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: 'inherit',
+                      padding: 0
+                    }}
+                  >
+                    <Store size={16} />
+                    Đăng ký mở Shop
+                  </button>
                 </li>
               )}
             </ul>
@@ -352,15 +447,51 @@ export const Header = () => {
                   {isAuthenticated && user ? (
                     <>
                       {isUserAdmin && (
+                        <>
+                          <Link 
+                            to="/admin" 
+                            className="cyber-dropdown-item" 
+                            onClick={() => setShowAuthDropdown(false)}
+                            style={{ color: '#2563eb', fontWeight: 600, background: '#eff6ff' }}
+                          >
+                            <ShieldCheck size={16} color="#2563eb" />
+                            Trung tâm Quản trị
+                          </Link>
+                          <Link 
+                            to="/admin?tab=shops" 
+                            className="cyber-dropdown-item" 
+                            onClick={() => setShowAuthDropdown(false)}
+                            style={{ color: '#059669', fontWeight: 600 }}
+                          >
+                            <Store size={16} color="#059669" />
+                            Kênh Cửa hàng
+                          </Link>
+                        </>
+                      )}
+                      {isShopManager && !isUserAdmin && (
                         <Link 
-                          to="/admin" 
+                          to="/admin?tab=shops" 
                           className="cyber-dropdown-item" 
                           onClick={() => setShowAuthDropdown(false)}
-                          style={{ color: '#2563eb', fontWeight: 600, background: '#eff6ff' }}
+                          style={{ color: '#059669', fontWeight: 600, background: '#f0fdf4' }}
                         >
-                          <ShieldCheck size={16} color="#2563eb" />
-                          Trung tâm Quản trị
+                          <Store size={16} color="#059669" />
+                          Kênh Người Bán của tôi
                         </Link>
+                      )}
+                      {!isUserAdmin && !isShopManager && (
+                        <button
+                          type="button"
+                          className="cyber-dropdown-item"
+                          onClick={() => {
+                            setShowAuthDropdown(false);
+                            setIsRegisterShopModalOpen(true);
+                          }}
+                          style={{ color: '#059669', fontWeight: 600, background: '#f0fdf4', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                        >
+                          <Store size={16} color="#059669" />
+                          Đăng ký mở Shop ngay
+                        </button>
                       )}
                       <Link 
                         to="/profile" 
@@ -489,6 +620,17 @@ export const Header = () => {
           </ul>
         </div>
       </nav>
+
+      {/* Modal đăng ký mở Shop cho Khách hàng */}
+      <RegisterShopModal
+        isOpen={isRegisterShopModalOpen}
+        onClose={() => setIsRegisterShopModalOpen(false)}
+        onSuccess={(createdShop) => {
+          setMyShop(createdShop);
+          if (refreshUser) refreshUser();
+          navigate('/admin?tab=shops');
+        }}
+      />
     </header>
   );
 };

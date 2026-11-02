@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   Users,
   Shield,
@@ -48,6 +48,7 @@ import { categoryApi } from '../services/categoryApi';
 import { brandApi } from '../services/brandApi';
 import { productApi } from '../services/productApi';
 import { orderApi } from '../services/orderApi';
+import { shopApi } from '../services/shopApi';
 import { formatVND } from '../data/products';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { OrderDetailModal } from '../components/OrderDetailModal';
@@ -77,8 +78,23 @@ export const AdminPage = () => {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
+  const location = useLocation();
+  const queryTab = useMemo(() => {
+    const p = new URLSearchParams(location.search);
+    return p.get('tab');
+  }, [location.search]);
+
   // Active top-level tab
-  const [activeTab, setActiveTab] = useState('users'); // 'users' | 'roles' | 'categories' | 'permissions'
+  const [activeTab, setActiveTab] = useState(() => {
+    const p = new URLSearchParams(window.location.search);
+    return p.get('tab') || 'users';
+  });
+
+  useEffect(() => {
+    if (queryTab) {
+      setActiveTab(queryTab);
+    }
+  }, [queryTab]);
 
   // Global Alert Message
   const [alert, setAlert] = useState(null); // { type: 'success'|'error'|'info', message: string }
@@ -1665,8 +1681,62 @@ export const AdminPage = () => {
     return false;
   }, [user]);
 
-  // Access Denied Screen if user is not ADMIN
-  if (!isAuthenticated || !isAdminUser) {
+  // Check shop manager role permission
+  const isShopManager = useMemo(() => {
+    if (!user) return false;
+    const r = (user.role || '').toUpperCase();
+    if (r === 'SHOP_MANAGER' || r === 'ROLE_SHOP_MANAGER' || r === 'SHOP_OWNER') return true;
+    if (Array.isArray(user.roles)) {
+      return user.roles.some(roleItem => {
+        const code = (typeof roleItem === 'string' ? roleItem : roleItem?.code || '').toUpperCase();
+        return code === 'SHOP_MANAGER' || code === 'ROLE_SHOP_MANAGER' || code === 'SHOP_OWNER';
+      });
+    }
+    return false;
+  }, [user]);
+
+  const hasPortalAccess = isAdminUser || isShopManager;
+
+  // Shop info for shop manager / admin
+  const [myShopInfo, setMyShopInfo] = useState(null);
+  const [availableShops, setAvailableShops] = useState([]);
+
+  useEffect(() => {
+    if (isAuthenticated && hasPortalAccess) {
+      shopApi.getMyShop()
+        .then((res) => {
+          if (res?.data) {
+            setMyShopInfo(res.data);
+            if (isShopManager && !isAdminUser) {
+              setSelectedShopId(String(res.data.id));
+            }
+          }
+        })
+        .catch((e) => console.warn('Could not fetch my shop:', e));
+
+      if (isAdminUser) {
+        shopApi.getAllShops()
+          .then((res) => {
+            const list = Array.isArray(res?.data) ? res.data : (res?.data?.content || []);
+            if (list.length > 0) setAvailableShops(list);
+          })
+          .catch(() => {});
+      }
+    }
+  }, [isAuthenticated, hasPortalAccess, isAdminUser, isShopManager]);
+
+  // If user is shop manager (not admin) and tries to view admin-only tabs, redirect tab to 'shops'
+  useEffect(() => {
+    if (isShopManager && !isAdminUser) {
+      const allowedShopTabs = ['shops', 'orders', 'permissions'];
+      if (!allowedShopTabs.includes(activeTab)) {
+        setActiveTab('shops');
+      }
+    }
+  }, [isShopManager, isAdminUser, activeTab]);
+
+  // Access Denied Screen if user is neither ADMIN nor SHOP_MANAGER
+  if (!isAuthenticated || !hasPortalAccess) {
     return (
       <div className="cyber-admin-page">
         <div className="container">
@@ -1674,13 +1744,13 @@ export const AdminPage = () => {
             <div className="admin-forbidden-icon-wrap">
               <Lock size={32} />
             </div>
-            <h2>Khu vực Quản trị Hệ thống</h2>
+            <h2>Khu vực Quản trị & Kênh Người Bán</h2>
             <p>
-              Bạn cần có tài khoản quản trị viên (<strong>ADMIN</strong>) để truy cập giao diện và các API quản trị này.
+              Bạn cần có tài khoản Quản trị viên (<strong>ADMIN</strong>) hoặc Kênh Người Bán (<strong>SHOP_MANAGER</strong>) để truy cập giao diện này.
             </p>
             <div className="admin-forbidden-actions">
               <Link to="/login?redirect=/admin" className="admin-btn-action-primary">
-                Đăng nhập tài khoản Quản trị
+                Đăng nhập tài khoản
               </Link>
               <Link to="/" className="admin-btn-action-secondary">
                 <ArrowLeft size={16} />
@@ -1701,15 +1771,21 @@ export const AdminPage = () => {
         {/* =================================================================== */}
         <div className="admin-header-banner">
           <div className="admin-header-left">
-            <div className="admin-shield-icon-wrap">
-              <ShieldCheck size={26} strokeWidth={2.2} />
+            <div className="admin-shield-icon-wrap" style={{ backgroundColor: isShopManager && !isAdminUser ? '#10b981' : undefined }}>
+              {isShopManager && !isAdminUser ? <Store size={26} strokeWidth={2.2} /> : <ShieldCheck size={26} strokeWidth={2.2} />}
             </div>
             <div className="admin-title-group">
               <h1>
-                Trung tâm Quản trị Cyber
-                <span className="admin-role-badge">Admin Console</span>
+                {isAdminUser ? 'Trung tâm Quản trị Cyber' : 'Kênh Người Bán Cyber'}
+                <span className="admin-role-badge">
+                  {isAdminUser ? 'Admin Console' : (myShopInfo?.name || 'Shop Manager')}
+                </span>
               </h1>
-              <p>Quản lý toàn diện tài khoản, vai trò phân quyền và danh mục sản phẩm (API 12 - 32)</p>
+              <p>
+                {isAdminUser
+                  ? 'Toàn quyền quản trị hệ thống, tài khoản, vai trò, danh mục và kênh các cửa hàng'
+                  : `Quản lý cửa hàng #${selectedShopId}: đăng sản phẩm, quản lý phiên bản, hình ảnh và đơn hàng`}
+              </p>
             </div>
           </div>
 
@@ -1765,110 +1841,170 @@ export const AdminPage = () => {
         {/* =================================================================== */}
         {/* METRIC HIGHLIGHTS CARDS */}
         {/* =================================================================== */}
-        <div className="admin-metrics-grid">
-          <div className="admin-metric-card" onClick={() => setActiveTab('users')} style={{ cursor: 'pointer' }}>
-            <div className="admin-metric-icon-wrap users">
-              <Users size={22} />
+        {isAdminUser ? (
+          <div className="admin-metrics-grid">
+            <div className="admin-metric-card" onClick={() => setActiveTab('users')} style={{ cursor: 'pointer' }}>
+              <div className="admin-metric-icon-wrap users">
+                <Users size={22} />
+              </div>
+              <div className="admin-metric-info">
+                <div className="admin-metric-label">Tổng Người dùng</div>
+                <div className="admin-metric-val">{userTotalElements || users.length}</div>
+              </div>
             </div>
-            <div className="admin-metric-info">
-              <div className="admin-metric-label">Tổng Người dùng</div>
-              <div className="admin-metric-val">{userTotalElements || users.length}</div>
-            </div>
-          </div>
 
-          <div className="admin-metric-card" onClick={() => setActiveTab('roles')} style={{ cursor: 'pointer' }}>
-            <div className="admin-metric-icon-wrap roles">
-              <Shield size={22} />
+            <div className="admin-metric-card" onClick={() => setActiveTab('roles')} style={{ cursor: 'pointer' }}>
+              <div className="admin-metric-icon-wrap roles">
+                <Shield size={22} />
+              </div>
+              <div className="admin-metric-info">
+                <div className="admin-metric-label">Vai trò & Quyền</div>
+                <div className="admin-metric-val">{roles.length} vai trò / {allPermissions.length || 44} quyền</div>
+              </div>
             </div>
-            <div className="admin-metric-info">
-              <div className="admin-metric-label">Vai trò & Quyền</div>
-              <div className="admin-metric-val">{roles.length} vai trò / {allPermissions.length || 44} quyền</div>
-            </div>
-          </div>
 
-          <div className="admin-metric-card" onClick={() => setActiveTab('categories')} style={{ cursor: 'pointer' }}>
-            <div className="admin-metric-icon-wrap categories">
-              <FolderTree size={22} />
+            <div className="admin-metric-card" onClick={() => setActiveTab('categories')} style={{ cursor: 'pointer' }}>
+              <div className="admin-metric-icon-wrap categories">
+                <FolderTree size={22} />
+              </div>
+              <div className="admin-metric-info">
+                <div className="admin-metric-label">Danh mục</div>
+                <div className="admin-metric-val">{categories.length} danh mục</div>
+              </div>
             </div>
-            <div className="admin-metric-info">
-              <div className="admin-metric-label">Danh mục</div>
-              <div className="admin-metric-val">{categories.length} danh mục</div>
-            </div>
-          </div>
 
-          <div className="admin-metric-card" onClick={() => setActiveTab('brands')} style={{ cursor: 'pointer' }}>
-            <div className="admin-metric-icon-wrap brands">
-              <Award size={22} />
+            <div className="admin-metric-card" onClick={() => setActiveTab('brands')} style={{ cursor: 'pointer' }}>
+              <div className="admin-metric-icon-wrap brands">
+                <Award size={22} />
+              </div>
+              <div className="admin-metric-info">
+                <div className="admin-metric-label">Thương hiệu</div>
+                <div className="admin-metric-val">{brands.length} thương hiệu</div>
+              </div>
             </div>
-            <div className="admin-metric-info">
-              <div className="admin-metric-label">Thương hiệu</div>
-              <div className="admin-metric-val">{brands.length} thương hiệu</div>
-            </div>
-          </div>
 
-          <div className="admin-metric-card" onClick={() => setActiveTab('products')} style={{ cursor: 'pointer' }}>
-            <div className="admin-metric-icon-wrap products">
-              <Package size={22} />
-            </div>
-            <div className="admin-metric-info">
-              <div className="admin-metric-label">Sản phẩm</div>
-              <div className="admin-metric-val">{prodTotalElements || adminProducts.length} sản phẩm</div>
+            <div className="admin-metric-card" onClick={() => setActiveTab('products')} style={{ cursor: 'pointer' }}>
+              <div className="admin-metric-icon-wrap products">
+                <Package size={22} />
+              </div>
+              <div className="admin-metric-info">
+                <div className="admin-metric-label">Sản phẩm</div>
+                <div className="admin-metric-val">{prodTotalElements || adminProducts.length} sản phẩm</div>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="admin-metrics-grid">
+            <div className="admin-metric-card" onClick={() => setActiveTab('shops')} style={{ cursor: 'pointer' }}>
+              <div className="admin-metric-icon-wrap products" style={{ background: '#ecfdf5', color: '#059669' }}>
+                <Store size={22} />
+              </div>
+              <div className="admin-metric-info">
+                <div className="admin-metric-label">Sản phẩm Cửa hàng</div>
+                <div className="admin-metric-val">{shopProdTotalElements || shopProducts.length} sản phẩm</div>
+              </div>
+            </div>
+
+            <div className="admin-metric-card" onClick={() => setActiveTab('orders')} style={{ cursor: 'pointer' }}>
+              <div className="admin-metric-icon-wrap roles" style={{ background: '#eff6ff', color: '#2563eb' }}>
+                <ShoppingBag size={22} />
+              </div>
+              <div className="admin-metric-info">
+                <div className="admin-metric-label">Đơn hàng Cửa hàng</div>
+                <div className="admin-metric-val">{adminOrders.length} đơn hàng</div>
+              </div>
+            </div>
+
+            <div className="admin-metric-card" style={{ cursor: 'default' }}>
+              <div className="admin-metric-icon-wrap categories" style={{ background: '#fef3c7', color: '#d97706' }}>
+                <ShieldCheck size={22} />
+              </div>
+              <div className="admin-metric-info">
+                <div className="admin-metric-label">Trạng thái Cửa hàng</div>
+                <div className="admin-metric-val" style={{ color: '#059669', fontSize: '1.05rem', fontWeight: 700 }}>
+                  ACTIVE (Đang kinh doanh)
+                </div>
+              </div>
+            </div>
+
+            <div className="admin-metric-card" onClick={() => setActiveTab('permissions')} style={{ cursor: 'pointer' }}>
+              <div className="admin-metric-icon-wrap brands" style={{ background: '#faf5ff', color: '#7c3aed' }}>
+                <Key size={22} />
+              </div>
+              <div className="admin-metric-info">
+                <div className="admin-metric-label">Quyền hạn Shop</div>
+                <div className="admin-metric-val">{myPermissions.length || 15} quyền được cấp</div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* =================================================================== */}
         {/* TOP LEVEL NAVIGATION TABS */}
         {/* =================================================================== */}
         <div className="admin-tabs-bar">
-          <button
-            type="button"
-            className={`admin-tab-btn ${activeTab === 'users' ? 'active' : ''}`}
-            onClick={() => setActiveTab('users')}
-          >
-            <Users size={17} />
-            Quản lý Người dùng
-            <span className="admin-tab-badge">STT 12-17</span>
-          </button>
+          {isAdminUser && (
+            <>
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'users' ? 'active' : ''}`}
+                onClick={() => setActiveTab('users')}
+              >
+                <Users size={17} />
+                Quản lý Người dùng
+                <span className="admin-tab-badge">STT 12-17</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'roles' ? 'active' : ''}`}
+                onClick={() => setActiveTab('roles')}
+              >
+                <ShieldCheck size={17} />
+                Vai trò & Phân quyền
+                <span className="admin-tab-badge">STT 18-25</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'categories' ? 'active' : ''}`}
+                onClick={() => setActiveTab('categories')}
+              >
+                <FolderTree size={17} />
+                Danh mục Sản phẩm
+                <span className="admin-tab-badge">STT 27-32</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'brands' ? 'active' : ''}`}
+                onClick={() => setActiveTab('brands')}
+              >
+                <Award size={17} />
+                Thương hiệu
+                <span className="admin-tab-badge">STT 33-38</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'products' ? 'active' : ''}`}
+                onClick={() => setActiveTab('products')}
+              >
+                <Package size={17} />
+                Quản lý Sản phẩm
+                <span className="admin-tab-badge">STT 39-44</span>
+              </button>
+            </>
+          )}
 
           <button
             type="button"
-            className={`admin-tab-btn ${activeTab === 'roles' ? 'active' : ''}`}
-            onClick={() => setActiveTab('roles')}
+            className={`admin-tab-btn ${activeTab === 'shops' ? 'active' : ''}`}
+            onClick={() => setActiveTab('shops')}
           >
-            <ShieldCheck size={17} />
-            Vai trò & Phân quyền
-            <span className="admin-tab-badge">STT 18-25</span>
-          </button>
-
-          <button
-            type="button"
-            className={`admin-tab-btn ${activeTab === 'categories' ? 'active' : ''}`}
-            onClick={() => setActiveTab('categories')}
-          >
-            <FolderTree size={17} />
-            Danh mục Sản phẩm
-            <span className="admin-tab-badge">STT 27-32</span>
-          </button>
-
-          <button
-            type="button"
-            className={`admin-tab-btn ${activeTab === 'brands' ? 'active' : ''}`}
-            onClick={() => setActiveTab('brands')}
-          >
-            <Award size={17} />
-            Thương hiệu
-            <span className="admin-tab-badge">STT 33-38</span>
-          </button>
-
-          <button
-            type="button"
-            className={`admin-tab-btn ${activeTab === 'products' ? 'active' : ''}`}
-            onClick={() => setActiveTab('products')}
-          >
-            <Package size={17} />
-            Quản lý Sản phẩm
-            <span className="admin-tab-badge">STT 39-44</span>
+            <Store size={17} />
+            {isAdminUser ? 'Kênh Cửa hàng' : 'Sản phẩm Cửa hàng'}
+            <span className="admin-tab-badge">STT 45-56</span>
           </button>
 
           <button
@@ -1877,18 +2013,8 @@ export const AdminPage = () => {
             onClick={() => setActiveTab('orders')}
           >
             <ShoppingBag size={17} />
-            Quản lý Đơn hàng
+            {isAdminUser ? 'Quản lý Đơn hàng' : 'Đơn hàng Cửa hàng'}
             <span className="admin-tab-badge">Đơn hàng</span>
-          </button>
-
-          <button
-            type="button"
-            className={`admin-tab-btn ${activeTab === 'shops' ? 'active' : ''}`}
-            onClick={() => setActiveTab('shops')}
-          >
-            <Store size={17} />
-            Kênh Cửa hàng
-            <span className="admin-tab-badge">STT 45-56</span>
           </button>
 
           <button
@@ -3145,19 +3271,36 @@ export const AdminPage = () => {
           <div className="admin-card-container">
             <div className="admin-toolbar">
               <div className="admin-toolbar-left">
-                {/* Chọn Shop */}
-                <select
-                  className="admin-select-filter"
-                  style={{ fontWeight: 700 }}
-                  value={selectedShopId}
-                  onChange={(e) => {
-                    setSelectedShopId(e.target.value);
-                  }}
-                >
-                  <option value="1">🏪 Shop #1: Cyber Flagship Store</option>
-                  <option value="2">🏬 Shop #2: Cyber Official Store</option>
-                  <option value="3">🏪 Shop #3: Cyber Gaming Hub</option>
-                </select>
+                {/* Chọn Shop nếu là Admin, hoặc hiển thị thông tin Shop nếu là Shop Manager */}
+                {isAdminUser ? (
+                  <select
+                    className="admin-select-filter"
+                    style={{ fontWeight: 700, backgroundColor: '#eff6ff', borderColor: '#93c5fd' }}
+                    value={selectedShopId}
+                    onChange={(e) => {
+                      setSelectedShopId(e.target.value);
+                    }}
+                  >
+                    {availableShops.length > 0 ? (
+                      availableShops.map((s) => (
+                        <option key={s.id} value={String(s.id)}>
+                          🏪 Shop #{s.id}: {s.name} {s.ownerName ? `(${s.ownerName})` : ''}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="1">🏪 Shop #1: Cyber Flagship Store</option>
+                        <option value="2">🏬 Shop #2: Cyber Official Store</option>
+                        <option value="3">🏪 Shop #3: Cyber Gaming Hub</option>
+                      </>
+                    )}
+                  </select>
+                ) : (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', fontWeight: 600, color: '#166534', fontSize: '0.875rem' }}>
+                    <Store size={16} />
+                    <span>🏪 Cửa hàng: <strong>{myShopInfo?.name || `Shop #${selectedShopId}`}</strong> (Mã shop: #{selectedShopId})</span>
+                  </div>
+                )}
 
                 {/* Tìm kiếm */}
                 <div className="admin-search-box">

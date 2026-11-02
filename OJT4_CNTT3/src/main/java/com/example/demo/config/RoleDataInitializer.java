@@ -158,14 +158,15 @@ public class RoleDataInitializer implements CommandLineRunner {
                         .description("Quản lý và vận hành cửa hàng")
                         .isSystem(true)
                         .build()));
-        if (managerRole.getPermissions() == null || managerRole.getPermissions().isEmpty()) {
-            Set<String> managerPermCodes = Set.of(
-                    "PRODUCT_CREATE", "PRODUCT_UPDATE_OWN", "PRODUCT_DELETE_OWN", "INVENTORY_MANAGE_OWN",
-                    "COUPON_CREATE_OWN", "COUPON_UPDATE_OWN", "COUPON_VIEW_OWN",
-                    "ORDER_VIEW_OWN", "ORDER_UPDATE_OWN", "REVIEW_VIEW",
-                    "REVIEW_REPLY_OWN", "REPORT_VIEW_OWN", "RETURN_MANAGE_OWN", "NOTIFICATION_VIEW_OWN"
-            );
-            List<PermissionEntity> managerPerms = permissionRepository.findByCodeIn(managerPermCodes);
+        Set<String> managerPermCodes = Set.of(
+                "SHOP_VIEW_ALL", "SHOP_UPDATE_OWN", "PRODUCT_VIEW",
+                "PRODUCT_CREATE", "PRODUCT_UPDATE_OWN", "PRODUCT_DELETE_OWN", "INVENTORY_MANAGE_OWN",
+                "COUPON_CREATE_OWN", "COUPON_UPDATE_OWN", "COUPON_VIEW_OWN",
+                "ORDER_VIEW_OWN", "ORDER_UPDATE_OWN", "REVIEW_VIEW",
+                "REVIEW_REPLY_OWN", "REPORT_VIEW_OWN", "RETURN_MANAGE_OWN", "NOTIFICATION_VIEW_OWN"
+        );
+        List<PermissionEntity> managerPerms = permissionRepository.findByCodeIn(managerPermCodes);
+        if (managerRole.getPermissions() == null || managerRole.getPermissions().size() < managerPerms.size()) {
             managerRole.setPermissions(new HashSet<>(managerPerms));
             roleRepository.save(managerRole);
         }

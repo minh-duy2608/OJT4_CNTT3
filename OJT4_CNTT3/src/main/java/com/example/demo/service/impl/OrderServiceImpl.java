@@ -64,13 +64,13 @@ public class OrderServiceImpl implements OrderService {
         Long addressId = request.getAddressId();
 
         if (addressId != null) {
-            Address address = addressRepository.findByIdAndUserId(addressId, user.getId()).orElse(null);
+            Address address = addressRepository.findByIdAndUser(addressId, user).orElse(null);
             if (address != null) {
                 if (recipientName == null || recipientName.isBlank()) recipientName = address.getRecipientName();
-                if (recipientPhone == null || recipientPhone.isBlank()) recipientPhone = address.getPhoneNumber();
+                if (recipientPhone == null || recipientPhone.isBlank()) recipientPhone = address.getPhone();
                 if (shippingAddress == null || shippingAddress.isBlank()) {
                     shippingAddress = String.format("%s, %s, %s, %s",
-                            address.getDetailAddress(), address.getWard(), address.getDistrict(), address.getCity());
+                            address.getAddressDetail(), address.getWard(), address.getDistrict(), address.getProvince());
                 }
             }
         }
@@ -79,7 +79,7 @@ public class OrderServiceImpl implements OrderService {
             recipientName = user.getFullName() != null ? user.getFullName() : user.getUsername();
         }
         if (recipientPhone == null || recipientPhone.isBlank()) {
-            recipientPhone = user.getPhoneNumber() != null ? user.getPhoneNumber() : "0362490374";
+            recipientPhone = user.getPhone() != null ? user.getPhone() : "0362490374";
         }
         if (shippingAddress == null || shippingAddress.isBlank()) {
             shippingAddress = "Địa chỉ nhận hàng mặc định";

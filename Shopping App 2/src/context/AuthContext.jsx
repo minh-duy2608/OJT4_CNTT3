@@ -329,6 +329,24 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
+  const refreshUser = async () => {
+    const token = getStoredAccessToken();
+    if (token) {
+      try {
+        const apiUser = await authApi.getMe();
+        if (apiUser) {
+          const formatted = formatUserResponse(apiUser, addresses);
+          setUser(formatted);
+          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(formatted));
+          return formatted;
+        }
+      } catch (e) {
+        console.warn('Failed to refresh user:', e);
+      }
+    }
+    return null;
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -338,6 +356,7 @@ export const AuthProvider = ({ children }) => {
         login,
         register,
         logout,
+        refreshUser,
         updateProfile,
         changePassword,
         forgotPassword,
