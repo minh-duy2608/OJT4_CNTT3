@@ -34,6 +34,11 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
             @Param("admin") Role admin
     );
 
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query("UPDATE User u SET u.lastLoginAt = :lastLoginAt WHERE u.id = :userId")
+    void updateLastLoginAt(@Param("userId") Long userId, @Param("lastLoginAt") java.time.LocalDateTime lastLoginAt);
+
     @Query("SELECT COUNT(u) FROM User u JOIN u.roles r WHERE r.id = :roleId")
     long countUsersWithRoleId(@Param("roleId") Long roleId);
 }

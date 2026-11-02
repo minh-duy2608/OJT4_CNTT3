@@ -78,7 +78,7 @@ const generateSlug = (text) => {
 };
 
 export const AdminPage = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, refreshUser } = useAuth();
   const navigate = useNavigate();
 
   const location = useLocation();
@@ -236,6 +236,9 @@ export const AdminPage = () => {
     try {
       await adminUserApi.assignUserRoles(roleAssignUser.id, { roles: selectedRoleCodes });
       triggerAlert(`Đã cập nhật tập vai trò cho người dùng ${roleAssignUser.username} thành công!`, 'success');
+      if (roleAssignUser.id === user?.id && typeof refreshUser === 'function') {
+        await refreshUser();
+      }
       setIsRoleAssignModalOpen(false);
       fetchUsers(userPage);
     } catch (err) {

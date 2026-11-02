@@ -135,18 +135,22 @@ public class AuthServiceImpl implements AuthService {
             throw new UnauthorizedException("Tài khoản đã bị khóa hoặc chặn truy cập");
         }
 
-        // Update last login timestamp
+        // Cập nhật timestamp đăng nhập trực tiếp qua truy vấn chuyên biệt, không lưu thực thể tách rời
+        userRepository.updateLastLoginAt(user.getId(), LocalDateTime.now());
         user.setLastLoginAt(LocalDateTime.now());
-        userRepository.save(user);
+
+        // Tải lại thực thể đầy đủ vai trò mới nhất từ cơ sở dữ liệu
+        User freshUser = userRepository.findById(user.getId()).orElse(user);
+        freshUser.setLastLoginAt(user.getLastLoginAt());
 
         // Issue JWT access token
-        String accessToken = tokenProvider.generateToken(userDetails);
+        String accessToken = tokenProvider.generateToken(new CustomUserDetails(freshUser));
 
         // Issue and persist Refresh Token
         String refreshTokenString = UUID.randomUUID().toString();
         RefreshToken refreshToken = RefreshToken.builder()
                 .token(refreshTokenString)
-                .user(user)
+                .user(freshUser)
                 .expiryDate(LocalDateTime.now().plus(tokenProvider.getRefreshExpirationMs(), ChronoUnit.MILLIS))
                 .revoked(false)
                 .build();
@@ -157,7 +161,7 @@ public class AuthServiceImpl implements AuthService {
                 .refreshToken(refreshTokenString)
                 .tokenType("Bearer")
                 .expiresIn(tokenProvider.getExpirationMs())
-                .user(UserResponse.fromEntity(user))
+                .user(UserResponse.fromEntity(freshUser))
                 .build();
     }
 

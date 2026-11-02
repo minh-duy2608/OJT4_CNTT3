@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   Heart, 
@@ -12,6 +12,7 @@ import {
   Copy, 
   Zap, 
   Share2,
+  ChevronLeft,
   ChevronRight,
   Store,
   Layers,
@@ -47,6 +48,163 @@ export const ProductDetailPage = () => {
 
   // Model box yêu cầu đăng nhập
   const [showAuthRequiredModal, setShowAuthRequiredModal] = useState(false);
+
+  // Danh sách toàn bộ ảnh của sản phẩm phục vụ Gallery & Slider
+  const galleryImages = useMemo(() => {
+    if (!product) return [];
+    const urls = [];
+    const seen = new Set();
+
+    const addUrl = (url) => {
+      if (url && typeof url === 'string') {
+        const trimmed = url.trim();
+        if (trimmed && !seen.has(trimmed)) {
+          seen.add(trimmed);
+          urls.push(trimmed);
+        }
+      }
+    };
+
+    if (product.primaryImageUrl) addUrl(product.primaryImageUrl);
+    if (product.image) addUrl(product.image);
+
+    if (Array.isArray(product.images)) {
+      product.images.forEach((img) => {
+        if (typeof img === 'string') addUrl(img);
+        else if (img?.imageUrl) addUrl(img.imageUrl);
+      });
+    }
+
+    if (Array.isArray(product.variants)) {
+      product.variants.forEach((v) => {
+        if (v?.imageUrl) addUrl(v.imageUrl);
+      });
+    }
+
+    return urls.length > 0 ? urls : [product.image || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80'];
+  }, [product]);
+
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const thumbnailContainerRef = useRef(null);
+  const thumbnailRefs = useRef([]);
+
+  // Tự động cuộn thumbnail active vào giữa dải xem
+  const scrollThumbnailToCenter = (index) => {
+    const targetThumb = thumbnailRefs.current[index];
+    if (targetThumb && thumbnailContainerRef.current) {
+      targetThumb.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'center'
+      });
+    }
+  };
+
+  // Đồng bộ index khi selectedImage hoặc galleryImages thay đổi
+  useEffect(() => {
+    if (galleryImages.length > 0) {
+      if (selectedImage) {
+        const idx = galleryImages.indexOf(selectedImage);
+        if (idx !== -1) {
+          setActiveImageIndex(idx);
+          scrollThumbnailToCenter(idx);
+        } else {
+          setActiveImageIndex(0);
+        }
+      } else {
+        setSelectedImage(galleryImages[0]);
+        setActiveImageIndex(0);
+      }
+    }
+  }, [galleryImages, selectedImage]);
+
+  // Chọn ảnh bằng click trực tiếp
+  const handleSelectImageByIndex = (index) => {
+    if (index < 0 || index >= galleryImages.length) return;
+    setActiveImageIndex(index);
+    setSelectedImage(galleryImages[index]);
+    scrollThumbnailToCenter(index);
+  };
+
+  // Nút Previous: quay về ảnh trước
+  const handlePrevImage = (e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    if (galleryImages.length <= 1) return;
+    const nextIdx = (activeImageIndex - 1 + galleryImages.length) % galleryImages.length;
+    handleSelectImageByIndex(nextIdx);
+  };
+
+  // Nút Next: chuyển sang ảnh sau
+  const handleNextImage = (e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    if (galleryImages.length <= 1) return;
+    const nextIdx = (activeImageIndex + 1) % galleryImages.length;
+    handleSelectImageByIndex(nextIdx);
+  };
+
+  // Cuộn thanh thumbnail sang trái hoặc phải
+  const handleScrollThumbnails = (direction) => {
+    if (thumbnailContainerRef.current) {
+      const scrollAmount = direction === 'left' ? -220 : 220;
+      thumbnailContainerRef.current.scrollBy({
+        left: scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  // Touch Swipe Gesture (Điện thoại / Tablet)
+  const touchStartXRef = useRef(0);
+  const touchEndXRef = useRef(0);
+  const isSwipingRef = useRef(false);
+
+  const handleTouchStart = (e) => {
+    touchStartXRef.current = e.touches[0].clientX;
+    touchEndXRef.current = e.touches[0].clientX;
+    isSwipingRef.current = true;
+  };
+
+  const handleTouchMove = (e) => {
+    touchEndXRef.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (!isSwipingRef.current) return;
+    isSwipingRef.current = false;
+    const diff = touchStartXRef.current - touchEndXRef.current;
+    const threshold = 40;
+    if (diff > threshold) {
+      handleNextImage();
+    } else if (diff < -threshold) {
+      handlePrevImage();
+    }
+  };
+
+  // Mouse Drag Gesture (Desktop)
+  const isMouseDownRef = useRef(false);
+  const mouseStartXRef = useRef(0);
+
+  const handleMouseDown = (e) => {
+    if (e.target.closest('button')) return;
+    isMouseDownRef.current = true;
+    mouseStartXRef.current = e.clientX;
+  };
+
+  const handleMouseUp = (e) => {
+    if (!isMouseDownRef.current) return;
+    isMouseDownRef.current = false;
+    const diff = mouseStartXRef.current - e.clientX;
+    const threshold = 50;
+    if (diff > threshold) {
+      handleNextImage();
+    } else if (diff < -threshold) {
+      handlePrevImage();
+    }
+  };
+
+  const handleMouseLeave = () => {
+    isMouseDownRef.current = false;
+  };
 
   // Kiểm tra sản phẩm đã nằm trong Wishlist chưa
   useEffect(() => {
@@ -229,6 +387,13 @@ export const ProductDetailPage = () => {
     );
   }, [variantsMap, selectedColor, selectedStorage, product?.variants]);
 
+  // Tự động chuyển ảnh hiển thị khi người dùng đổi màu sắc / biến thể có ảnh riêng
+  useEffect(() => {
+    if (matchedVariant?.imageUrl) {
+      setSelectedImage(matchedVariant.imageUrl);
+    }
+  }, [matchedVariant]);
+
   // Tính toán giá tiền bán và giá gốc động theo phiên bản đang chọn
   const currentPrice = useMemo(() => {
     if (!product) return 0;
@@ -376,9 +541,19 @@ export const ProductDetailPage = () => {
 
       {/* 2. Lưới chính: Showcase Ảnh & Thông tin đặt mua */}
       <div className="detail-main-grid">
-        {/* Khối Ảnh Sản Phẩm */}
+        {/* Khối Ảnh Sản Phẩm (Interactive Gallery with Swiping & Thumbnails) */}
         <div className="detail-image-showcase">
-          <div className="detail-main-image-box">
+          <div 
+            className="detail-main-image-box"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onMouseDown={handleMouseDown}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
+            style={{ cursor: galleryImages.length > 1 ? 'grab' : 'default' }}
+          >
+            {/* Wishlist Button */}
             <button 
               type="button" 
               className={`detail-wishlist-float ${isLiked ? 'is-active' : ''}`}
@@ -388,8 +563,22 @@ export const ProductDetailPage = () => {
               <Heart size={22} fill={isLiked ? '#ef4444' : 'none'} color={isLiked ? '#ef4444' : '#a1a1aa'} />
             </button>
 
+            {/* Previous Image Arrow */}
+            {galleryImages.length > 1 && (
+              <button
+                type="button"
+                className="detail-gallery-nav-btn prev"
+                onClick={handlePrevImage}
+                aria-label="Xem ảnh trước"
+              >
+                <ChevronLeft size={22} />
+              </button>
+            )}
+
+            {/* Large Product Image */}
             <img 
-              src={selectedImage || product.image} 
+              key={activeImageIndex}
+              src={selectedImage || galleryImages[0] || product.image} 
               alt={product.name} 
               className="detail-main-img" 
               onError={(e) => {
@@ -397,34 +586,76 @@ export const ProductDetailPage = () => {
                 e.target.src = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80';
               }}
             />
+
+            {/* Next Image Arrow */}
+            {galleryImages.length > 1 && (
+              <button
+                type="button"
+                className="detail-gallery-nav-btn next"
+                onClick={handleNextImage}
+                aria-label="Xem ảnh sau"
+              >
+                <ChevronRight size={22} />
+              </button>
+            )}
+
+            {/* Image Indicator (1 / N) */}
+            {galleryImages.length > 1 && (
+              <span className="detail-gallery-indicator">
+                {activeImageIndex + 1} / {galleryImages.length}
+              </span>
+            )}
           </div>
 
-          {/* Dải ảnh thu nhỏ (Gallery Thumbnails) */}
-          {Array.isArray(product.images) && product.images.length > 1 && (
-            <div style={{ display: 'flex', gap: '8px', marginTop: '12px', overflowX: 'auto', paddingBottom: '4px' }}>
-              {product.images.map((imgObj, idx) => (
+          {/* Dải ảnh thu nhỏ (Thumbnail Carousel - Hiển thị 5 ảnh & Cuộn mượt mà) */}
+          {galleryImages.length > 1 && (
+            <div className="detail-thumbnail-carousel">
+              {galleryImages.length > 5 && (
                 <button
-                  key={imgObj.id || idx}
                   type="button"
-                  onClick={() => setSelectedImage(imgObj.imageUrl)}
-                  style={{
-                    border: (selectedImage === imgObj.imageUrl) ? '2px solid #000000' : '1px solid #e4e4e7',
-                    borderRadius: '8px',
-                    padding: '3px',
-                    backgroundColor: '#ffffff',
-                    cursor: 'pointer',
-                    width: '64px',
-                    height: '64px',
-                    flexShrink: 0
-                  }}
+                  className="detail-thumb-scroll-btn prev"
+                  onClick={() => handleScrollThumbnails('left')}
+                  aria-label="Cuộn thumbnail sang trái"
                 >
-                  <img
-                    src={imgObj.imageUrl}
-                    alt={`${product.name} ${idx + 1}`}
-                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                  />
+                  <ChevronLeft size={16} />
                 </button>
-              ))}
+              )}
+
+              <div className="detail-thumbnails-track" ref={thumbnailContainerRef}>
+                {galleryImages.map((imgUrl, idx) => {
+                  const isActive = idx === activeImageIndex;
+                  return (
+                    <button
+                      key={idx}
+                      ref={(el) => (thumbnailRefs.current[idx] = el)}
+                      type="button"
+                      className={`detail-thumbnail-item ${isActive ? 'is-active' : ''}`}
+                      onClick={() => handleSelectImageByIndex(idx)}
+                      aria-label={`Xem ảnh thứ ${idx + 1}`}
+                    >
+                      <img
+                        src={imgUrl}
+                        alt={`${product.name} thumbnail ${idx + 1}`}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200';
+                        }}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+
+              {galleryImages.length > 5 && (
+                <button
+                  type="button"
+                  className="detail-thumb-scroll-btn next"
+                  onClick={() => handleScrollThumbnails('right')}
+                  aria-label="Cuộn thumbnail sang phải"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -171,7 +171,7 @@ public class RoleDataInitializer implements CommandLineRunner {
             roleRepository.save(managerRole);
         }
 
-        // Dọn dẹp các vai trò không còn sử dụng: SHOP_OWNER và SHOP_STAFF
+        // Dọn dẹp các vai trò cũ nếu có (SHOP_OWNER -> chuyển sang SHOP_MANAGER)
         List<String> deprecatedCodes = List.of("SHOP_OWNER", "SHOP_STAFF");
         for (String code : deprecatedCodes) {
             roleRepository.findByCode(code).ifPresent(depRole -> {
@@ -181,12 +181,12 @@ public class RoleDataInitializer implements CommandLineRunner {
                     if (u.getRoles() != null && u.getRoles().contains(depRole)) {
                         u.getRoles().remove(depRole);
                         if (u.getRoles().isEmpty()) {
-                            u.getRoles().add(clientRole);
+                            u.getRoles().add(managerRole);
                         }
                         userChanged = true;
                     }
                     if (u.getRole() == Role.SHOP_OWNER || u.getRole() == Role.SHOP_STAFF) {
-                        u.setRole(Role.CLIENT);
+                        u.setRole(Role.SHOP_MANAGER);
                         userChanged = true;
                     }
                     if (userChanged) {
@@ -284,32 +284,6 @@ public class RoleDataInitializer implements CommandLineRunner {
                     .build();
             userRepository.save(adminUser);
             log.info("Created default admin account admin@gmail.com with password Admin@123456");
-        }
-
-        // 4. Thu hồi quyền ADMIN của bất kỳ tài khoản nào khác không thuộc danh sách quản trị viên được phép
-        List<User> allUsers = userRepository.findAll();
-        for (User u : allUsers) {
-            String email = u.getEmail();
-            if (!"hson05542@gmail.com".equalsIgnoreCase(email) 
-                    && !"son666727@gmail.com".equalsIgnoreCase(email)
-                    && !"admin@gmail.com".equalsIgnoreCase(email)) {
-                boolean changed = false;
-                if (u.getRole() == Role.ROLE_ADMIN || u.getRole() == Role.ADMIN) {
-                    u.setRole(Role.ROLE_USER);
-                    changed = true;
-                }
-                if (u.getRoles() != null && adminRole != null && u.getRoles().contains(adminRole)) {
-                    u.getRoles().remove(adminRole);
-                    if (clientRole != null && u.getRoles().isEmpty()) {
-                        u.getRoles().add(clientRole);
-                    }
-                    changed = true;
-                }
-                if (changed) {
-                    userRepository.save(u);
-                    log.info("Revoked admin privilege from non-admin account: {}", u.getUsername());
-                }
-            }
         }
     }
 
