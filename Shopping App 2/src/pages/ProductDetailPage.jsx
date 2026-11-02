@@ -160,7 +160,7 @@ export const ProductDetailPage = () => {
       colorOptions: colorsList.length > 0 ? colorsList : ['Đen', 'Bạc', 'Tự Nhiên', 'Vàng'],
       variantsMap: map
     };
-  }, [product.variants]);
+  }, [product?.variants]);
 
   // State chọn phiên bản & màu sắc - Khởi tạo rỗng để người dùng BẮT BUỘC phải bấm chọn trước khi mua
   const [selectedStorage, setSelectedStorage] = useState('');
@@ -174,23 +174,25 @@ export const ProductDetailPage = () => {
       variantsMap[`${selectedColor}_${selectedStorage}`] ||
       (selectedStorage ? variantsMap[`storage_${selectedStorage}`] : null) ||
       (selectedColor ? variantsMap[`color_${selectedColor}`] : null) ||
-      (Array.isArray(product.variants) ? product.variants[0] : null)
+      (Array.isArray(product?.variants) ? product.variants[0] : null)
     );
-  }, [variantsMap, selectedColor, selectedStorage, product.variants]);
+  }, [variantsMap, selectedColor, selectedStorage, product?.variants]);
 
   // Tính toán giá tiền bán và giá gốc động theo phiên bản đang chọn
   const currentPrice = useMemo(() => {
+    if (!product) return 0;
     if (matchedVariant) {
-      return Number(matchedVariant.salePrice || matchedVariant.price || product.price);
+      return Number(matchedVariant.salePrice || matchedVariant.price || product.price || 0);
     }
     let extra = 0;
     if (selectedStorage === '256GB') extra = 2500000;
     else if (selectedStorage === '512GB') extra = 5500000;
     else if (selectedStorage === '1TB') extra = 9500000;
     return Number(product.price || 15000000) + extra;
-  }, [matchedVariant, selectedStorage, product.price]);
+  }, [matchedVariant, selectedStorage, product?.price]);
 
   const originalPrice = useMemo(() => {
+    if (!product) return null;
     if (matchedVariant && matchedVariant.salePrice && matchedVariant.price > matchedVariant.salePrice) {
       return Number(matchedVariant.price);
     }
@@ -198,7 +200,7 @@ export const ProductDetailPage = () => {
       return Math.round(currentPrice * 1.15);
     }
     return null;
-  }, [matchedVariant, product.formattedOriginalPrice, currentPrice]);
+  }, [matchedVariant, product?.formattedOriginalPrice, currentPrice]);
 
   const discountPercent = useMemo(() => {
     if (originalPrice && originalPrice > currentPrice) {
@@ -207,7 +209,7 @@ export const ProductDetailPage = () => {
     return null;
   }, [originalPrice, currentPrice]);
 
-  const stockQuantity = matchedVariant?.stockQuantity ?? (product.inStock ? 100 : 0);
+  const stockQuantity = matchedVariant?.stockQuantity ?? (product?.inStock ? 100 : 0);
 
   // Xử lý Thêm vào giỏ hàng trực tiếp từ trang chi tiết (Yêu cầu phải chọn phiên bản & màu sắc)
   const handleAddToCart = () => {

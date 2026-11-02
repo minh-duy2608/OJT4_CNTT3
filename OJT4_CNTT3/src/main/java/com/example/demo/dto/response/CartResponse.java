@@ -20,3 +20,4 @@ public class CartResponse {
     private int totalItems;
     private BigDecimal subtotal;
 }
+

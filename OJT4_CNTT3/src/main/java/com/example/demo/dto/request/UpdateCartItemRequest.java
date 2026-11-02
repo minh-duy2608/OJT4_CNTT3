@@ -17,3 +17,4 @@ public class UpdateCartItemRequest {
     @Min(value = 1, message = "Số lượng tối thiểu là 1")
     private Integer quantity;
 }
+

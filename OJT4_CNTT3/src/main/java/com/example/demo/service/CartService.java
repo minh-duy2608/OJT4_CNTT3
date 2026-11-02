@@ -19,3 +19,4 @@ public interface CartService {
 
     CartResponse syncCart(List<AddToCartRequest> items, String currentUsername);
 }
+

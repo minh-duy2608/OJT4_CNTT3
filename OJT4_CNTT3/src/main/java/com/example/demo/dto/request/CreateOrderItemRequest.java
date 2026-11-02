@@ -32,3 +32,4 @@ public class CreateOrderItemRequest {
     private String selectedColor;
     private String selectedStorage;
 }
+

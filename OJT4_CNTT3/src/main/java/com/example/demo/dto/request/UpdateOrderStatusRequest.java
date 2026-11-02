@@ -20,3 +20,4 @@ public class UpdateOrderStatusRequest {
     private PaymentStatus paymentStatus;
     private String cancellationReason;
 }
+

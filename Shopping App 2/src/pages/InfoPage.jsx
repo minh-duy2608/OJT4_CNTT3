@@ -173,3 +173,4 @@ export const InfoPage = () => {
     </div>
   );
 };
+

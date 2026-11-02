@@ -24,3 +24,4 @@ public class OrderItemResponse {
     private BigDecimal discountAmount;
     private BigDecimal lineTotal;
 }
+

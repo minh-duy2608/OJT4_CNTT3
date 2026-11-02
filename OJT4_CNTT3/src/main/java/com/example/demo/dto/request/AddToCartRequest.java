@@ -21,3 +21,4 @@ public class AddToCartRequest {
     @Builder.Default
     private Integer quantity = 1;
 }
+
