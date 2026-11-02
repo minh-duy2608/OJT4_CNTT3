@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { productApi } from '../services/productApi';
+import { formatVND } from '../data/products';
 import './Header.css';
 
 // Logo SVG icon hình tam giác công nghệ của Cyber
@@ -48,6 +50,38 @@ export const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // State tìm kiếm gợi ý tức thì (Live Search Typeahead - STT 43: GET /products/search)
+  const [searchSuggestions, setSearchSuggestions] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchContainerRef = useRef(null);
+
+  // Debounce gọi API searchProducts khi người dùng gõ từ 2 ký tự
+  useEffect(() => {
+    const query = searchTerm.trim();
+    if (query.length < 2) {
+      setSearchSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearching(true);
+        const res = await productApi.searchProducts({ keyword: query, limit: 5 });
+        const list = Array.isArray(res) ? res : (res?.content || []);
+        setSearchSuggestions(list);
+        setShowSuggestions(true);
+      } catch (err) {
+        console.warn('Live search error:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 280);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   // Đồng bộ từ khóa tìm kiếm khi URL thay đổi (VD khi người dùng bấm "Xóa tìm kiếm" ở trang sản phẩm)
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -64,6 +98,9 @@ export const Header = () => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowAuthDropdown(false);
+      }
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
+        setShowSuggestions(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -123,39 +160,100 @@ export const Header = () => {
             <span>cyber</span>
           </Link>
 
-          {/* Ô tìm kiếm */}
-          <form className="cyber-search-form" role="search" onSubmit={handleSearchSubmit}>
-            <Search size={18} className="cyber-search-icon" />
-            <input
-              type="text"
-              className="cyber-search-input"
-              placeholder="Tìm kiếm thiết bị, điện thoại, laptop..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              aria-label="Tìm kiếm sản phẩm"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={handleClearHeaderSearch}
-                title="Xóa tìm kiếm"
-                aria-label="Xóa tìm kiếm"
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  padding: '2px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  color: '#9ca3af',
-                  borderRadius: '50%'
+          {/* Ô tìm kiếm & Gợi ý tức thì (Live Search Dropdown) */}
+          <div className="cyber-search-container" ref={searchContainerRef}>
+            <form className="cyber-search-form" role="search" onSubmit={handleSearchSubmit}>
+              <Search size={18} className="cyber-search-icon" />
+              <input
+                type="text"
+                className="cyber-search-input"
+                placeholder="Tìm kiếm thiết bị, điện thoại, laptop..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onFocus={() => {
+                  if (searchSuggestions.length > 0) setShowSuggestions(true);
                 }}
-              >
-                <X size={15} />
-              </button>
+                aria-label="Tìm kiếm sản phẩm"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={handleClearHeaderSearch}
+                  title="Xóa tìm kiếm"
+                  aria-label="Xóa tìm kiếm"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    padding: '2px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: '#9ca3af',
+                    borderRadius: '50%'
+                  }}
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </form>
+
+            {/* Menu nổi Live Search Suggestions */}
+            {showSuggestions && (
+              <div className="cyber-live-search-dropdown" role="listbox">
+                <div className="live-search-header">
+                  <span>GỢI Ý TÌM KIẾM</span>
+                  {isSearching && <span className="live-search-loading">Đang tìm...</span>}
+                </div>
+
+                {searchSuggestions.length === 0 ? (
+                  <div className="live-search-empty">
+                    Không tìm thấy sản phẩm nào phù hợp với "{searchTerm}"
+                  </div>
+                ) : (
+                  <div className="live-search-list">
+                    {searchSuggestions.map((item) => (
+                      <Link
+                        key={item.id}
+                        to={`/products/${item.id}`}
+                        className="live-search-item"
+                        onClick={() => {
+                          setShowSuggestions(false);
+                          setSearchTerm('');
+                        }}
+                      >
+                        <div className="live-search-thumb">
+                          <img
+                            src={item.image || item.primaryImage || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100&auto=format&fit=crop&q=80'}
+                            alt={item.name}
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100&auto=format&fit=crop&q=80';
+                            }}
+                          />
+                        </div>
+                        <div className="live-search-info">
+                          <div className="live-search-name">{item.name}</div>
+                          <div className="live-search-price">
+                            {formatVND(item.salePrice || item.price || 0)}
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                    <div
+                      className="live-search-footer"
+                      onClick={(e) => {
+                        setShowSuggestions(false);
+                        handleSearchSubmit(e);
+                      }}
+                    >
+                      Xem tất cả kết quả cho "<strong>{searchTerm}</strong>" →
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
-          </form>
+          </div>
 
           {/* Menu liên kết chính: Trang chủ, Giới thiệu, Liên hệ */}
           <nav aria-label="Menu chính">

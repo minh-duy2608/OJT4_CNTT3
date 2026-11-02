@@ -38,7 +38,8 @@ import {
   PlusCircle,
   ShoppingBag,
   Box,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Store
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { adminUserApi } from '../services/adminUserApi';
@@ -46,7 +47,10 @@ import { adminRoleApi } from '../services/adminRoleApi';
 import { categoryApi } from '../services/categoryApi';
 import { brandApi } from '../services/brandApi';
 import { productApi } from '../services/productApi';
+import { orderApi } from '../services/orderApi';
+import { formatVND } from '../data/products';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { OrderDetailModal } from '../components/OrderDetailModal';
 import { parseProductSpecs, formatProductDescription, SPEC_PRESETS } from '../utils/productSpecs';
 import './AdminPage.css';
 
@@ -1242,6 +1246,382 @@ export const AdminPage = () => {
     }
   }, []);
 
+  // =========================================================================
+  // 7. TAB: QUẢN LÝ ĐƠN HÀNG (ADMIN ORDERS)
+  // =========================================================================
+  const [adminOrders, setAdminOrders] = useState([]);
+  const [adminOrdersLoading, setAdminOrdersLoading] = useState(false);
+  const [orderPage, setOrderPage] = useState(0);
+  const [orderTotalPages, setOrderTotalPages] = useState(1);
+  const [orderTotalElements, setOrderTotalElements] = useState(0);
+  const [orderStatusFilter, setOrderStatusFilter] = useState('all');
+  const [orderShopFilter, setOrderShopFilter] = useState('');
+  const [selectedOrderForDetail, setSelectedOrderForDetail] = useState(null);
+
+  // Status Change Target & Cancel Modal
+  const [statusChangeTarget, setStatusChangeTarget] = useState(null);
+  const [statusChangeLoading, setStatusChangeLoading] = useState(false);
+  const [cancelReasonInput, setCancelReasonInput] = useState('');
+
+  const formatAdminDate = (isoString) => {
+    if (!isoString) return '—';
+    try {
+      const d = new Date(isoString);
+      return new Intl.DateTimeFormat('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(d);
+    } catch {
+      return isoString;
+    }
+  };
+
+  const getOrderStatusBadge = (status) => {
+    switch ((status || '').toUpperCase()) {
+      case 'PENDING':
+        return { label: 'Chờ xác nhận', color: '#ea580c', bg: '#fff7ed' };
+      case 'CONFIRMED':
+        return { label: 'Đã xác nhận', color: '#2563eb', bg: '#eff6ff' };
+      case 'PROCESSING':
+        return { label: 'Đang đóng gói', color: '#7c3aed', bg: '#f5f3ff' };
+      case 'SHIPPED':
+        return { label: 'Đang vận chuyển', color: '#d97706', bg: '#fffbeb' };
+      case 'DELIVERED':
+        return { label: 'Đã giao thành công', color: '#059669', bg: '#ecfdf5' };
+      case 'CANCELLED':
+        return { label: 'Đã hủy', color: '#dc2626', bg: '#fef2f2' };
+      default:
+        return { label: status || '—', color: '#64748b', bg: '#f1f5f9' };
+    }
+  };
+
+  const fetchAdminOrders = useCallback(async (page = 0) => {
+    setAdminOrdersLoading(true);
+    try {
+      const res = await orderApi.getAdminOrders({
+        page,
+        size: 10,
+        status: orderStatusFilter !== 'all' ? orderStatusFilter : undefined,
+        shopId: orderShopFilter || undefined
+      });
+      if (res) {
+        setAdminOrders(res.content || []);
+        setOrderPage(res.pageNumber || 0);
+        setOrderTotalPages(res.totalPages || 1);
+        setOrderTotalElements(res.totalElements || 0);
+      }
+    } catch (err) {
+      console.error('Failed to load admin orders:', err);
+      triggerAlert(err.message || 'Không thể tải danh sách đơn hàng.', 'error');
+    } finally {
+      setAdminOrdersLoading(false);
+    }
+  }, [orderStatusFilter, orderShopFilter]);
+
+  const handleUpdateOrderStatus = async () => {
+    if (!statusChangeTarget) return;
+    setStatusChangeLoading(true);
+    try {
+      const { order, newStatus, newPaymentStatus } = statusChangeTarget;
+      await orderApi.updateOrderStatus(order.id, {
+        status: newStatus,
+        paymentStatus: newPaymentStatus,
+        cancelReason: newStatus === 'CANCELLED' ? (cancelReasonInput || 'Hủy bởi Quản trị viên') : undefined
+      });
+      triggerAlert(`Đã cập nhật đơn hàng #${order.id} sang trạng thái "${newStatus}".`, 'success');
+      setStatusChangeTarget(null);
+      setCancelReasonInput('');
+      fetchAdminOrders(orderPage);
+    } catch (err) {
+      triggerAlert(err.message || 'Không thể cập nhật trạng thái đơn hàng.', 'error');
+    } finally {
+      setStatusChangeLoading(false);
+    }
+  };
+
+  const handleViewAdminOrderDetail = async (order) => {
+    try {
+      const detail = await orderApi.getOrderDetail(order.id);
+      setSelectedOrderForDetail(detail || order);
+    } catch (err) {
+      setSelectedOrderForDetail(order);
+    }
+  };
+
+  // =========================================================================
+  // 8. TAB: KÊNH CỬA HÀNG (SHOP PRODUCTS - STT 45-56)
+  // =========================================================================
+  const [selectedShopId, setSelectedShopId] = useState('1');
+  const [shopProducts, setShopProducts] = useState([]);
+  const [shopProductsLoading, setShopProductsLoading] = useState(false);
+  const [shopProdPage, setShopProdPage] = useState(0);
+  const [shopProdTotalPages, setShopProdTotalPages] = useState(1);
+  const [shopProdTotalElements, setShopProdTotalElements] = useState(0);
+  const [shopProdKeyword, setShopProdKeyword] = useState('');
+  const [shopProdStatusFilter, setShopProdStatusFilter] = useState('');
+
+  // Modals for Variants & Images
+  const [activeShopProduct, setActiveShopProduct] = useState(null);
+
+  // Variant Modal State (STT 51-53)
+  const [isVariantModalOpen, setIsVariantModalOpen] = useState(false);
+  const [productVariants, setProductVariants] = useState([]);
+  const [variantsLoading, setVariantsLoading] = useState(false);
+  const [editingVariant, setEditingVariant] = useState(null);
+  const [variantForm, setVariantForm] = useState({
+    sku: '',
+    color: '',
+    storage: '',
+    price: '',
+    originalPrice: '',
+    stockQuantity: 10,
+    imageUrl: ''
+  });
+  const [variantSubmitting, setVariantSubmitting] = useState(false);
+
+  // Image Modal State (STT 54-56)
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [productImages, setProductImages] = useState([]);
+  const [imagesLoading, setImagesLoading] = useState(false);
+  const [imageForm, setImageForm] = useState({
+    imageUrl: '',
+    isPrimary: false,
+    sortOrder: 0
+  });
+  const [imageSubmitting, setImageSubmitting] = useState(false);
+
+  // Delete product target
+  const [shopProductToDelete, setShopProductToDelete] = useState(null);
+  const [isDeletingShopProduct, setIsDeletingShopProduct] = useState(false);
+
+  const fetchShopProducts = useCallback(async (page = 0) => {
+    if (!selectedShopId) return;
+    setShopProductsLoading(true);
+    try {
+      const res = await productApi.getShopManagedProducts(selectedShopId, {
+        page,
+        size: 10,
+        keyword: shopProdKeyword.trim() || undefined,
+        status: shopProdStatusFilter || undefined,
+        sortBy: 'id',
+        sortDir: 'desc'
+      });
+      if (res) {
+        setShopProducts(res.content || []);
+        setShopProdPage(res.pageNumber || 0);
+        setShopProdTotalPages(res.totalPages || 1);
+        setShopProdTotalElements(res.totalElements || 0);
+      }
+    } catch (err) {
+      console.error('Failed to load shop managed products:', err);
+      triggerAlert(err.message || 'Không thể tải danh sách sản phẩm cửa hàng.', 'error');
+    } finally {
+      setShopProductsLoading(false);
+    }
+  }, [selectedShopId, shopProdKeyword, shopProdStatusFilter]);
+
+  // Handle Shop Product Status Toggle (STT 49)
+  const handleToggleShopProductStatus = async (prod) => {
+    const nextStatus = prod.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    try {
+      await productApi.updateShopProductStatus(selectedShopId, prod.id, nextStatus);
+      triggerAlert(`Đã chuyển trạng thái sản phẩm sang "${nextStatus}".`, 'success');
+      fetchShopProducts(shopProdPage);
+    } catch (err) {
+      triggerAlert(err.message || 'Lỗi khi cập nhật trạng thái sản phẩm.', 'error');
+    }
+  };
+
+  // Handle Delete Shop Product (STT 50)
+  const handleDeleteShopProduct = async () => {
+    if (!shopProductToDelete) return;
+    setIsDeletingShopProduct(true);
+    try {
+      await productApi.deleteShopProduct(selectedShopId, shopProductToDelete.id, true);
+      triggerAlert(`Đã xóa sản phẩm #${shopProductToDelete.id}.`, 'success');
+      setShopProductToDelete(null);
+      fetchShopProducts(shopProdPage);
+    } catch (err) {
+      triggerAlert(err.message || 'Lỗi khi xóa sản phẩm.', 'error');
+    } finally {
+      setIsDeletingShopProduct(false);
+    }
+  };
+
+  // Open Variants Modal (STT 51-53)
+  const handleOpenVariantsModal = async (prod) => {
+    setActiveShopProduct(prod);
+    setIsVariantModalOpen(true);
+    setEditingVariant(null);
+    setVariantForm({
+      sku: '',
+      color: '',
+      storage: '',
+      price: prod.price || '',
+      originalPrice: prod.originalPrice || '',
+      stockQuantity: 10,
+      imageUrl: prod.primaryImage || ''
+    });
+    setVariantsLoading(true);
+    try {
+      const vars = await productApi.getProductVariants(prod.id);
+      setProductVariants(vars || []);
+    } catch (err) {
+      console.error('Failed to load variants:', err);
+      setProductVariants(prod.variants || []);
+    } finally {
+      setVariantsLoading(false);
+    }
+  };
+
+  const handleSaveVariant = async (e) => {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (!activeShopProduct) return;
+    setVariantSubmitting(true);
+    try {
+      const payload = {
+        sku: variantForm.sku?.trim() || `${activeShopProduct.id}-${Date.now().toString().slice(-4)}`,
+        color: variantForm.color?.trim() || null,
+        storage: variantForm.storage?.trim() || null,
+        price: Number(variantForm.price) || 0,
+        originalPrice: variantForm.originalPrice ? Number(variantForm.originalPrice) : null,
+        stockQuantity: Number(variantForm.stockQuantity) || 0,
+        imageUrl: variantForm.imageUrl?.trim() || null
+      };
+
+      if (editingVariant) {
+        // STT 52: PATCH /shops/{shopId}/products/{productId}/variants/{variantId}
+        await productApi.updateShopProductVariant(selectedShopId, activeShopProduct.id, editingVariant.id, payload);
+        triggerAlert('Đã cập nhật biến thể thành công.', 'success');
+      } else {
+        // STT 51: POST /shops/{shopId}/products/{productId}/variants
+        await productApi.createShopProductVariant(selectedShopId, activeShopProduct.id, payload);
+        triggerAlert('Đã thêm biến thể mới thành công.', 'success');
+      }
+
+      // Reload variants
+      const updatedVars = await productApi.getProductVariants(activeShopProduct.id);
+      setProductVariants(updatedVars || []);
+      setEditingVariant(null);
+      setVariantForm({
+        sku: '',
+        color: '',
+        storage: '',
+        price: activeShopProduct.price || '',
+        originalPrice: activeShopProduct.originalPrice || '',
+        stockQuantity: 10,
+        imageUrl: activeShopProduct.primaryImage || ''
+      });
+      fetchShopProducts(shopProdPage);
+    } catch (err) {
+      triggerAlert(err.message || 'Lỗi khi lưu biến thể.', 'error');
+    } finally {
+      setVariantSubmitting(false);
+    }
+  };
+
+  const handleDeleteVariant = async (variantId) => {
+    if (!activeShopProduct) return;
+    if (!window.confirm('Bạn có chắc chắn muốn xóa biến thể này?')) return;
+    try {
+      // STT 53: DELETE /shops/{shopId}/products/{productId}/variants/{variantId}
+      await productApi.deleteShopProductVariant(selectedShopId, activeShopProduct.id, variantId, true);
+      triggerAlert('Đã xóa biến thể thành công.', 'success');
+      const updatedVars = await productApi.getProductVariants(activeShopProduct.id);
+      setProductVariants(updatedVars || []);
+      fetchShopProducts(shopProdPage);
+    } catch (err) {
+      triggerAlert(err.message || 'Lỗi khi xóa biến thể.', 'error');
+    }
+  };
+
+  // Open Images Modal (STT 54-56)
+  const handleOpenImagesModal = async (prod) => {
+    setActiveShopProduct(prod);
+    setIsImageModalOpen(true);
+    setImageForm({
+      imageUrl: '',
+      isPrimary: false,
+      sortOrder: (prod.images?.length || 0) + 1
+    });
+    setImagesLoading(true);
+    try {
+      const imgs = await productApi.getProductImages(prod.id);
+      setProductImages(imgs || []);
+    } catch (err) {
+      console.error('Failed to load images:', err);
+      setProductImages(prod.images || []);
+    } finally {
+      setImagesLoading(false);
+    }
+  };
+
+  const handleSaveImage = async (e) => {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (!activeShopProduct || !imageForm.imageUrl.trim()) return;
+    setImageSubmitting(true);
+    try {
+      const payload = {
+        imageUrl: imageForm.imageUrl.trim(),
+        isPrimary: Boolean(imageForm.isPrimary),
+        sortOrder: Number(imageForm.sortOrder) || 0
+      };
+
+      // STT 54: POST /shops/{shopId}/products/{productId}/images
+      await productApi.addShopProductImage(selectedShopId, activeShopProduct.id, payload);
+      triggerAlert('Đã thêm hình ảnh thành công.', 'success');
+
+      // Reload images
+      const updatedImgs = await productApi.getProductImages(activeShopProduct.id);
+      setProductImages(updatedImgs || []);
+      setImageForm({
+        imageUrl: '',
+        isPrimary: false,
+        sortOrder: (updatedImgs?.length || 0) + 1
+      });
+      fetchShopProducts(shopProdPage);
+    } catch (err) {
+      triggerAlert(err.message || 'Lỗi khi thêm ảnh.', 'error');
+    } finally {
+      setImageSubmitting(false);
+    }
+  };
+
+  const handleSetShopPrimaryImage = async (img) => {
+    if (!activeShopProduct) return;
+    try {
+      // STT 55: PATCH /shops/{shopId}/products/{productId}/images/{imageId}
+      await productApi.updateShopProductImage(selectedShopId, activeShopProduct.id, img.id, {
+        isPrimary: true,
+        sortOrder: img.sortOrder || 0
+      });
+      triggerAlert('Đã đặt làm ảnh chính.', 'success');
+      const updatedImgs = await productApi.getProductImages(activeShopProduct.id);
+      setProductImages(updatedImgs || []);
+      fetchShopProducts(shopProdPage);
+    } catch (err) {
+      triggerAlert(err.message || 'Lỗi khi cập nhật ảnh.', 'error');
+    }
+  };
+
+  const handleDeleteImage = async (imageId) => {
+    if (!activeShopProduct) return;
+    if (!window.confirm('Bạn có chắc chắn muốn xóa ảnh này?')) return;
+    try {
+      // STT 56: DELETE /shops/{shopId}/products/{productId}/images/{imageId}
+      await productApi.deleteShopProductImage(selectedShopId, activeShopProduct.id, imageId);
+      triggerAlert('Đã xóa ảnh thành công.', 'success');
+      const updatedImgs = await productApi.getProductImages(activeShopProduct.id);
+      setProductImages(updatedImgs || []);
+      fetchShopProducts(shopProdPage);
+    } catch (err) {
+      triggerAlert(err.message || 'Lỗi khi xóa ảnh.', 'error');
+    }
+  };
+
   // Preload metrics on mount
   useEffect(() => {
     fetchCategories();
@@ -1264,8 +1644,12 @@ export const AdminPage = () => {
       fetchAdminProducts(prodPage);
     } else if (activeTab === 'permissions') {
       fetchMyPermissions();
+    } else if (activeTab === 'orders') {
+      fetchAdminOrders(orderPage);
+    } else if (activeTab === 'shops') {
+      fetchShopProducts(shopProdPage);
     }
-  }, [activeTab, fetchUsers, fetchRolesAndPermissions, fetchCategories, fetchBrands, fetchAdminProducts, fetchMyPermissions, userPage, prodPage, roles.length]);
+  }, [activeTab, fetchUsers, fetchRolesAndPermissions, fetchCategories, fetchBrands, fetchAdminProducts, fetchMyPermissions, fetchAdminOrders, fetchShopProducts, userPage, prodPage, orderPage, shopProdPage, roles.length]);
 
   // Check admin role permission
   const isAdminUser = useMemo(() => {
@@ -1344,6 +1728,8 @@ export const AdminPage = () => {
                 if (activeTab === 'brands') fetchBrands();
                 if (activeTab === 'products') fetchAdminProducts(prodPage);
                 if (activeTab === 'permissions') fetchMyPermissions();
+                if (activeTab === 'orders') fetchAdminOrders(orderPage);
+                if (activeTab === 'shops') fetchShopProducts(shopProdPage);
                 triggerAlert('Đã làm mới dữ liệu từ máy chủ.', 'info');
               }}
               className="admin-btn-back-store"
@@ -1483,6 +1869,26 @@ export const AdminPage = () => {
             <Package size={17} />
             Quản lý Sản phẩm
             <span className="admin-tab-badge">STT 39-44</span>
+          </button>
+
+          <button
+            type="button"
+            className={`admin-tab-btn ${activeTab === 'orders' ? 'active' : ''}`}
+            onClick={() => setActiveTab('orders')}
+          >
+            <ShoppingBag size={17} />
+            Quản lý Đơn hàng
+            <span className="admin-tab-badge">Đơn hàng</span>
+          </button>
+
+          <button
+            type="button"
+            className={`admin-tab-btn ${activeTab === 'shops' ? 'active' : ''}`}
+            onClick={() => setActiveTab('shops')}
+          >
+            <Store size={17} />
+            Kênh Cửa hàng
+            <span className="admin-tab-badge">STT 45-56</span>
           </button>
 
           <button
@@ -2468,6 +2874,483 @@ export const AdminPage = () => {
                     <span className="perm-code">{code}</span>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* TAB 7: QUẢN LÝ ĐƠN HÀNG (ADMIN ORDERS) */}
+        {/* =================================================================== */}
+        {activeTab === 'orders' && (
+          <div className="admin-card-container">
+            <div className="admin-toolbar">
+              <div className="admin-toolbar-left">
+                {/* Lọc trạng thái đơn */}
+                <select
+                  className="admin-select-filter"
+                  value={orderStatusFilter}
+                  onChange={(e) => {
+                    setOrderStatusFilter(e.target.value);
+                  }}
+                >
+                  <option value="all">Tất cả trạng thái đơn</option>
+                  <option value="PENDING">1. Chờ xác nhận (PENDING)</option>
+                  <option value="CONFIRMED">2. Đã xác nhận (CONFIRMED)</option>
+                  <option value="PROCESSING">3. Đang đóng gói (PROCESSING)</option>
+                  <option value="SHIPPED">4. Đang vận chuyển (SHIPPED)</option>
+                  <option value="DELIVERED">5. Giao thành công (DELIVERED)</option>
+                  <option value="CANCELLED">0. Đã hủy (CANCELLED)</option>
+                </select>
+
+                {/* Lọc Shop ID */}
+                <input
+                  type="text"
+                  placeholder="Lọc theo ID Shop (VD: 1)..."
+                  className="admin-select-filter"
+                  style={{ width: '180px' }}
+                  value={orderShopFilter}
+                  onChange={(e) => setOrderShopFilter(e.target.value)}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => fetchAdminOrders(0)}
+                  className="admin-btn-action-secondary"
+                  title="Tìm & Lọc đơn hàng"
+                >
+                  <Search size={15} />
+                  Lọc
+                </button>
+              </div>
+
+              <div className="admin-toolbar-right">
+                <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                  Tổng cộng: <strong>{orderTotalElements}</strong> đơn hàng
+                </span>
+              </div>
+            </div>
+
+            {/* Orders Table */}
+            {adminOrdersLoading ? (
+              <div style={{ textAlign: 'center', padding: '3.5rem' }}>
+                <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto', color: '#64748b' }} />
+                <div style={{ marginTop: '0.5rem', color: '#64748b' }}>Đang tải danh sách đơn hàng...</div>
+              </div>
+            ) : adminOrders.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3.5rem', color: '#64748b' }}>
+                <ShoppingBag size={40} style={{ margin: '0 auto 0.75rem', opacity: 0.3 }} />
+                <div>Không tìm thấy đơn hàng nào phù hợp với bộ lọc hiện tại.</div>
+              </div>
+            ) : (
+              <div className="admin-table-wrapper">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '80px' }}>Mã đơn</th>
+                      <th>Khách hàng & SĐT</th>
+                      <th>Ngày đặt</th>
+                      <th>Sản phẩm</th>
+                      <th style={{ textAlign: 'right' }}>Tổng thanh toán</th>
+                      <th>Thanh toán</th>
+                      <th style={{ textAlign: 'center' }}>Trạng thái</th>
+                      <th style={{ textAlign: 'right', width: '220px' }}>Thao tác & Chuyển trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {adminOrders.map((ord) => {
+                      const badge = getOrderStatusBadge(ord.status);
+                      const isPending = ord.status === 'PENDING' || ord.status === 'pending';
+                      const isConfirmed = ord.status === 'CONFIRMED' || ord.status === 'confirmed';
+                      const isProcessing = ord.status === 'PROCESSING' || ord.status === 'processing';
+                      const isShipped = ord.status === 'SHIPPED' || ord.status === 'shipped';
+                      const isDelivered = ord.status === 'DELIVERED' || ord.status === 'delivered';
+                      const isCancelled = ord.status === 'CANCELLED' || ord.status === 'cancelled';
+
+                      return (
+                        <tr key={ord.id}>
+                          <td style={{ fontWeight: 700, color: '#0f172a' }}>
+                            #{ord.id}
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 600, color: '#0f172a' }}>
+                              {ord.shippingAddress?.fullName || 'Khách hàng'}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                              {ord.shippingAddress?.phone || 'Chưa có SĐT'}
+                            </div>
+                          </td>
+                          <td style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                            {formatAdminDate(ord.createdAt)}
+                          </td>
+                          <td>
+                            <div style={{ fontSize: '0.825rem', fontWeight: 500 }}>
+                              {ord.items?.length || 0} món
+                            </div>
+                            {ord.items?.[0] && (
+                              <div style={{ fontSize: '0.75rem', color: '#64748b', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {ord.items[0].name}
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#dc2626' }}>
+                            {formatVND(ord.totalPayment || ord.subtotal || 0)}
+                          </td>
+                          <td>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 600 }}>
+                              {ord.paymentMethod || 'COD'}
+                            </div>
+                            <span 
+                              style={{ 
+                                fontSize: '0.6875rem', 
+                                padding: '1px 6px', 
+                                borderRadius: '4px',
+                                background: ord.paymentStatus === 'PAID' ? '#ecfdf5' : '#fffbeb',
+                                color: ord.paymentStatus === 'PAID' ? '#059669' : '#d97706',
+                                fontWeight: 600
+                              }}
+                            >
+                              {ord.paymentStatus === 'PAID' ? 'Đã TT' : 'Chưa TT'}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span 
+                              style={{
+                                display: 'inline-block',
+                                padding: '3px 8px',
+                                borderRadius: '9999px',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                background: badge.bg,
+                                color: badge.color
+                              }}
+                            >
+                              {badge.label}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              {/* Nút xem chi tiết đơn */}
+                              <button
+                                type="button"
+                                className="admin-btn-action-secondary"
+                                style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                                onClick={() => handleViewAdminOrderDetail(ord)}
+                                title="Xem chi tiết đơn hàng & Hóa đơn"
+                              >
+                                <Eye size={13} />
+                                Chi tiết
+                              </button>
+
+                              {/* Hành động thông minh theo trạng thái */}
+                              {isPending && (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="admin-btn-action-primary"
+                                    style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#2563eb' }}
+                                    onClick={() => setStatusChangeTarget({ order: ord, newStatus: 'CONFIRMED' })}
+                                    title="Xác nhận đơn hàng"
+                                  >
+                                    Xác nhận
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="admin-btn-action-danger"
+                                    style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                                    onClick={() => setStatusChangeTarget({ order: ord, newStatus: 'CANCELLED' })}
+                                    title="Hủy đơn hàng"
+                                  >
+                                    Hủy
+                                  </button>
+                                </>
+                              )}
+
+                              {isConfirmed && (
+                                <button
+                                  type="button"
+                                  className="admin-btn-action-primary"
+                                  style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#7c3aed' }}
+                                  onClick={() => setStatusChangeTarget({ order: ord, newStatus: 'PROCESSING' })}
+                                  title="Chuyển sang bước Đóng gói"
+                                >
+                                  Đóng gói
+                                </button>
+                              )}
+
+                              {isProcessing && (
+                                <button
+                                  type="button"
+                                  className="admin-btn-action-primary"
+                                  style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#d97706' }}
+                                  onClick={() => setStatusChangeTarget({ order: ord, newStatus: 'SHIPPED' })}
+                                  title="Giao cho đơn vị vận chuyển"
+                                >
+                                  Giao Shipper
+                                </button>
+                              )}
+
+                              {isShipped && (
+                                <button
+                                  type="button"
+                                  className="admin-btn-action-primary"
+                                  style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#059669' }}
+                                  onClick={() => setStatusChangeTarget({ order: ord, newStatus: 'DELIVERED', newPaymentStatus: 'PAID' })}
+                                  title="Xác nhận giao thành công"
+                                >
+                                  Đã giao xong
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {orderTotalPages > 1 && (
+              <div className="admin-pagination">
+                <button
+                  type="button"
+                  disabled={orderPage === 0}
+                  onClick={() => fetchAdminOrders(orderPage - 1)}
+                  className="admin-page-btn"
+                >
+                  <ChevronLeft size={16} /> Trang trước
+                </button>
+                <span className="admin-page-info">
+                  Trang <strong>{orderPage + 1}</strong> / {orderTotalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={orderPage >= orderTotalPages - 1}
+                  onClick={() => fetchAdminOrders(orderPage + 1)}
+                  className="admin-page-btn"
+                >
+                  Trang sau <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* TAB 8: KÊNH CỬA HÀNG (SHOP PRODUCTS - STT 45-56) */}
+        {/* =================================================================== */}
+        {activeTab === 'shops' && (
+          <div className="admin-card-container">
+            <div className="admin-toolbar">
+              <div className="admin-toolbar-left">
+                {/* Chọn Shop */}
+                <select
+                  className="admin-select-filter"
+                  style={{ fontWeight: 700 }}
+                  value={selectedShopId}
+                  onChange={(e) => {
+                    setSelectedShopId(e.target.value);
+                  }}
+                >
+                  <option value="1">🏪 Shop #1: Cyber Flagship Store</option>
+                  <option value="2">🏬 Shop #2: Cyber Official Store</option>
+                  <option value="3">🏪 Shop #3: Cyber Gaming Hub</option>
+                </select>
+
+                {/* Tìm kiếm */}
+                <div className="admin-search-box">
+                  <Search size={16} className="admin-search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Tìm theo tên sản phẩm shop..."
+                    value={shopProdKeyword}
+                    onChange={(e) => setShopProdKeyword(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') fetchShopProducts(0);
+                    }}
+                  />
+                  {shopProdKeyword && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShopProdKeyword('');
+                        fetchShopProducts(0);
+                      }}
+                      className="admin-search-clear"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Lọc trạng thái */}
+                <select
+                  className="admin-select-filter"
+                  value={shopProdStatusFilter}
+                  onChange={(e) => setShopProdStatusFilter(e.target.value)}
+                >
+                  <option value="">Tất cả trạng thái</option>
+                  <option value="ACTIVE">ACTIVE (Đang kinh doanh)</option>
+                  <option value="INACTIVE">INACTIVE (Tạm ngừng)</option>
+                  <option value="DRAFT">DRAFT (Bản nháp)</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => fetchShopProducts(0)}
+                  className="admin-btn-action-secondary"
+                  title="Tìm kiếm"
+                >
+                  <Search size={15} />
+                  Tìm
+                </button>
+              </div>
+
+              <div className="admin-toolbar-right">
+                <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                  Tổng cộng: <strong>{shopProdTotalElements}</strong> sản phẩm cửa hàng
+                </span>
+              </div>
+            </div>
+
+            {/* Shop Products Table */}
+            {shopProductsLoading ? (
+              <div style={{ textAlign: 'center', padding: '3.5rem' }}>
+                <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto', color: '#64748b' }} />
+                <div style={{ marginTop: '0.5rem', color: '#64748b' }}>Đang tải danh sách sản phẩm cửa hàng...</div>
+              </div>
+            ) : shopProducts.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3.5rem', color: '#64748b' }}>
+                <Box size={40} style={{ margin: '0 auto 0.75rem', opacity: 0.3 }} />
+                <div>Cửa hàng này chưa có sản phẩm nào phù hợp.</div>
+              </div>
+            ) : (
+              <div className="admin-table-wrapper">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '60px' }}>ID</th>
+                      <th style={{ width: '70px' }}>Ảnh</th>
+                      <th>Tên sản phẩm & Mã Slug</th>
+                      <th>Danh mục & Hãng</th>
+                      <th style={{ textAlign: 'right' }}>Giá bán</th>
+                      <th style={{ textAlign: 'center', width: '120px' }}>Trạng thái (STT 49)</th>
+                      <th style={{ textAlign: 'center', width: '220px' }}>Quản lý chi tiết (STT 51-56)</th>
+                      <th style={{ textAlign: 'right', width: '100px' }}>Xóa (STT 50)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {shopProducts.map((p) => {
+                      const isActive = p.status === 'ACTIVE';
+                      return (
+                        <tr key={p.id}>
+                          <td style={{ fontWeight: 700, color: '#0f172a' }}>#{p.id}</td>
+                          <td>
+                            <div style={{ width: '48px', height: '48px', borderRadius: '8px', overflow: 'hidden', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                              <img
+                                src={p.primaryImage || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100&auto=format&fit=crop&q=80'}
+                                alt={p.name}
+                                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.src = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100&auto=format&fit=crop&q=80';
+                                }}
+                              />
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 600, color: '#0f172a' }}>{p.name}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>/{p.slug}</div>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: '0.8rem', color: '#334155' }}>
+                              {p.category?.name || 'Chưa gán DM'}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                              Hãng: {p.brand?.name || 'Cyber'}
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#dc2626' }}>
+                            {formatVND(p.salePrice || p.price || 0)}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleShopProductStatus(p)}
+                              className={`status-pill ${isActive ? 'active' : 'blocked'}`}
+                              style={{ cursor: 'pointer', border: 'none' }}
+                              title="Bấm để bật/tắt trạng thái sản phẩm"
+                            >
+                              {isActive ? '● Đang bán (ACTIVE)' : '○ Tạm ngừng (INACTIVE)'}
+                            </button>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <div style={{ display: 'inline-flex', gap: '6px' }}>
+                              <button
+                                type="button"
+                                className="admin-btn-action-secondary"
+                                style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                                onClick={() => handleOpenVariantsModal(p)}
+                                title="STT 51-53: Quản lý biến thể màu sắc, dung lượng, giá và tồn kho"
+                              >
+                                <SlidersHorizontal size={13} />
+                                Biến thể ({p.variants?.length || 0})
+                              </button>
+                              <button
+                                type="button"
+                                className="admin-btn-action-secondary"
+                                style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                                onClick={() => handleOpenImagesModal(p)}
+                                title="STT 54-56: Thư viện hình ảnh sản phẩm"
+                              >
+                                <Image size={13} />
+                                Thư viện ảnh
+                              </button>
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button
+                              type="button"
+                              className="admin-btn-action-danger"
+                              style={{ padding: '5px 8px' }}
+                              onClick={() => setShopProductToDelete(p)}
+                              title="STT 50: Xóa sản phẩm khỏi cửa hàng"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {shopProdTotalPages > 1 && (
+              <div className="admin-pagination">
+                <button
+                  type="button"
+                  disabled={shopProdPage === 0}
+                  onClick={() => fetchShopProducts(shopProdPage - 1)}
+                  className="admin-page-btn"
+                >
+                  <ChevronLeft size={16} /> Trang trước
+                </button>
+                <span className="admin-page-info">
+                  Trang <strong>{shopProdPage + 1}</strong> / {shopProdTotalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={shopProdPage >= shopProdTotalPages - 1}
+                  onClick={() => fetchShopProducts(shopProdPage + 1)}
+                  className="admin-page-btn"
+                >
+                  Trang sau <ChevronRight size={16} />
+                </button>
               </div>
             )}
           </div>
@@ -3891,6 +4774,407 @@ export const AdminPage = () => {
               })()}
             </div>
           )}
+        </ConfirmModal>
+
+        {/* =================================================================== */}
+        {/* MODAL 7: XEM CHI TIẾT ĐƠN HÀNG ADMIN */}
+        {/* =================================================================== */}
+        <OrderDetailModal
+          isOpen={Boolean(selectedOrderForDetail)}
+          onClose={() => setSelectedOrderForDetail(null)}
+          order={selectedOrderForDetail}
+        />
+
+        {/* =================================================================== */}
+        {/* MODAL 8: CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG */}
+        {/* =================================================================== */}
+        <ConfirmModal
+          isOpen={Boolean(statusChangeTarget)}
+          onClose={() => { setStatusChangeTarget(null); setCancelReasonInput(''); }}
+          title={`Cập nhật trạng thái đơn hàng #${statusChangeTarget?.order?.id}`}
+          type={statusChangeTarget?.newStatus === 'CANCELLED' ? 'danger' : 'confirm'}
+          confirmText={statusChangeLoading ? 'Đang cập nhật...' : 'Xác nhận chuyển'}
+          cancelText="Hủy bỏ"
+          onConfirm={handleUpdateOrderStatus}
+        >
+          {statusChangeTarget && (
+            <div style={{ textAlign: 'left', fontSize: '0.875rem', color: '#334155' }}>
+              <p style={{ marginBottom: '1rem' }}>
+                Chuyển đơn hàng <strong>#{statusChangeTarget.order.id}</strong> từ trạng thái{' '}
+                <span className="status-pill active" style={{ display: 'inline', padding: '2px 8px' }}>
+                  {statusChangeTarget.order.status}
+                </span>{' '}
+                sang{' '}
+                <span className="status-pill active" style={{ display: 'inline', padding: '2px 8px', background: '#000000', color: '#ffffff' }}>
+                  {statusChangeTarget.newStatus}
+                </span>
+                ?
+              </p>
+              {statusChangeTarget.newStatus === 'CANCELLED' && (
+                <div style={{ marginTop: '0.75rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                    Lý do hủy đơn hàng:
+                  </label>
+                  <input
+                    type="text"
+                    className="admin-form-input"
+                    style={{ width: '100%' }}
+                    placeholder="VD: Khách đổi ý, hết hàng tồn kho, không liên lạc được..."
+                    value={cancelReasonInput}
+                    onChange={(e) => setCancelReasonInput(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </ConfirmModal>
+
+        {/* =================================================================== */}
+        {/* MODAL 9: XÁC NHẬN XÓA SẢN PHẨM SHOP (STT 50) */}
+        {/* =================================================================== */}
+        <ConfirmModal
+          isOpen={Boolean(shopProductToDelete)}
+          onClose={() => setShopProductToDelete(null)}
+          title={`Xác nhận xóa sản phẩm #${shopProductToDelete?.id}`}
+          type="danger"
+          confirmText={isDeletingShopProduct ? 'Đang xóa...' : 'Xác nhận xóa'}
+          cancelText="Giữ lại"
+          onConfirm={handleDeleteShopProduct}
+        >
+          {shopProductToDelete && (
+            <p style={{ textAlign: 'left', fontSize: '0.875rem', color: '#334155' }}>
+              Bạn có chắc chắn muốn ngừng kinh doanh và xóa sản phẩm <strong>"{shopProductToDelete.name}"</strong> khỏi cửa hàng? Hành động này sẽ loại bỏ sản phẩm khỏi danh mục quản lý.
+            </p>
+          )}
+        </ConfirmModal>
+
+        {/* =================================================================== */}
+        {/* MODAL 10: QUẢN LÝ BIẾN THỂ SẢN PHẨM CỬA HÀNG (STT 51-53) */}
+        {/* =================================================================== */}
+        <ConfirmModal
+          isOpen={isVariantModalOpen}
+          onClose={() => setIsVariantModalOpen(false)}
+          title={`Quản lý Biến thể (STT 51-53) - ${activeShopProduct?.name || ''}`}
+          type="info"
+          maxWidth="820px"
+          showCancel={false}
+          confirmText="Đóng"
+          onConfirm={() => setIsVariantModalOpen(false)}
+        >
+          <div style={{ textAlign: 'left', fontSize: '0.84375rem', color: '#334155' }}>
+            {/* Danh sách biến thể hiện có */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h4 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '0.5rem', color: '#0f172a' }}>
+                Danh sách biến thể hiện có ({productVariants.length}):
+              </h4>
+              {variantsLoading ? (
+                <div style={{ textAlign: 'center', padding: '1rem', color: '#64748b' }}>Đang tải biến thể...</div>
+              ) : productVariants.length === 0 ? (
+                <div style={{ padding: '0.75rem', background: '#f8fafc', borderRadius: '6px', color: '#64748b', fontSize: '0.8rem' }}>
+                  Chưa có biến thể nào được tạo cho sản phẩm này.
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                  <table className="admin-table" style={{ fontSize: '0.8rem', marginBottom: 0 }}>
+                    <thead>
+                      <tr>
+                        <th>Mã SKU</th>
+                        <th>Màu sắc</th>
+                        <th>Dung lượng</th>
+                        <th style={{ textAlign: 'right' }}>Giá bán</th>
+                        <th style={{ textAlign: 'center' }}>Tồn kho</th>
+                        <th style={{ textAlign: 'right' }}>Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {productVariants.map((v) => (
+                        <tr key={v.id || v.sku}>
+                          <td style={{ fontWeight: 600 }}>{v.sku || '—'}</td>
+                          <td>{v.color || '—'}</td>
+                          <td>{v.storage || '—'}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#dc2626' }}>
+                            {formatVND(v.price || 0)}
+                          </td>
+                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{v.stockQuantity ?? 10}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', gap: '4px' }}>
+                              <button
+                                type="button"
+                                className="admin-btn-action-secondary"
+                                style={{ padding: '3px 6px', fontSize: '0.7rem' }}
+                                onClick={() => {
+                                  setEditingVariant(v);
+                                  setVariantForm({
+                                    sku: v.sku || '',
+                                    color: v.color || '',
+                                    storage: v.storage || '',
+                                    price: v.price || '',
+                                    originalPrice: v.originalPrice || '',
+                                    stockQuantity: v.stockQuantity ?? 10,
+                                    imageUrl: v.imageUrl || ''
+                                  });
+                                }}
+                                title="STT 52: Sửa biến thể"
+                              >
+                                <Edit size={12} /> Sửa
+                              </button>
+                              <button
+                                type="button"
+                                className="admin-btn-action-danger"
+                                style={{ padding: '3px 6px', fontSize: '0.7rem' }}
+                                onClick={() => handleDeleteVariant(v.id)}
+                                title="STT 53: Xóa biến thể"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Form Thêm / Cập nhật biến thể */}
+            <form onSubmit={handleSaveVariant} style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                  {editingVariant ? `Cập nhật biến thể #${editingVariant.id} (STT 52)` : 'Thêm biến thể mới (STT 51)'}
+                </h4>
+                {editingVariant && (
+                  <button
+                    type="button"
+                    style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '0.75rem', cursor: 'pointer' }}
+                    onClick={() => {
+                      setEditingVariant(null);
+                      setVariantForm({
+                        sku: '',
+                        color: '',
+                        storage: '',
+                        price: activeShopProduct?.price || '',
+                        originalPrice: activeShopProduct?.originalPrice || '',
+                        stockQuantity: 10,
+                        imageUrl: activeShopProduct?.primaryImage || ''
+                      });
+                    }}
+                  >
+                    Hủy sửa
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.6rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '2px' }}>Mã SKU:</label>
+                  <input
+                    type="text"
+                    className="admin-form-input"
+                    placeholder="VD: IPHONE-15-TITAN-128"
+                    value={variantForm.sku}
+                    onChange={(e) => setVariantForm({ ...variantForm, sku: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '2px' }}>Màu sắc:</label>
+                  <input
+                    type="text"
+                    className="admin-form-input"
+                    placeholder="VD: Titan Tự Nhiên, Đen, Xanh..."
+                    value={variantForm.color}
+                    onChange={(e) => setVariantForm({ ...variantForm, color: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '2px' }}>Dung lượng / Phiên bản:</label>
+                  <input
+                    type="text"
+                    className="admin-form-input"
+                    placeholder="VD: 128GB, 256GB, 1TB..."
+                    value={variantForm.storage}
+                    onChange={(e) => setVariantForm({ ...variantForm, storage: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '2px' }}>Giá bán (VND) *:</label>
+                  <input
+                    type="number"
+                    className="admin-form-input"
+                    placeholder="VD: 28990000"
+                    required
+                    value={variantForm.price}
+                    onChange={(e) => setVariantForm({ ...variantForm, price: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '2px' }}>Số lượng tồn kho:</label>
+                  <input
+                    type="number"
+                    className="admin-form-input"
+                    placeholder="VD: 50"
+                    value={variantForm.stockQuantity}
+                    onChange={(e) => setVariantForm({ ...variantForm, stockQuantity: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '2px' }}>URL hình ảnh biến thể:</label>
+                  <input
+                    type="text"
+                    className="admin-form-input"
+                    placeholder="https://images.unsplash..."
+                    value={variantForm.imageUrl}
+                    onChange={(e) => setVariantForm({ ...variantForm, imageUrl: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginTop: '0.75rem', textAlign: 'right' }}>
+                <button
+                  type="submit"
+                  disabled={variantSubmitting}
+                  className="admin-btn-action-primary"
+                  style={{ padding: '0.5rem 1.25rem' }}
+                >
+                  {variantSubmitting ? 'Đang lưu...' : (editingVariant ? 'Lưu cập nhật biến thể' : '+ Thêm biến thể')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </ConfirmModal>
+
+        {/* =================================================================== */}
+        {/* MODAL 11: THƯ VIỆN ẢNH SẢN PHẨM CỬA HÀNG (STT 54-56) */}
+        {/* =================================================================== */}
+        <ConfirmModal
+          isOpen={isImageModalOpen}
+          onClose={() => setIsImageModalOpen(false)}
+          title={`Thư viện hình ảnh (STT 54-56) - ${activeShopProduct?.name || ''}`}
+          type="info"
+          maxWidth="700px"
+          showCancel={false}
+          confirmText="Đóng"
+          onConfirm={() => setIsImageModalOpen(false)}
+        >
+          <div style={{ textAlign: 'left', fontSize: '0.84375rem', color: '#334155' }}>
+            {/* Gallery ảnh hiện tại */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h4 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '0.5rem', color: '#0f172a' }}>
+                Danh sách hình ảnh hiện có ({productImages.length}):
+              </h4>
+              {imagesLoading ? (
+                <div style={{ textAlign: 'center', padding: '1rem', color: '#64748b' }}>Đang tải hình ảnh...</div>
+              ) : productImages.length === 0 ? (
+                <div style={{ padding: '0.75rem', background: '#f8fafc', borderRadius: '6px', color: '#64748b', fontSize: '0.8rem' }}>
+                  Chưa có hình ảnh bổ sung nào trong thư viện.
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.75rem' }}>
+                  {productImages.map((img) => (
+                    <div
+                      key={img.id || img.imageUrl}
+                      style={{
+                        position: 'relative',
+                        border: img.isPrimary ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        background: '#ffffff',
+                        padding: '4px'
+                      }}
+                    >
+                      <img
+                        src={img.imageUrl}
+                        alt="Product"
+                        style={{ width: '100%', height: '110px', objectFit: 'contain' }}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100&auto=format&fit=crop&q=80';
+                        }}
+                      />
+                      {img.isPrimary && (
+                        <span style={{ position: 'absolute', top: '6px', left: '6px', background: '#2563eb', color: '#fff', fontSize: '0.65rem', padding: '2px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                          Ảnh chính
+                        </span>
+                      )}
+                      <div style={{ marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        {!img.isPrimary && (
+                          <button
+                            type="button"
+                            style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', fontSize: '0.6875rem', padding: '2px 4px', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
+                            onClick={() => handleSetShopPrimaryImage(img)}
+                            title="STT 55: Đặt làm ảnh đại diện chính"
+                          >
+                            Làm ảnh chính
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', fontSize: '0.6875rem', padding: '2px 4px', borderRadius: '4px', cursor: 'pointer', marginLeft: 'auto' }}
+                          onClick={() => handleDeleteImage(img.id)}
+                          title="STT 56: Xóa hình ảnh"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Form Thêm ảnh mới (STT 54) */}
+            <form onSubmit={handleSaveImage} style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <h4 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.75rem' }}>
+                Thêm hình ảnh vào thư viện (STT 54)
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '2px' }}>
+                    Đường dẫn hình ảnh (URL) *:
+                  </label>
+                  <input
+                    type="url"
+                    className="admin-form-input"
+                    style={{ width: '100%' }}
+                    placeholder="https://images.unsplash.com/photo-..."
+                    required
+                    value={imageForm.imageUrl}
+                    onChange={(e) => setImageForm({ ...imageForm, imageUrl: e.target.value })}
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={imageForm.isPrimary}
+                      onChange={(e) => setImageForm({ ...imageForm, isPrimary: e.target.checked })}
+                    />
+                    <span>Đặt làm ảnh đại diện chính (isPrimary)</span>
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Thứ tự hiển thị:</label>
+                    <input
+                      type="number"
+                      style={{ width: '60px' }}
+                      className="admin-form-input"
+                      value={imageForm.sortOrder}
+                      onChange={(e) => setImageForm({ ...imageForm, sortOrder: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div style={{ marginTop: '0.75rem', textAlign: 'right' }}>
+                <button
+                  type="submit"
+                  disabled={imageSubmitting}
+                  className="admin-btn-action-primary"
+                  style={{ padding: '0.5rem 1.25rem' }}
+                >
+                  {imageSubmitting ? 'Đang thêm...' : '+ Thêm hình ảnh'}
+                </button>
+              </div>
+            </form>
+          </div>
         </ConfirmModal>
       </div>
     </div>

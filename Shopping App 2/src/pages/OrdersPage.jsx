@@ -12,12 +12,14 @@ import {
   ShoppingBag, 
   AlertCircle,
   FileText,
-  RotateCcw
+  RotateCcw,
+  Eye
 } from 'lucide-react';
 import { useOrders, ORDER_STATUSES } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { formatVND } from '../data/products';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { OrderDetailModal } from '../components/OrderDetailModal';
 import './OrdersPage.css';
 
 export const OrdersPage = () => {
@@ -25,8 +27,9 @@ export const OrdersPage = () => {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
-  // Model Box xác nhận hủy đơn
+  // Modal xác nhận hủy đơn & Xem chi tiết đơn
   const [orderToCancel, setOrderToCancel] = useState(null);
+  const [selectedOrderForDetail, setSelectedOrderForDetail] = useState(null);
 
   // Redirect nếu chưa đăng nhập
   useEffect(() => {
@@ -290,9 +293,19 @@ export const OrdersPage = () => {
 
                   {/* Khu vực thao tác & mô phỏng trạng thái cho người dùng */}
                   <div className="order-actions-wrap">
+                    {/* Nút xem chi tiết đơn hàng */}
+                    <button
+                      type="button"
+                      className="btn-order-view-detail"
+                      onClick={() => setSelectedOrderForDetail(order)}
+                      title="Xem toàn bộ thông tin chi tiết và hóa đơn"
+                    >
+                      <Eye size={15} /> Chi tiết đơn hàng
+                    </button>
+
                     {/* BỘ ĐIỀU KHIỂN MÔ PHỎNG TIẾN TRÌNH 5 BƯỚC */}
                     <div className="simulation-control-group" title="Tính năng mô phỏng để bạn kiểm tra từng trạng thái đơn hàng">
-                      <span className="simulation-label">Mô phỏng tiến trình:</span>
+                      <span className="simulation-label">Mô phỏng:</span>
                       <select
                         className="simulation-select"
                         value={order.status}
@@ -323,6 +336,13 @@ export const OrdersPage = () => {
           })}
         </div>
       )}
+
+      {/* MODAL: XEM CHI TIẾT ĐƠN HÀNG */}
+      <OrderDetailModal
+        isOpen={Boolean(selectedOrderForDetail)}
+        onClose={() => setSelectedOrderForDetail(null)}
+        order={selectedOrderForDetail}
+      />
 
       {/* MODEL BOX: XÁC NHẬN HỦY ĐƠN HÀNG */}
       <ConfirmModal

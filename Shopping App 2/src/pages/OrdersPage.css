@@ -403,6 +403,26 @@
   flex-wrap: wrap;
 }
 
+.btn-order-view-detail {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f4f4f5;
+  border: 1px solid #e4e4e7;
+  color: #18181b;
+  padding: 0.45rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.825rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-order-view-detail:hover {
+  background: #e4e4e7;
+  color: #000000;
+}
+
 .simulation-control-group {
   display: flex;
   align-items: center;
