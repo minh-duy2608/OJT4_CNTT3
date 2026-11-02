@@ -94,14 +94,18 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/error"
                         ).permitAll()
-                        // Authenticated User Profile & Logout Endpoints
+                        // Authenticated User Profile, Orders, Cart & Logout Endpoints
                         .requestMatchers(
                                 "/auth/me", "/api/v1/auth/me",
                                 "/auth/me/**", "/api/v1/auth/me/**",
-                                "/auth/logout", "/api/v1/auth/logout"
+                                "/auth/logout", "/api/v1/auth/logout",
+                                "/cart", "/api/v1/cart",
+                                "/cart/**", "/api/v1/cart/**",
+                                "/orders", "/api/v1/orders",
+                                "/orders/**", "/api/v1/orders/**"
                         ).authenticated()
-                        // Admin Endpoints
-                        .requestMatchers("/api/v1/admin/**", "/admin/**").hasRole("ADMIN")
+                        // Admin & Shop Management Endpoints
+                        .requestMatchers("/api/v1/admin/**", "/admin/**").hasAnyRole("ADMIN", "SHOP_MANAGER", "SHOP_OWNER")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

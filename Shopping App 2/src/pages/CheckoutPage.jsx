@@ -218,18 +218,19 @@ export const CheckoutPage = () => {
   };
 
   // Tiến hành ghi nhận đơn hàng sau khi người dùng bấm xác nhận trên Model Box
-  const handleExecutePlaceOrder = () => {
+  const handleExecutePlaceOrder = async () => {
     setShowConfirmOrderModal(false);
     const selectedAddr = addresses.find((a) => a.id === selectedAddressId);
     if (!selectedAddr) return;
 
     setIsSubmitting(true);
 
-    setTimeout(() => {
+    try {
       const orderPayload = {
         shippingAddress: selectedAddr,
         items: itemsToCheckout.map((item) => ({
           id: item.id,
+          variantId: item.variantId || (typeof item.id === 'number' ? item.id : null),
           productId: item.productId || (typeof item.id === 'string' ? parseInt(item.id.split('-')[0], 10) : item.id),
           name: item.name,
           price: item.price,
@@ -247,7 +248,7 @@ export const CheckoutPage = () => {
         notes: orderNotes.trim()
       };
 
-      const created = createOrder(orderPayload);
+      await createOrder(orderPayload);
 
       if (isBuyNowMode) {
         // Luồng Mua ngay: chỉ dọn session mua ngay, TUYỆT ĐỐI KHÔNG XÓA GIỎ HÀNG
@@ -262,10 +263,13 @@ export const CheckoutPage = () => {
         } catch {}
       }
 
-      setIsSubmitting(false);
       showToast('Đặt hàng thành công!', 'success');
       navigate('/orders');
-    }, 700);
+    } catch (err) {
+      showToast(err.message || 'Lỗi đặt hàng', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isAuthenticated) {

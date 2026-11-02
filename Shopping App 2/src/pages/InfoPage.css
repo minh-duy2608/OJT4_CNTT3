@@ -1,0 +1,126 @@
+.info-page-wrapper {
+  padding: 3rem 1rem 5rem;
+}
+
+.info-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 2.5rem;
+  align-items: flex-start;
+}
+
+@media (max-width: 868px) {
+  .info-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.info-sidebar {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 1.5rem 1rem;
+  position: sticky;
+  top: 100px;
+}
+
+.info-sidebar h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+  margin-bottom: 1rem;
+  padding: 0 0.5rem;
+}
+
+.info-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.info-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  color: #4b5563;
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.info-nav-item:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.info-nav-item.is-active {
+  background: #000000;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.info-main-content {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  padding: 2.5rem;
+}
+
+.info-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.info-header-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: #f3f4f6;
+  color: #000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.info-header h1 {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: #000000;
+  margin: 0;
+}
+
+.info-body h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #111827;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.info-body p {
+  color: #4b5563;
+  line-height: 1.7;
+  font-size: 0.95rem;
+  margin-bottom: 1rem;
+}
+
+.info-body ul {
+  padding-left: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.info-body li {
+  color: #4b5563;
+  line-height: 1.6;
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+}

@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { orderApi } from '../services/orderApi';
+import { useAuth } from './AuthContext';
 
 const OrderContext = createContext();
 
@@ -13,71 +15,80 @@ export const ORDER_STATUSES = [
   { key: 'delivered', label: 'Đã giao', step: 5, color: '#10b981', bg: '#ecfdf5' }
 ];
 
-const INITIAL_ORDERS = [
-  {
-    id: 'CYBER-89234',
-    createdAt: '2026-10-27T14:30:00Z',
-    status: 'delivering', // Đang giao
-    shippingAddress: {
-      fullName: 'Hoàng Sơn',
-      phone: '0362490374',
-      detailAddress: 'Số 12, Đường Nguyễn Văn Cừ, Phường 4, Quận 5',
-      city: 'TP. Hồ Chí Minh'
-    },
-    items: [
-      {
-        id: 'prod-1',
-        name: 'Apple iPhone 14 Pro Max 128GB Deep Purple (Deep Purple, 128GB)',
-        price: 22990000,
-        quantity: 1,
-        image: '/src/assets/products/iphone-14-pro.png'
-      }
-    ],
-    voucherCode: 'CYBER10',
-    discountAmount: 1000000,
-    subtotal: 22990000,
-    shippingFee: 0,
-    totalPayment: 21990000,
-    paymentMethod: 'COD' // Thanh toán khi nhận hàng
-  },
-  {
-    id: 'CYBER-67120',
-    createdAt: '2026-10-25T09:15:00Z',
-    status: 'delivered', // Đã giao
-    shippingAddress: {
-      fullName: 'Hoàng Sơn',
-      phone: '0362490374',
-      detailAddress: 'Tòa nhà Cyber Tower, 285 Cách Mạng Tháng Tám, Quận 10',
-      city: 'TP. Hồ Chí Minh'
-    },
-    items: [
-      {
-        id: 'prod-4',
-        name: 'AirPods Max Silver',
-        price: 13990000,
-        quantity: 1,
-        image: '/src/assets/products/airpods-max.png'
-      }
-    ],
-    voucherCode: 'FREESHIP',
-    discountAmount: 50000,
-    subtotal: 13990000,
-    shippingFee: 0,
-    totalPayment: 13990000,
-    paymentMethod: 'Bank Transfer'
-  }
-];
-
 export const OrderProvider = ({ children }) => {
+  const { isAuthenticated, user } = useAuth();
   const [orders, setOrders] = useState(() => {
     try {
       const saved = localStorage.getItem(ORDERS_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : INITIAL_ORDERS;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Lọc bỏ hoàn toàn bất kỳ dữ liệu mẫu CYBER-89234 hoặc CYBER-67120
+        return Array.isArray(parsed)
+          ? parsed.filter(o => o.id !== 'CYBER-89234' && o.id !== 'CYBER-67120')
+          : [];
+      }
+      return [];
     } catch {
-      return INITIAL_ORDERS;
+      return [];
     }
   });
 
+  const [loading, setLoading] = useState(false);
+
+  // Tải danh sách đơn hàng thực tế từ Backend Database khi đã đăng nhập
+  const fetchOrdersFromApi = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      setLoading(true);
+      const res = await orderApi.getMyOrders({ size: 50 });
+      const apiOrders = res?.content || (Array.isArray(res) ? res : []);
+
+      if (Array.isArray(apiOrders)) {
+        // Chuẩn hóa dữ liệu từ BE API sang định dạng UI cần hiển thị
+        const mapped = apiOrders.map(o => ({
+          id: o.orderCode || `CYBER-${o.id}`,
+          backendId: o.id,
+          createdAt: o.createdAt,
+          status: (o.status || 'PENDING').toLowerCase(),
+          shippingAddress: {
+            fullName: o.recipientName,
+            phone: o.recipientPhone,
+            detailAddress: o.shippingAddress,
+            city: ''
+          },
+          items: (o.items || []).map(it => ({
+            id: it.id,
+            productId: it.variantId,
+            name: `${it.productName}${it.variantName ? ` (${it.variantName})` : ''}`,
+            price: Number(it.unitPrice || 0),
+            quantity: Number(it.quantity || 1),
+            image: it.productImageUrl
+          })),
+          voucherCode: o.note?.includes('Voucher:') ? o.note.split('Voucher:')[1]?.trim() : null,
+          discountAmount: Number(o.discountAmount || 0),
+          subtotal: Number(o.subtotal || 0),
+          shippingFee: Number(o.shippingFee || 0),
+          totalPayment: Number(o.totalAmount || 0),
+          paymentMethod: o.paymentMethod || 'COD'
+        }));
+
+        setOrders(mapped);
+        try {
+          localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(mapped));
+        } catch (_) {}
+      }
+    } catch (err) {
+      console.warn('Could not fetch orders from API:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    fetchOrdersFromApi();
+  }, [fetchOrdersFromApi]);
+
+  // Đồng bộ giỏ đơn hàng vào localStorage
   useEffect(() => {
     try {
       localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
@@ -86,12 +97,53 @@ export const OrderProvider = ({ children }) => {
     }
   }, [orders]);
 
-  // Tạo đơn hàng mới
-  const createOrder = (orderData) => {
+  // Tạo đơn hàng mới: Gửi trực tiếp lên Backend Database
+  const createOrder = async (orderData) => {
+    let createdBackendOrder = null;
+    try {
+      if (isAuthenticated) {
+        // Chuyển đổi định dạng payload gửi về Backend
+        const payload = {
+          addressId: orderData.shippingAddress?.id || null,
+          recipientName: orderData.shippingAddress?.fullName || orderData.shippingAddress?.recipientName || user?.fullName || 'Khách hàng',
+          recipientPhone: orderData.shippingAddress?.phone || orderData.shippingAddress?.phoneNumber || '0362490374',
+          shippingAddress: orderData.shippingAddress?.detailAddress 
+            ? `${orderData.shippingAddress.detailAddress}${orderData.shippingAddress.ward ? `, ${orderData.shippingAddress.ward}` : ''}${orderData.shippingAddress.district ? `, ${orderData.shippingAddress.district}` : ''}${orderData.shippingAddress.city ? `, ${orderData.shippingAddress.city}` : ''}`
+            : (typeof orderData.shippingAddress === 'string' ? orderData.shippingAddress : 'Địa chỉ giao hàng'),
+          shopId: orderData.shopId || 1,
+          items: (orderData.items || []).map(it => ({
+            variantId: it.variantId || (typeof it.id === 'number' ? it.id : null),
+            productId: it.productId || null,
+            productName: it.name,
+            variantName: it.selectedStorage || it.selectedColor || 'Tiêu chuẩn',
+            sku: it.sku || `SKU-${Date.now()}`,
+            imageUrl: it.image,
+            price: Number(it.price || 0),
+            quantity: Number(it.quantity || 1),
+            selectedColor: it.selectedColor,
+            selectedStorage: it.selectedStorage
+          })),
+          voucherCode: orderData.voucherCode || null,
+          discountAmount: Number(orderData.discountAmount || 0),
+          shippingFee: Number(orderData.shippingFee || 0),
+          subtotal: Number(orderData.subtotal || 0),
+          totalAmount: Number(orderData.totalPayment || orderData.totalAmount || 0),
+          paymentMethod: orderData.paymentMethod || 'COD',
+          notes: orderData.notes || (orderData.voucherCode ? `Voucher: ${orderData.voucherCode}` : '')
+        };
+
+        const res = await orderApi.createOrder(payload);
+        createdBackendOrder = res;
+      }
+    } catch (err) {
+      console.warn('Backend order creation failed, fallback to local tracking:', err);
+    }
+
     const newOrder = {
       ...orderData,
-      id: `CYBER-${Math.floor(10000 + Math.random() * 90000)}`,
-      createdAt: new Date().toISOString(),
+      id: createdBackendOrder?.orderCode || `CYBER-${Math.floor(10000 + Math.random() * 90000)}`,
+      backendId: createdBackendOrder?.id || null,
+      createdAt: createdBackendOrder?.createdAt || new Date().toISOString(),
       status: 'pending' // Luôn bắt đầu ở trạng thái "Chờ xác nhận"
     };
 
@@ -99,8 +151,16 @@ export const OrderProvider = ({ children }) => {
     return newOrder;
   };
 
-  // Cập nhật trạng thái đơn hàng (để mô phỏng quá trình giao hàng)
-  const updateOrderStatus = (orderId, newStatus) => {
+  // Cập nhật trạng thái đơn hàng
+  const updateOrderStatus = async (orderId, newStatus) => {
+    const target = orders.find(o => o.id === orderId);
+    if (target?.backendId) {
+      try {
+        await orderApi.updateOrderStatus(target.backendId, { status: newStatus.toUpperCase() });
+      } catch (err) {
+        console.warn('Failed to update status on BE:', err);
+      }
+    }
     setOrders((prev) =>
       prev.map((order) =>
         order.id === orderId ? { ...order, status: newStatus } : order
@@ -109,7 +169,15 @@ export const OrderProvider = ({ children }) => {
   };
 
   // Hủy đơn hàng
-  const cancelOrder = (orderId) => {
+  const cancelOrder = async (orderId, reason = '') => {
+    const target = orders.find(o => o.id === orderId);
+    if (target?.backendId) {
+      try {
+        await orderApi.cancelOrder(target.backendId, reason);
+      } catch (err) {
+        console.warn('Failed to cancel order on BE:', err);
+      }
+    }
     setOrders((prev) =>
       prev.map((order) =>
         order.id === orderId ? { ...order, status: 'cancelled' } : order
@@ -121,6 +189,8 @@ export const OrderProvider = ({ children }) => {
     <OrderContext.Provider
       value={{
         orders,
+        loading,
+        fetchOrdersFromApi,
         createOrder,
         updateOrderStatus,
         cancelOrder
@@ -138,4 +208,3 @@ export const useOrders = () => {
   }
   return context;
 };
-

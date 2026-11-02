@@ -153,6 +153,118 @@ export const productApi = {
   },
 
   /**
+   * STT 45: GET /shops/{shopId}/manage/products - Danh sách sản phẩm trong phạm vi quản lý (Shop permission)
+   */
+  async getShopManagedProducts(shopId, params = {}) {
+    const qs = buildProductQueryParams(params);
+    return await request(`/shops/${shopId}/manage/products${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
+  /**
+   * STT 46: POST /shops/{shopId}/products - Tạo sản phẩm thuộc cửa hàng (Shop permission)
+   */
+  async createShopProduct(shopId, productData) {
+    return await request(`/shops/${shopId}/products`, {
+      method: 'POST',
+      body: JSON.stringify(productData)
+    });
+  },
+
+  /**
+   * STT 47: GET /shops/{shopId}/products/{productId} - Chi tiết sản phẩm trong phạm vi quản lý (Shop permission)
+   */
+  async getShopProductDetail(shopId, productId) {
+    return await request(`/shops/${shopId}/products/${productId}`, { method: 'GET' });
+  },
+
+  /**
+   * STT 48: PATCH /shops/{shopId}/products/{productId} - Cập nhật thông tin sản phẩm (Shop permission)
+   */
+  async updateShopProduct(shopId, productId, productData) {
+    return await request(`/shops/${shopId}/products/${productId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(productData)
+    });
+  },
+
+  /**
+   * STT 49: PATCH /shops/{shopId}/products/{productId}/status - Thay đổi trạng thái sản phẩm (Shop permission)
+   */
+  async updateShopProductStatus(shopId, productId, status) {
+    return await request(`/shops/${shopId}/products/${productId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status })
+    });
+  },
+
+  /**
+   * STT 50: DELETE /shops/{shopId}/products/{productId} - Ngừng kinh doanh hoặc xóa sản phẩm (Shop permission)
+   */
+  async deleteShopProduct(shopId, productId, force = false) {
+    return await request(`/shops/${shopId}/products/${productId}?force=${force}`, {
+      method: 'DELETE'
+    });
+  },
+
+  /**
+   * STT 51: POST /shops/{shopId}/products/{productId}/variants - Tạo biến thể sản phẩm (Shop permission)
+   */
+  async createShopProductVariant(shopId, productId, variantData) {
+    return await request(`/shops/${shopId}/products/${productId}/variants`, {
+      method: 'POST',
+      body: JSON.stringify(variantData)
+    });
+  },
+
+  /**
+   * STT 52: PATCH /shops/{shopId}/products/{productId}/variants/{variantId} - Cập nhật biến thể (Shop permission)
+   */
+  async updateShopProductVariant(shopId, productId, variantId, variantData) {
+    return await request(`/shops/${shopId}/products/${productId}/variants/${variantId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(variantData)
+    });
+  },
+
+  /**
+   * STT 53: DELETE /shops/{shopId}/products/{productId}/variants/{variantId} - Xóa biến thể (Shop permission)
+   */
+  async deleteShopProductVariant(shopId, productId, variantId, force = false) {
+    return await request(`/shops/${shopId}/products/${productId}/variants/${variantId}?force=${force}`, {
+      method: 'DELETE'
+    });
+  },
+
+  /**
+   * STT 54: POST /shops/{shopId}/products/{productId}/images - Thêm hình ảnh sản phẩm (Shop permission)
+   */
+  async addShopProductImage(shopId, productId, imageData) {
+    return await request(`/shops/${shopId}/products/${productId}/images`, {
+      method: 'POST',
+      body: JSON.stringify(imageData)
+    });
+  },
+
+  /**
+   * STT 55: PATCH /shops/{shopId}/products/{productId}/images/{imageId} - Cập nhật hình ảnh (Shop permission)
+   */
+  async updateShopProductImage(shopId, productId, imageId, imageData) {
+    return await request(`/shops/${shopId}/products/${productId}/images/${imageId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(imageData)
+    });
+  },
+
+  /**
+   * STT 56: DELETE /shops/{shopId}/products/{productId}/images/{imageId} - Xóa hình ảnh sản phẩm (Shop permission)
+   */
+  async deleteShopProductImage(shopId, productId, imageId) {
+    return await request(`/shops/${shopId}/products/${productId}/images/${imageId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  /**
    * Admin: POST /admin/products - Tạo sản phẩm mới kèm danh sách biến thể & hình ảnh (ADMIN)
    * @param {Object} productData
    */
