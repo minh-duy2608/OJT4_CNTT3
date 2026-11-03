@@ -160,13 +160,6 @@ export const Header = () => {
     }
   }, [isAuthenticated, user?.role]);
 
-  // Xác định danh mục công nghệ đang chọn trên sub-nav
-  const activeCategoryKey = useMemo(() => {
-    if (location.pathname !== '/products') return null;
-    const params = new URLSearchParams(location.search);
-    return params.get('category');
-  }, [location.pathname, location.search]);
-
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     if (searchTerm.trim()) {

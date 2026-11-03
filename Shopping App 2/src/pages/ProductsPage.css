@@ -3,9 +3,9 @@
    ========================================================================== */
 
 .cyber-products-container {
-  /* [FIX-3] Tách biệt rõ ràng với Banner phía trên, tránh dính liền hoặc đè lớp */
-  padding: 2.5rem 0 3rem;
-  margin-top: 32px;
+  /* Tách biệt rõ ràng với Banner phía trên, tránh dính đè hay sát mép */
+  padding: 1.5rem 0 3rem;
+  margin-top: 48px;
   position: relative;
   z-index: 10;
   overflow: visible;
