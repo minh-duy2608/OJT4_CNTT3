@@ -28,6 +28,12 @@ body.dark-theme {
   --border-color: #334155;
 }
 
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -278,18 +284,20 @@ ul {
   cursor: pointer;
   font-weight: 600;
   font-size: 0.9rem;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease, filter 0.25s ease;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .btn:hover {
   background-color: #27272a;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+  box-shadow: 0 6px 14px -1px rgba(0, 0, 0, 0.16);
 }
 
 .btn:active {
   transform: translateY(0);
+  filter: brightness(0.96);
 }
 
 .card {
@@ -610,4 +618,86 @@ ul {
 .dark-theme .btn:hover {
   background-color: #2563eb;
 }
+
+/* ==========================================================================
+   Global Smooth Hover Animations & Transitions
+   ========================================================================== */
+
+/* 1. Thẻ sản phẩm & Thẻ Card: Nhấc nhẹ 5px và thêm bóng đổ tự nhiên */
+.product-card,
+.cyber-product-card,
+.card {
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  will-change: transform, box-shadow;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+.product-card:hover,
+.cyber-product-card:hover,
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 14px 28px -4px rgba(0, 0, 0, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.06);
+}
+
+/* Dark Mode Card Shadow */
+.dark-theme .product-card:hover,
+.dark-theme .cyber-product-card:hover,
+.dark-theme .card:hover {
+  box-shadow: 0 14px 30px -4px rgba(0, 0, 0, 0.55), 0 4px 12px -2px rgba(0, 0, 0, 0.4);
+}
+
+/* 2. Nút bấm (Buttons): Nổi nhẹ lên 2px và làm sáng nhẹ hiệu ứng màu nền */
+button:not(:disabled),
+.btn,
+.product-buy-btn,
+.pagination-btn,
+.page-number-btn,
+.category-pill-btn,
+.brand-pill-btn,
+.hero-cta-btn,
+.footer-promo-cta-btn,
+input[type="button"],
+input[type="submit"] {
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease, filter 0.25s ease, color 0.25s ease;
+  will-change: transform, box-shadow;
+}
+
+button:not(:disabled):hover,
+.btn:hover,
+.product-buy-btn:hover,
+.pagination-btn:not(:disabled):hover,
+.page-number-btn:hover,
+input[type="button"]:hover,
+input[type="submit"]:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+}
+
+/* Trạng thái khi click / ấn giữ */
+button:not(:disabled):active,
+.btn:active,
+.product-buy-btn:active,
+.pagination-btn:not(:disabled):active,
+.page-number-btn:active,
+input[type="button"]:active,
+input[type="submit"]:active {
+  transform: translateY(0);
+  filter: brightness(0.96);
+}
+
+/* 3. Thẻ liên kết (Navigation Links) */
+.nav-link,
+.cyber-nav-link {
+  transition: transform 0.25s ease, color 0.25s ease, opacity 0.25s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.nav-link:hover,
+.cyber-nav-link:hover {
+  transform: translateY(-1px);
+  opacity: 0.95;
+}
+
 
