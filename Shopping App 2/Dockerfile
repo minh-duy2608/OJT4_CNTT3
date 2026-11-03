@@ -11,6 +11,16 @@ RUN npm install
 
 # Copy source code and build production assets
 COPY . .
+
+# Receive build variables from GitHub Actions / Docker Compose
+ARG VITE_API_URL
+ARG VITE_CLOUDINARY_CLOUD_NAME
+ARG VITE_CLOUDINARY_UPLOAD_PRESET
+
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_CLOUDINARY_CLOUD_NAME=$VITE_CLOUDINARY_CLOUD_NAME
+ENV VITE_CLOUDINARY_UPLOAD_PRESET=$VITE_CLOUDINARY_UPLOAD_PRESET
+
 RUN npm run build
 
 # ==============================================================================
