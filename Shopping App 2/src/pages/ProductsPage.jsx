@@ -56,6 +56,10 @@ export const ProductsPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const sectionRef = useRef(null);
 
+  // [HOVER-DROPDOWN] UI state — chỉ kiểm soát hiển thị dropdown, không ảnh hưởng business logic
+  const [hoveredCategory, setHoveredCategory] = useState(null);
+  const hoverLeaveTimerRef = useRef(null);
+
   // Live data from backend APIs
   const [apiProducts, setApiProducts] = useState(null);
   const [apiTotalElements, setApiTotalElements] = useState(0);
@@ -236,10 +240,42 @@ export const ProductsPage = () => {
     }
   };
 
+  // [HOVER-DROPDOWN] Mở dropdown cho category đang hover
+  const handleCategoryMouseEnter = (catKey) => {
+    if (hoverLeaveTimerRef.current) {
+      clearTimeout(hoverLeaveTimerRef.current);
+      hoverLeaveTimerRef.current = null;
+    }
+    setHoveredCategory(catKey);
+  };
+
+  // [HOVER-DROPDOWN] Delay ẩn dropdown 120ms để người dùng có thể di sang dropdown mà không bị đóng đột ngột
+  const handleCategoryMouseLeave = () => {
+    hoverLeaveTimerRef.current = setTimeout(() => {
+      setHoveredCategory(null);
+    }, 120);
+  };
+
+  // [HOVER-DROPDOWN] Chọn brand từ dropdown rồi đóng menu
+  const handleDropdownBrandSelect = (brandIdOrSlug) => {
+    handleSelectBrand(brandIdOrSlug);
+    setHoveredCategory(null);
+  };
+
+  // [HOVER-DROPDOWN] Cleanup timer khi component unmount
+  useEffect(() => {
+    return () => {
+      if (hoverLeaveTimerRef.current) {
+        clearTimeout(hoverLeaveTimerRef.current);
+      }
+    };
+  }, []);
+
   return (
     <section ref={sectionRef} className="container cyber-products-container" id="products-section">
       {/* 1. THANH CHỌN DANH MỤC CÔNG NGHỆ (CATEGORY PILL BAR) */}
       <div className="category-filter-bar" role="tablist" aria-label="Danh mục công nghệ">
+        {/* Pill "Tất cả sản phẩm" — không có dropdown brand */}
         <button
           type="button"
           className={`category-pill-btn ${!categoryParam ? 'is-active' : ''}`}
@@ -248,18 +284,94 @@ export const ProductsPage = () => {
           <Grid size={15} />
           <span>Tất cả sản phẩm</span>
         </button>
+
+        {/* Các pill danh mục — mỗi pill bọc trong wrapper để chứa dropdown */}
         {CATEGORY_DEFINITIONS.map((cat) => {
           const isActive = currentCategoryDef?.id === cat.id;
+          const isDropdownOpen = hoveredCategory === cat.key;
+          // Lấy danh sách brands cho danh mục này để hiển thị trong dropdown
+          const dropdownBrands = getCategoryBrands(cat.key, allBrands);
+
           return (
-            <button
+            <div
               key={cat.id}
-              type="button"
-              className={`category-pill-btn ${isActive ? 'is-active' : ''}`}
-              onClick={() => handleSelectCategory(cat.key)}
+              className="category-pill-wrapper"
+              onMouseEnter={() => handleCategoryMouseEnter(cat.key)}
+              onMouseLeave={handleCategoryMouseLeave}
             >
-              {getCategoryIcon(cat.icon)}
-              <span>{cat.name}</span>
-            </button>
+              {/* Pill button chọn danh mục (giữ nguyên onClick handler cũ) */}
+              <button
+                type="button"
+                className={`category-pill-btn ${isActive ? 'is-active' : ''}`}
+                onClick={() => handleSelectCategory(cat.key)}
+                aria-haspopup="listbox"
+                aria-expanded={isDropdownOpen}
+              >
+                {getCategoryIcon(cat.icon)}
+                <span>{cat.name}</span>
+              </button>
+
+              {/* [HOVER-DROPDOWN] Brand dropdown — chỉ hiện khi đang hover */}
+              {dropdownBrands.length > 0 && (
+                <div
+                  className={`category-brand-dropdown ${isDropdownOpen ? 'is-open' : ''}`}
+                  role="listbox"
+                  aria-label={`Thương hiệu ${cat.name}`}
+                  onMouseEnter={() => handleCategoryMouseEnter(cat.key)}
+                  onMouseLeave={handleCategoryMouseLeave}
+                >
+                  <div className="brand-dropdown-header">{cat.name}</div>
+
+                  {/* Nút "Tất cả hãng" cho danh mục này */}
+                  <button
+                    type="button"
+                    className={`brand-dropdown-item ${isActive && !brandParam ? 'is-selected' : ''}`}
+                    onClick={() => {
+                      handleSelectCategory(cat.key);
+                      handleDropdownBrandSelect('');
+                    }}
+                  >
+                    <span>Tất cả hãng</span>
+                  </button>
+
+                  {/* Danh sách brands */}
+                  {dropdownBrands.map((b) => {
+                    const isSelected =
+                      String(b.id) === String(brandParam) ||
+                      b.slug === brandParam ||
+                      (brandParam && b.name.toLowerCase() === brandParam.toLowerCase());
+
+                    return (
+                      <button
+                        key={b.slug || b.id}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        className={`brand-dropdown-item ${isSelected ? 'is-selected' : ''}`}
+                        onClick={() => {
+                          // Chọn category trước (nếu chưa chọn) rồi chọn brand
+                          if (!isActive) handleSelectCategory(cat.key);
+                          handleDropdownBrandSelect(b.id || b.slug);
+                        }}
+                      >
+                        {b.logoUrl && (
+                          <img
+                            src={b.logoUrl}
+                            alt={b.name}
+                            className="brand-dropdown-logo"
+                            onError={(e) => { e.target.style.display = 'none'; }}
+                          />
+                        )}
+                        <span>{b.displayName || b.name}</span>
+                        {b.productCount != null && b.productCount > 0 && (
+                          <span className="brand-dropdown-count">{b.productCount}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
