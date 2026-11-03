@@ -6,12 +6,6 @@ import {
   Heart, 
   ShoppingCart, 
   User, 
-  Smartphone, 
-  Laptop, 
-  Watch, 
-  Camera, 
-  Headphones, 
-  Gamepad2,
   LogOut,
   ChevronDown,
   Package,
@@ -159,13 +153,6 @@ export const Header = () => {
       setMyShop(null);
     }
   }, [isAuthenticated, user?.role]);
-
-  // Xác định danh mục công nghệ đang chọn trên sub-nav
-  const activeCategoryKey = useMemo(() => {
-    if (location.pathname !== '/products') return null;
-    const params = new URLSearchParams(location.search);
-    return params.get('category');
-  }, [location.pathname, location.search]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -570,73 +557,6 @@ export const Header = () => {
           </div>
         </div>
       </div>
-
-      {/* 2. THANH DANH MỤC PHỤ (Nền xám đậm #2e2e2e có vạch ngăn) */}
-      <nav className="cyber-subnav" aria-label="Danh mục công nghệ">
-        <div className="container">
-          <ul className="cyber-subnav-list">
-            <li className="cyber-subnav-item-wrap">
-              <Link 
-                to="/products?category=phones" 
-                className={`cyber-subnav-link ${activeCategoryKey === 'phones' || activeCategoryKey === 'dien-thoai-tablet' || activeCategoryKey === '1' ? 'active' : ''}`}
-              >
-                <Smartphone className="cyber-subnav-icon" />
-                <span>Điện thoại</span>
-              </Link>
-            </li>
-
-            <li className="cyber-subnav-item-wrap">
-              <Link 
-                to="/products?category=laptops" 
-                className={`cyber-subnav-link ${activeCategoryKey === 'laptops' || activeCategoryKey === 'laptop-may-tinh' || activeCategoryKey === '2' ? 'active' : ''}`}
-              >
-                <Laptop className="cyber-subnav-icon" />
-                <span>Laptop</span>
-              </Link>
-            </li>
-
-            <li className="cyber-subnav-item-wrap">
-              <Link 
-                to="/products?category=smartwatches" 
-                className={`cyber-subnav-link ${activeCategoryKey === 'smartwatches' || activeCategoryKey === 'dong-ho-thong-minh' || activeCategoryKey === '3' ? 'active' : ''}`}
-              >
-                <Watch className="cyber-subnav-icon" />
-                <span>Đồng hồ thông minh</span>
-              </Link>
-            </li>
-
-            <li className="cyber-subnav-item-wrap">
-              <Link 
-                to="/products?category=cameras" 
-                className={`cyber-subnav-link ${activeCategoryKey === 'cameras' || activeCategoryKey === 'may-anh-quay-phim' || activeCategoryKey === '6' ? 'active' : ''}`}
-              >
-                <Camera className="cyber-subnav-icon" />
-                <span>Cameras</span>
-              </Link>
-            </li>
-
-            <li className="cyber-subnav-item-wrap">
-              <Link 
-                to="/products?category=headphones" 
-                className={`cyber-subnav-link ${activeCategoryKey === 'headphones' || activeCategoryKey === 'am-thanh-tai-nghe' || activeCategoryKey === '4' ? 'active' : ''}`}
-              >
-                <Headphones className="cyber-subnav-icon" />
-                <span>Tai nghe</span>
-              </Link>
-            </li>
-
-            <li className="cyber-subnav-item-wrap">
-              <Link 
-                to="/products?category=gaming" 
-                className={`cyber-subnav-link ${activeCategoryKey === 'gaming' || activeCategoryKey === '9' ? 'active' : ''}`}
-              >
-                <Gamepad2 className="cyber-subnav-icon" />
-                <span>Gaming</span>
-              </Link>
-            </li>
-          </ul>
-        </div>
-      </nav>
 
       {/* Modal danh sách yêu thích cho Khách hàng (STT 79-82) */}
       <WishlistModal

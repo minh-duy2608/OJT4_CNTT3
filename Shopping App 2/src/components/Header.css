@@ -233,11 +233,10 @@
 }
 
 /* --------------------------------------------------------------------------
-   2. Sub-Navigation Bar (Dark Charcoal #2e2e2e)
+   2. Sub-Navigation Bar (Đã gỡ bỏ để Banner tiếp giáp trực tiếp với Header)
    -------------------------------------------------------------------------- */
 .cyber-subnav {
-  background-color: #2e2e2e;
-  border-top: 1px solid #383838;
+  display: none !important;
 }
 
 .cyber-subnav-list {
