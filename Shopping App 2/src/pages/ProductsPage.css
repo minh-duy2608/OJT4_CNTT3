@@ -70,13 +70,13 @@
 }
 
 /* ==========================================================================
-   [HOVER-DROPDOWN] Brand Dropdown Menu
+   [HOVER-DROPDOWN] Brand Dropdown Menu (GPU Accelerated & Smooth Animation)
    ========================================================================== */
 .category-brand-dropdown {
   position: absolute;
   top: calc(100% + 8px);
   left: 50%;
-  transform: translateX(-50%) translateY(-6px);
+  transform: translateX(-50%) translateY(8px) translateZ(0);
   min-width: 210px;
   max-width: 290px;
   background-color: #ffffff;
@@ -87,34 +87,32 @@
     0 4px 12px rgba(0, 0, 0, 0.08);
   padding: 0.5rem;
   z-index: 300;
-  /* Hiệu ứng xuất hiện */
+
+  /* GPU Hardware Acceleration & Visibility */
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition:
-    opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity, transform;
+  backface-visibility: hidden;
+  transition: 
+    opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
+    visibility 0.2s;
 }
 
-/* Cầu nối vô hình chống rớt chuột khi di chuyển giữa pill và dropdown */
-.category-brand-dropdown::after {
+/* Khoảng đệm an toàn cho chuột (Pointer Safety Margin) chống mất hover */
+.category-brand-dropdown::before {
   content: '';
   position: absolute;
-  top: -10px;
+  top: -12px;
   left: 0;
   right: 0;
-  height: 10px;
+  height: 12px;
   background: transparent;
 }
 
-/* Trạng thái hiển thị (thêm class .is-open qua JS) */
-.category-brand-dropdown.is-open {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateX(-50%) translateY(0);
-}
-
 /* Mũi tên nhỏ phía trên dropdown */
-.category-brand-dropdown::before {
+.category-brand-dropdown::after {
   content: '';
   position: absolute;
   top: -6px;
@@ -125,6 +123,15 @@
   background-color: #ffffff;
   clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
   filter: drop-shadow(0 -1px 1px rgba(0, 0, 0, 0.06));
+  pointer-events: none;
+}
+
+/* Trạng thái hiển thị (thêm class .is-open khi hover) */
+.category-brand-dropdown.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0) translateZ(0);
 }
 
 /* Tiêu đề nhỏ bên trong dropdown */
