@@ -15,6 +15,19 @@
   --font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
+/* Biến CSS cho Dark Theme */
+:root.dark-theme,
+body.dark-theme {
+  --primary-color: #ffffff;
+  --primary-hover: #e2e8f0;
+  --accent-color: #3b82f6;
+  --text-color: #f8fafc;
+  --text-muted: #94a3b8;
+  --bg-color: #0f172a;
+  --card-bg: #1e293b;
+  --border-color: #334155;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -27,6 +40,7 @@ body {
   color: var(--text-color);
   line-height: 1.6;
   min-height: 100vh;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 a {
@@ -302,3 +316,298 @@ ul {
   font-weight: 700;
   margin-bottom: 0.5rem;
 }
+
+/* ==========================================================================
+   Dark Theme Overrides & Component Tuning
+   ========================================================================== */
+
+/* 1. Header & Navigation in Dark Mode */
+.dark-theme .cyber-header-wrapper,
+.dark-theme .cyber-main-header {
+  background-color: #111827;
+  border-bottom-color: #1f293d;
+}
+
+.dark-theme .cyber-logo {
+  color: #ffffff;
+}
+
+.dark-theme .cyber-search-form {
+  background-color: #1e293b;
+  border-color: #334155;
+}
+
+.dark-theme .cyber-search-form:focus-within {
+  background-color: #1e293b;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+}
+
+.dark-theme .cyber-search-input {
+  color: #f8fafc;
+}
+
+.dark-theme .cyber-search-input::placeholder {
+  color: #64748b;
+}
+
+.dark-theme .cyber-nav-link {
+  color: #94a3b8;
+}
+
+.dark-theme .cyber-nav-link:hover,
+.dark-theme .cyber-nav-link.active {
+  color: #ffffff;
+}
+
+.dark-theme .cyber-action-btn {
+  color: #f8fafc;
+}
+
+.dark-theme .cyber-action-btn:hover {
+  color: #60a5fa;
+}
+
+.dark-theme .cyber-cart-badge {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+.dark-theme .cyber-user-name {
+  color: #f8fafc;
+}
+
+.dark-theme .cyber-user-btn:hover {
+  background-color: #1e293b;
+}
+
+.dark-theme .cyber-auth-dropdown {
+  background-color: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+}
+
+.dark-theme .cyber-dropdown-item {
+  color: #cbd5e1;
+}
+
+.dark-theme .cyber-dropdown-item:hover {
+  background-color: #334155;
+  color: #ffffff;
+}
+
+.dark-theme .cyber-live-search-dropdown {
+  background-color: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+}
+
+.dark-theme .live-search-header {
+  border-bottom-color: #334155;
+  color: #94a3b8;
+}
+
+.dark-theme .live-search-item {
+  border-bottom-color: #334155;
+}
+
+.dark-theme .live-search-item:hover {
+  background-color: #334155;
+}
+
+.dark-theme .live-search-name {
+  color: #f8fafc;
+}
+
+.dark-theme .live-search-footer {
+  background-color: #0f172a;
+  color: #94a3b8;
+  border-top-color: #334155;
+}
+
+/* 2. Product Card in Dark Mode */
+.dark-theme .cyber-product-card {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.dark-theme .cyber-product-card:hover {
+  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.5);
+  border-color: #475569;
+}
+
+.dark-theme .product-card-title {
+  color: #f8fafc;
+}
+
+.dark-theme .product-card-price {
+  color: #38bdf8;
+}
+
+.dark-theme .product-buy-btn {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+.dark-theme .product-buy-btn:hover {
+  background-color: #38bdf8;
+  color: #0f172a;
+}
+
+/* 3. Category & Brand Filter Pills in Dark Mode */
+.dark-theme .category-pill-btn {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #cbd5e1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.dark-theme .category-pill-btn:hover {
+  background-color: #334155;
+  color: #ffffff;
+  border-color: #475569;
+}
+
+.dark-theme .category-pill-btn.is-active {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+}
+
+.dark-theme .category-brand-dropdown {
+  background-color: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+}
+
+.dark-theme .category-brand-dropdown::before {
+  background-color: #1e293b;
+}
+
+.dark-theme .brand-dropdown-header {
+  color: #94a3b8;
+  border-bottom-color: #334155;
+}
+
+.dark-theme .brand-dropdown-item {
+  color: #cbd5e1;
+}
+
+.dark-theme .brand-dropdown-item:hover {
+  background-color: #334155;
+  color: #ffffff;
+}
+
+.dark-theme .brand-dropdown-item.is-selected {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+.dark-theme .brand-filter-bar {
+  border-bottom-color: #334155;
+}
+
+.dark-theme .brand-filter-label {
+  color: #94a3b8;
+}
+
+.dark-theme .brand-pill-btn {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+.dark-theme .brand-pill-btn:hover {
+  background-color: #334155;
+  color: #ffffff;
+  border-color: #475569;
+}
+
+.dark-theme .brand-pill-btn.is-active {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.dark-theme .products-tab-header {
+  border-bottom-color: #334155;
+}
+
+.dark-theme .products-tab-btn {
+  color: #94a3b8;
+}
+
+.dark-theme .products-tab-btn.is-active {
+  color: #ffffff;
+}
+
+.dark-theme .page-number-btn {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+.dark-theme .page-number-btn:hover {
+  background-color: #334155;
+  color: #ffffff;
+}
+
+.dark-theme .page-number-btn.is-active {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.dark-theme .pagination-btn {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+.dark-theme .pagination-btn:hover:not(:disabled) {
+  background-color: #334155;
+  color: #ffffff;
+}
+
+.dark-theme .pagination-status-text {
+  color: #94a3b8;
+}
+
+/* 4. Forms, Inputs & Dialogs in Dark Mode */
+.dark-theme .form-input {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.dark-theme .form-input:focus {
+  border-color: #60a5fa;
+  background-color: #1e293b;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+}
+
+.dark-theme .form-input::placeholder {
+  color: #64748b;
+}
+
+.dark-theme .form-label {
+  color: #e2e8f0;
+}
+
+.dark-theme .card {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.dark-theme .btn {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+.dark-theme .btn:hover {
+  background-color: #2563eb;
+}
+
