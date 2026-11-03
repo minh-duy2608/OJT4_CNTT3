@@ -7,27 +7,21 @@
   padding: 2.5rem 0 3rem;
   margin-top: 32px;
   position: relative;
-  z-index: 1;
+  z-index: 10;
+  overflow: visible;
 }
 
-/* Category Filter Bar - Horizontal Pill Scroller */
+/* Category Filter Bar - Đảm bảo overflow visible để không clip dropdown khi hover */
 .category-filter-bar {
   display: flex;
   align-items: center;
   gap: 0.625rem;
-  overflow-x: auto;
-  /* [HOVER-DROPDOWN] Cho phép dropdown con tràn ra ngoài thanh cuộn */
-  overflow-y: visible;
-  padding: 0.25rem 0 0.85rem;
-  /* [HOVER-DROPDOWN] Thêm padding-bottom để dropdown có khoảng trống */
-  padding-bottom: 1.5rem;
-  margin-bottom: 0.85rem;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.category-filter-bar::-webkit-scrollbar {
-  display: none;
+  flex-wrap: wrap;
+  overflow: visible;
+  position: relative;
+  z-index: 100;
+  padding: 0.25rem 0;
+  margin-bottom: 2rem;
 }
 
 .category-pill-btn {
@@ -66,8 +60,13 @@
    ========================================================================== */
 .category-pill-wrapper {
   position: relative;
-  /* Đảm bảo dropdown không bị clip bởi flex parent */
   flex-shrink: 0;
+  z-index: 50;
+}
+
+.category-pill-wrapper:hover,
+.category-pill-wrapper:focus-within {
+  z-index: 250;
 }
 
 /* ==========================================================================
@@ -75,26 +74,36 @@
    ========================================================================== */
 .category-brand-dropdown {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%) translateY(-6px);
-  min-width: 200px;
-  max-width: 280px;
+  min-width: 210px;
+  max-width: 290px;
   background-color: #ffffff;
   border: 1px solid #e4e4e7;
   border-radius: 12px;
   box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.07),
-    0 10px 32px -4px rgba(0, 0, 0, 0.12),
-    0 2px 8px rgba(0, 0, 0, 0.06);
+    0 12px 28px -4px rgba(0, 0, 0, 0.16),
+    0 4px 12px rgba(0, 0, 0, 0.08);
   padding: 0.5rem;
-  z-index: 200;
+  z-index: 300;
   /* Hiệu ứng xuất hiện */
   opacity: 0;
   pointer-events: none;
   transition:
     opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
     transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Cầu nối vô hình chống rớt chuột khi di chuyển giữa pill và dropdown */
+.category-brand-dropdown::after {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 0;
+  right: 0;
+  height: 10px;
+  background: transparent;
 }
 
 /* Trạng thái hiển thị (thêm class .is-open qua JS) */
@@ -243,6 +252,8 @@
   border-bottom: 1px solid #f0f0f0;
   padding-bottom: 0.25rem;
   margin-top: 10px;
+  position: relative;
+  z-index: 1;
 }
 
 .products-tab-btn {

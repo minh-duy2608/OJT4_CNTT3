@@ -5,7 +5,6 @@ import {
   ChevronLeft, 
   ChevronRight, 
   PackageSearch, 
-  Tag, 
   Smartphone, 
   Laptop, 
   Watch, 
@@ -376,50 +375,7 @@ export const ProductsPage = () => {
         })}
       </div>
 
-      {/* 2. BRAND QUICK FILTER PILLS (TÁCH BIỆT THEO DANH MỤC HIỆN TẠI) */}
-      <div className="brand-filter-bar">
-        <span className="brand-filter-label">
-          <Tag size={15} />
-          {currentCategoryDef ? `Hãng ${currentCategoryDef.name}:` : 'Thương hiệu:'}
-        </span>
-        <button
-          type="button"
-          onClick={() => handleSelectBrand('')}
-          className={`brand-pill-btn ${!brandParam ? 'is-active' : ''}`}
-        >
-          {currentCategoryDef ? `Tất cả hãng ${currentCategoryDef.name}` : 'Tất cả thương hiệu'}
-        </button>
-        {categoryBrands.map((b) => {
-          const isSelected =
-            String(b.id) === String(brandParam) ||
-            b.slug === brandParam ||
-            (brandParam && b.name.toLowerCase() === brandParam.toLowerCase());
-
-          return (
-            <button
-              key={b.slug || b.id}
-              type="button"
-              onClick={() => handleSelectBrand(b.id || b.slug)}
-              className={`brand-pill-btn ${isSelected ? 'is-active' : ''}`}
-            >
-              {b.logoUrl && (
-                <img
-                  src={b.logoUrl}
-                  alt={b.name}
-                  style={{ width: '14px', height: '14px', objectFit: 'contain' }}
-                  onError={(e) => { e.target.style.display = 'none'; }}
-                />
-              )}
-              <span>{b.displayName || b.name}</span>
-              {b.productCount != null && b.productCount > 0 && (
-                <span style={{ fontSize: '0.7rem', opacity: 0.75 }}>({b.productCount})</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* 3. TABS CHỌN CHUẨN FIGMA: New Arrival | Bestseller | Featured Products */}
+      {/* 2. TABS CHỌN CHUẨN FIGMA: New Arrival | Bestseller | Featured Products */}
       <div className="products-tab-header">
         <button
           type="button"
