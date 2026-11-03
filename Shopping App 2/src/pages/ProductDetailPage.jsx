@@ -75,13 +75,13 @@ export const ProductDetailPage = () => {
       });
     }
 
-    if (Array.isArray(product.variants)) {
+    if (Array.isArray(product?.variants)) {
       product.variants.forEach((v) => {
         if (v?.imageUrl) addUrl(v.imageUrl);
       });
     }
 
-    return urls.length > 0 ? urls : [product.image || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80'];
+    return urls.length > 0 ? urls : [product?.image || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80'];
   }, [product]);
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -91,11 +91,15 @@ export const ProductDetailPage = () => {
   // Tự động cuộn thumbnail active vào giữa dải xem
   const scrollThumbnailToCenter = (index) => {
     const targetThumb = thumbnailRefs.current[index];
-    if (targetThumb && thumbnailContainerRef.current) {
-      targetThumb.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-        inline: 'center'
+    const container = thumbnailContainerRef.current;
+    if (targetThumb && container) {
+      const containerWidth = container.offsetWidth;
+      const targetLeft = targetThumb.offsetLeft;
+      const targetWidth = targetThumb.offsetWidth;
+      const scrollPos = targetLeft - (containerWidth / 2) + (targetWidth / 2);
+      container.scrollTo({
+        left: scrollPos,
+        behavior: 'smooth'
       });
     }
   };
@@ -145,7 +149,7 @@ export const ProductDetailPage = () => {
   // Cuộn thanh thumbnail sang trái hoặc phải
   const handleScrollThumbnails = (direction) => {
     if (thumbnailContainerRef.current) {
-      const scrollAmount = direction === 'left' ? -220 : 220;
+      const scrollAmount = direction === 'left' ? -164 : 164;
       thumbnailContainerRef.current.scrollBy({
         left: scrollAmount,
         behavior: 'smooth'

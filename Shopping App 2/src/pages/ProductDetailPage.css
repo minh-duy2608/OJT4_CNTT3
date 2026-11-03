@@ -112,6 +112,192 @@
   background-color: #fef2f2;
 }
 
+/* Gallery Nav Buttons on Big Image */
+.detail-gallery-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #e4e4e7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #18181b;
+  cursor: pointer;
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 0.85;
+}
+
+.detail-main-image-box:hover .detail-gallery-nav-btn {
+  opacity: 1;
+}
+
+.detail-gallery-nav-btn.prev {
+  left: 14px;
+}
+
+.detail-gallery-nav-btn.next {
+  right: 14px;
+}
+
+.detail-gallery-nav-btn:hover {
+  background: #000000;
+  color: #ffffff;
+  border-color: #000000;
+  transform: translateY(-50%) scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.detail-gallery-nav-btn:active {
+  transform: translateY(-50%) scale(0.95);
+}
+
+/* Image Indicator Badge (1 / N) */
+.detail-gallery-indicator {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  letter-spacing: 0.05em;
+  pointer-events: none;
+  z-index: 5;
+  user-select: none;
+}
+
+/* Thumbnail Carousel Container (Hiển thị 5 ảnh thu nhỏ & Cuộn mượt mà) */
+.detail-thumbnail-carousel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  gap: 8px;
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
+/* Scroll buttons for thumbnails */
+.detail-thumb-scroll-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid #e4e4e7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #3f3f46;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+.detail-thumb-scroll-btn:hover {
+  background: #000000;
+  color: #ffffff;
+  border-color: #000000;
+  transform: scale(1.1);
+}
+
+.detail-thumb-scroll-btn:active {
+  transform: scale(0.95);
+}
+
+/* Thumbnails Track: chuẩn hiển thị 5 ảnh (5 * 72px + 4 * 10px = 400px) */
+.detail-thumbnails-track {
+  display: flex;
+  gap: 10px;
+  max-width: 400px;
+  width: 100%;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 4px 2px;
+  align-items: center;
+}
+
+.detail-thumbnails-track::-webkit-scrollbar {
+  display: none;
+}
+
+/* Individual Thumbnail Item */
+.detail-thumbnail-item {
+  width: 72px;
+  height: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  border-radius: 12px;
+  border: 1.5px solid #e4e4e7;
+  background-color: #ffffff;
+  padding: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+  position: relative;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.detail-thumbnail-item:hover {
+  border-color: #71717a;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+}
+
+.detail-thumbnail-item.is-active {
+  border-color: #000000;
+  border-width: 2px;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.12), 0 4px 10px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px) scale(1.03);
+}
+
+.detail-thumbnail-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  transition: transform 0.2s ease;
+}
+
+.detail-thumbnail-item:hover img {
+  transform: scale(1.08);
+}
+
+/* Image change animation */
+.detail-main-img {
+  animation: detailImageFade 0.22s ease-out;
+}
+
+@keyframes detailImageFade {
+  from {
+    opacity: 0.6;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 /* Right: Product Info & Actions */
 .detail-info-col {
   display: flex;
@@ -634,6 +820,7 @@
   .detail-gallery-nav-btn {
     width: 38px;
     height: 38px;
+    opacity: 1;
   }
 
   .detail-gallery-nav-btn.prev {
@@ -644,11 +831,17 @@
     right: 8px;
   }
 
+  .detail-thumbnails-track {
+    max-width: 320px;
+    gap: 8px;
+  }
+
   .detail-thumbnail-item {
-    width: 58px;
-    height: 58px;
-    min-width: 58px;
-    max-width: 58px;
+    width: 56px;
+    height: 56px;
+    min-width: 56px;
+    max-width: 56px;
+    border-radius: 8px;
   }
 }
 
