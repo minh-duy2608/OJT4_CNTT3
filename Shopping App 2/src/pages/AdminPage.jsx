@@ -1223,7 +1223,6 @@ export const AdminPage = () => {
       }
 
       setIsProductModalOpen(false);
-      fetchAdminProducts(prodPage);
       fetchShopProducts(shopProdPage);
     } catch (err) {
       console.error('Save product error:', err);
@@ -2084,13 +2083,13 @@ export const AdminPage = () => {
               </div>
             </div>
 
-            <div className="admin-metric-card" onClick={() => setActiveTab('products')} style={{ cursor: 'pointer' }}>
-              <div className="admin-metric-icon-wrap products">
-                <Package size={22} />
+            <div className="admin-metric-card" onClick={() => setActiveTab('admin-shops')} style={{ cursor: 'pointer' }}>
+              <div className="admin-metric-icon-wrap" style={{ background: '#ecfdf5', color: '#059669' }}>
+                <Store size={22} />
               </div>
               <div className="admin-metric-info">
-                <div className="admin-metric-label">Sản phẩm</div>
-                <div className="admin-metric-val">{prodTotalElements || adminProducts.length} sản phẩm</div>
+                <div className="admin-metric-label">Quản trị Cửa hàng</div>
+                <div className="admin-metric-val">{adminShopsTotalElements || adminShops.length || 1} cửa hàng</div>
               </div>
             </div>
           </div>
@@ -2933,257 +2932,7 @@ export const AdminPage = () => {
         )}
 
         {/* =================================================================== */}
-        {/* TAB 5: QUẢN LÝ SẢN PHẨM & BIẾN THỂ (PRODUCTS - STT 39-44) */}
-        {/* =================================================================== */}
-        {activeTab === 'products' && (
-          <div className="admin-card-container">
-            {/* Toolbar */}
-            <div className="admin-toolbar">
-              <div className="admin-toolbar-left">
-                <div className="admin-search-box">
-                  <Search size={16} className="admin-search-icon" />
-                  <input
-                    type="text"
-                    placeholder="Tìm theo tên sản phẩm, slug..."
-                    value={prodKeyword}
-                    onChange={(e) => setProdKeyword(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') fetchAdminProducts(0);
-                    }}
-                  />
-                  {prodKeyword && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProdKeyword('');
-                        fetchAdminProducts(0);
-                      }}
-                      className="admin-search-clear"
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-
-                {/* Filter Category */}
-                <select
-                  className="admin-select-filter"
-                  value={prodCategoryFilter}
-                  onChange={(e) => {
-                    setProdCategoryFilter(e.target.value);
-                  }}
-                >
-                  <option value="">Tất cả danh mục</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-
-                {/* Filter Brand */}
-                <select
-                  className="admin-select-filter"
-                  value={prodBrandFilter}
-                  onChange={(e) => {
-                    setProdBrandFilter(e.target.value);
-                  }}
-                >
-                  <option value="">Tất cả thương hiệu</option>
-                  {brands.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-
-                <button
-                  type="button"
-                  onClick={() => fetchAdminProducts(0)}
-                  className="admin-btn-action-secondary"
-                  title="Tìm kiếm & lọc sản phẩm"
-                >
-                  <Search size={15} />
-                  Tìm
-                </button>
-              </div>
-
-              <div className="admin-toolbar-right">
-                <button
-                  type="button"
-                  onClick={handleOpenCreateProduct}
-                  className="admin-btn-action-primary"
-                >
-                  <Plus size={16} />
-                  Thêm sản phẩm mới
-                </button>
-              </div>
-            </div>
-
-            {/* Products Table */}
-            <div className="admin-table-wrapper">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '60px' }}>ID</th>
-                    <th style={{ width: '80px' }}>Ảnh</th>
-                    <th>Tên sản phẩm & Mã Slug</th>
-                    <th>Danh mục & Hãng</th>
-                    <th style={{ textAlign: 'center', width: '130px' }}>Số phiên bản</th>
-                    <th style={{ textAlign: 'right', width: '140px' }}>Khoảng giá</th>
-                    <th style={{ textAlign: 'center', width: '110px' }}>Trạng thái</th>
-                    <th style={{ textAlign: 'right', width: '150px' }}>Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {adminProductsLoading ? (
-                    <tr>
-                      <td colSpan="8" style={{ textAlign: 'center', padding: '3rem' }}>
-                        <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto', color: '#64748b' }} />
-                        <div style={{ marginTop: '0.5rem', color: '#64748b' }}>Đang tải danh sách sản phẩm...</div>
-                      </td>
-                    </tr>
-                  ) : adminProducts.length === 0 ? (
-                    <tr>
-                      <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
-                        Không có sản phẩm nào phù hợp với bộ lọc hiện tại.
-                      </td>
-                    </tr>
-                  ) : (
-                    adminProducts.map((p) => {
-                      const primaryImg =
-                        p.images?.find((img) => img.isPrimary)?.imageUrl ||
-                        p.images?.[0]?.imageUrl ||
-                        p.imageUrl ||
-                        '';
-                      return (
-                        <tr key={p.id}>
-                          <td>
-                            <span style={{ fontWeight: 600, color: '#64748b' }}>#{p.id}</span>
-                          </td>
-                          <td>
-                            <div className="admin-product-thumb">
-                              {primaryImg ? (
-                                <img
-                                  src={primaryImg}
-                                  alt={p.name}
-                                  onError={(e) => {
-                                    e.target.onerror = null;
-                                    e.target.style.display = 'none';
-                                  }}
-                                />
-                              ) : (
-                                <Box size={22} color="#94a3b8" />
-                              )}
-                            </div>
-                          </td>
-                          <td>
-                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{p.name}</div>
-                            <code style={{ fontSize: '0.75rem', color: '#475569', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>
-                              /{p.slug}
-                            </code>
-                          </td>
-                          <td>
-                            <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#334155' }}>
-                              {p.category?.name || p.categoryName || '—'}
-                            </div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                              Hãng: {p.brand?.name || p.brandName || '—'}
-                            </div>
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            <span
-                              style={{
-                                display: 'inline-block',
-                                background: '#eff6ff',
-                                color: '#1d4ed8',
-                                border: '1px solid #bfdbfe',
-                                padding: '2px 8px',
-                                borderRadius: '12px',
-                                fontSize: '0.75rem',
-                                fontWeight: 600
-                              }}
-                            >
-                              {p.variants?.length ? `${p.variants.length} phiên bản` : '1 phiên bản'}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ fontWeight: 700, color: '#2563eb', fontSize: '0.84375rem' }}>
-                              {p.minPrice ? Number(p.minPrice).toLocaleString('vi-VN') + ' đ' : 'Liên hệ'}
-                            </div>
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            <span className={`status-pill ${(p.status || 'ACTIVE').toLowerCase()}`}>
-                              {p.status === 'ACTIVE' ? 'Đang bán' : p.status === 'DRAFT' ? 'Bản nháp' : 'Tạm ẩn'}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'inline-flex', gap: '0.35rem', justifyContent: 'flex-end' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleViewProductDetail(p)}
-                                className="admin-btn-action light"
-                                title="Xem chi tiết sản phẩm"
-                              >
-                                <Eye size={15} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditProduct(p)}
-                                className="admin-btn-action light"
-                                title="Chỉnh sửa sản phẩm & phiên bản"
-                              >
-                                <Edit size={15} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenDeleteProduct(p)}
-                                className="admin-btn-action danger"
-                                title="Xóa hoặc ngừng bán sản phẩm"
-                              >
-                                <Trash2 size={15} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            {prodTotalPages > 1 && (
-              <div className="admin-pagination">
-                <div className="admin-pagination-info">
-                  Trang <strong>{prodPage + 1}</strong> / {prodTotalPages} (Tổng <strong>{prodTotalElements}</strong> sản phẩm)
-                </div>
-                <div className="admin-pagination-btns">
-                  <button
-                    type="button"
-                    disabled={prodPage === 0}
-                    onClick={() => fetchAdminProducts(prodPage - 1)}
-                    className="admin-page-btn"
-                  >
-                    <ChevronLeft size={16} /> Trước
-                  </button>
-                  <button
-                    type="button"
-                    disabled={prodPage >= prodTotalPages - 1}
-                    onClick={() => fetchAdminProducts(prodPage + 1)}
-                    className="admin-page-btn"
-                  >
-                    Sau <ChevronRight size={16} />
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* =================================================================== */}
-        {/* TAB 6: QUYỀN HẠN CỦA TÔI (MY PERMISSIONS - STT 26) */}
+        {/* TAB: QUYỀN HẠN CỦA TÔI (MY PERMISSIONS - STT 26) */}
         {/* =================================================================== */}
         {activeTab === 'permissions' && (
           <div className="admin-card-container">
