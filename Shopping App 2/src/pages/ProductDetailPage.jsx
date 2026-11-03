@@ -88,17 +88,23 @@ export const ProductDetailPage = () => {
   const thumbnailContainerRef = useRef(null);
   const thumbnailRefs = useRef([]);
 
-  // Tự động cuộn thumbnail active vào giữa dải xem
+  // Mouse drag trên thanh thumbnail
+  const isThumbDraggingRef = useRef(false);
+  const thumbStartXRef = useRef(0);
+  const thumbScrollLeftRef = useRef(0);
+  const hasThumbMovedRef = useRef(false);
+
+  // Tự động cuộn thumbnail active vào giữa dải xem với tọa độ chính xác tuyệt đối
   const scrollThumbnailToCenter = (index) => {
     const targetThumb = thumbnailRefs.current[index];
     const container = thumbnailContainerRef.current;
     if (targetThumb && container) {
-      const containerWidth = container.offsetWidth;
-      const targetLeft = targetThumb.offsetLeft;
-      const targetWidth = targetThumb.offsetWidth;
-      const scrollPos = targetLeft - (containerWidth / 2) + (targetWidth / 2);
+      const containerRect = container.getBoundingClientRect();
+      const targetRect = targetThumb.getBoundingClientRect();
+      const relativeLeft = targetRect.left - containerRect.left + container.scrollLeft;
+      const scrollPos = relativeLeft - (containerRect.width / 2) + (targetRect.width / 2);
       container.scrollTo({
-        left: scrollPos,
+        left: Math.max(0, scrollPos),
         behavior: 'smooth'
       });
     }
@@ -122,8 +128,9 @@ export const ProductDetailPage = () => {
     }
   }, [galleryImages, selectedImage]);
 
-  // Chọn ảnh bằng click trực tiếp
+  // Chọn ảnh bằng click trực tiếp (hỗ trợ bấm ảnh ở rìa để cuộn hiển thị các ảnh ẩn)
   const handleSelectImageByIndex = (index) => {
+    if (hasThumbMovedRef.current) return;
     if (index < 0 || index >= galleryImages.length) return;
     setActiveImageIndex(index);
     setSelectedImage(galleryImages[index]);
@@ -155,6 +162,28 @@ export const ProductDetailPage = () => {
         behavior: 'smooth'
       });
     }
+  };
+
+  // Xử lý kéo trượt chuột trên thanh thumbnail
+  const handleThumbMouseDown = (e) => {
+    if (!thumbnailContainerRef.current) return;
+    isThumbDraggingRef.current = true;
+    hasThumbMovedRef.current = false;
+    thumbStartXRef.current = e.pageX;
+    thumbScrollLeftRef.current = thumbnailContainerRef.current.scrollLeft;
+  };
+
+  const handleThumbMouseMove = (e) => {
+    if (!isThumbDraggingRef.current || !thumbnailContainerRef.current) return;
+    const delta = e.pageX - thumbStartXRef.current;
+    if (Math.abs(delta) > 5) {
+      hasThumbMovedRef.current = true;
+      thumbnailContainerRef.current.scrollLeft = thumbScrollLeftRef.current - delta;
+    }
+  };
+
+  const handleThumbMouseUp = () => {
+    isThumbDraggingRef.current = false;
   };
 
   // Touch Swipe Gesture (Điện thoại / Tablet)
@@ -625,7 +654,14 @@ export const ProductDetailPage = () => {
                 </button>
               )}
 
-              <div className="detail-thumbnails-track" ref={thumbnailContainerRef}>
+              <div 
+                className="detail-thumbnails-track" 
+                ref={thumbnailContainerRef}
+                onMouseDown={handleThumbMouseDown}
+                onMouseMove={handleThumbMouseMove}
+                onMouseUp={handleThumbMouseUp}
+                onMouseLeave={handleThumbMouseUp}
+              >
                 {galleryImages.map((imgUrl, idx) => {
                   const isActive = idx === activeImageIndex;
                   return (

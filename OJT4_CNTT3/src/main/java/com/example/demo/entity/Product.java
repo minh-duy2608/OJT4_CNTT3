@@ -52,11 +52,11 @@ public class Product {
     @JoinColumn(name = "shop_id", insertable = false, updatable = false)
     private Shop shop;
 
-    @jakarta.persistence.OneToMany(mappedBy = "product", cascade = jakarta.persistence.CascadeType.ALL, fetch = FetchType.LAZY)
+    @jakarta.persistence.OneToMany(mappedBy = "product", fetch = FetchType.LAZY)
     @Builder.Default
     private java.util.List<ProductVariant> variants = new java.util.ArrayList<>();
 
-    @jakarta.persistence.OneToMany(mappedBy = "product", cascade = jakarta.persistence.CascadeType.ALL, fetch = FetchType.LAZY)
+    @jakarta.persistence.OneToMany(mappedBy = "product", fetch = FetchType.LAZY)
     @Builder.Default
     private java.util.List<ProductImage> images = new java.util.ArrayList<>();
 

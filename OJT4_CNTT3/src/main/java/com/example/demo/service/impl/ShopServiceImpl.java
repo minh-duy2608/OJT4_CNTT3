@@ -83,7 +83,7 @@ public class ShopServiceImpl implements ShopService {
 
         Shop savedShop = shopRepository.save(shop);
 
-        // Nâng cấp vai trò người dùng thành SHOP_MANAGER
+        // Nâng cấp vai trò người dùng thành SHOP_MANAGER nhưng vẫn giữ vai trò CLIENT để dùng cả 2 luồng
         RoleEntity managerRole = roleRepository.findByCode("SHOP_MANAGER")
                 .orElseGet(() -> roleRepository.save(RoleEntity.builder()
                         .code("SHOP_MANAGER")
@@ -92,10 +92,19 @@ public class ShopServiceImpl implements ShopService {
                         .isSystem(true)
                         .build()));
 
+        RoleEntity clientRole = roleRepository.findByCode("CLIENT")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("CLIENT")
+                        .name("Khách hàng")
+                        .description("Người dùng mua sắm trên sàn")
+                        .isSystem(true)
+                        .build()));
+
         if (user.getRoles() == null) {
             user.setRoles(new HashSet<>());
         }
         user.getRoles().add(managerRole);
+        user.getRoles().add(clientRole);
 
         boolean isAdmin = isUserAdmin(user);
         if (!isAdmin) {

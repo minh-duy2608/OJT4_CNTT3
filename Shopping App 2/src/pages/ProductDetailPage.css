@@ -230,6 +230,14 @@
   -ms-overflow-style: none;
   padding: 4px 2px;
   align-items: center;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.detail-thumbnails-track:active {
+  cursor: grabbing;
 }
 
 .detail-thumbnails-track::-webkit-scrollbar {

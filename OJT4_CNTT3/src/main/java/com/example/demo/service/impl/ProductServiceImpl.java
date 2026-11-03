@@ -457,7 +457,8 @@ public class ProductServiceImpl implements ProductService {
         if (request.getVariants() != null && !request.getVariants().isEmpty()) {
             List<ProductVariant> existingVariants = productVariantRepository.findByProductIdOrderByPriceAsc(productId);
             Map<Long, ProductVariant> existingById = existingVariants.stream()
-                    .collect(Collectors.toMap(ProductVariant::getId, Function.identity()));
+                    .filter(v -> v.getId() != null)
+                    .collect(Collectors.toMap(ProductVariant::getId, Function.identity(), (a, b) -> a));
             Map<String, ProductVariant> existingBySku = existingVariants.stream()
                     .filter(v -> v.getSku() != null && !v.getSku().isBlank())
                     .collect(Collectors.toMap(v -> v.getSku().trim(), Function.identity(), (a, b) -> a));
@@ -568,6 +569,7 @@ public class ProductServiceImpl implements ProductService {
             productImageRepository.deleteAll(oldImages);
             productImageRepository.flush();
 
+            List<ProductImage> newImages = new ArrayList<>();
             boolean hasPrimary = false;
             for (int i = 0; i < request.getImages().size(); i++) {
                 com.example.demo.dto.request.CreateProductImageRequest imgReq = request.getImages().get(i);
@@ -581,8 +583,9 @@ public class ProductServiceImpl implements ProductService {
                         .isPrimary(isPrimary)
                         .sortOrder(imgReq.getSortOrder() != null ? imgReq.getSortOrder() : i)
                         .build();
-                productImageRepository.save(img);
+                newImages.add(productImageRepository.save(img));
             }
+            savedProduct.setImages(newImages);
         }
 
         return getProductById(productId);

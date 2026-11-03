@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   Users,
@@ -1137,11 +1137,12 @@ export const AdminPage = () => {
   const handleApplySpecPreset = (presetId) => {
     const preset = SPEC_PRESETS.find((p) => p.id === presetId);
     if (!preset) return;
+    const newSpecs = (preset.fields || []).map((f) => ({ name: f, value: '' }));
     setProductFormData((prev) => ({
       ...prev,
-      specifications: preset.specs.map((s) => ({ ...s }))
+      specifications: newSpecs
     }));
-    triggerAlert(`Đã áp dụng mẫu thông số kỹ thuật: ${preset.name}`, 'info');
+    triggerAlert(`Đã áp dụng mẫu thông số kỹ thuật: ${preset.label || preset.id}`, 'info');
   };
 
   // Save product (Create or Edit)
@@ -1167,9 +1168,12 @@ export const AdminPage = () => {
         productFormData.specifications
       );
 
+      const targetShopId = selectedShopId ? Number(selectedShopId) : (myShopInfo?.id || 1);
+
       const payload = {
         name: productFormData.name.trim(),
         slug: productFormData.slug.trim() || generateSlug(productFormData.name),
+        shopId: targetShopId,
         categoryId: Number(productFormData.categoryId),
         brandId: productFormData.brandId ? Number(productFormData.brandId) : null,
         shortDescription: productFormData.shortDescription.trim() || null,
@@ -1178,7 +1182,7 @@ export const AdminPage = () => {
         status: productFormData.status,
         variants: productFormData.variants.map((v, idx) => ({
           id: v.id || null,
-          variantName: v.variantName.trim() || `Phiên bản #${idx + 1}`,
+          variantName: (v.variantName && v.variantName.trim()) || `Phiên bản #${idx + 1}`,
           sku: (v.sku && v.sku.trim()) || `SKU-${currentProductId || Date.now()}-${idx + 1}`,
           color: v.color || null,
           storage: v.storage || null,
@@ -1195,15 +1199,32 @@ export const AdminPage = () => {
       };
 
       if (isEditingProduct) {
-        await productApi.updateProduct(currentProductId, payload);
+        if (targetShopId) {
+          try {
+            await productApi.updateShopProduct(targetShopId, currentProductId, payload);
+          } catch {
+            await productApi.updateProduct(currentProductId, payload);
+          }
+        } else {
+          await productApi.updateProduct(currentProductId, payload);
+        }
         triggerAlert(`Cập nhật sản phẩm "${payload.name}" thành công!`, 'success');
       } else {
-        await productApi.createProduct(payload);
+        if (targetShopId) {
+          try {
+            await productApi.createShopProduct(targetShopId, payload);
+          } catch {
+            await productApi.createProduct(payload);
+          }
+        } else {
+          await productApi.createProduct(payload);
+        }
         triggerAlert(`Tạo sản phẩm mới "${payload.name}" thành công!`, 'success');
       }
 
       setIsProductModalOpen(false);
       fetchAdminProducts(prodPage);
+      fetchShopProducts(shopProdPage);
     } catch (err) {
       console.error('Save product error:', err);
       triggerAlert(err.message || 'Lỗi khi lưu thông tin sản phẩm.', 'error');
@@ -1897,6 +1918,10 @@ export const AdminPage = () => {
       if (!allowedShopTabs.includes(activeTab)) {
         setActiveTab('shops');
       }
+    } else if (isAdminUser) {
+      if (activeTab === 'products') {
+        setActiveTab('shops');
+      }
     }
   }, [isShopManager, isAdminUser, activeTab]);
 
@@ -2160,16 +2185,6 @@ export const AdminPage = () => {
                 Thương hiệu
                 <span className="admin-tab-badge">STT 33-38</span>
               </button>
-
-              <button
-                type="button"
-                className={`admin-tab-btn ${activeTab === 'products' ? 'active' : ''}`}
-                onClick={() => setActiveTab('products')}
-              >
-                <Package size={17} />
-                Quản lý Sản phẩm
-                <span className="admin-tab-badge">STT 39-44</span>
-              </button>
             </>
           )}
 
@@ -2205,15 +2220,17 @@ export const AdminPage = () => {
             <span className="admin-tab-badge">STT 70-73</span>
           </button>
 
-          <button
-            type="button"
-            className={`admin-tab-btn ${activeTab === 'orders' ? 'active' : ''}`}
-            onClick={() => setActiveTab('orders')}
-          >
-            <ShoppingBag size={17} />
-            {isAdminUser ? 'Quản lý Đơn hàng' : 'Đơn hàng Cửa hàng'}
-            <span className="admin-tab-badge">Đơn hàng</span>
-          </button>
+          {!isAdminUser && (
+            <button
+              type="button"
+              className={`admin-tab-btn ${activeTab === 'orders' ? 'active' : ''}`}
+              onClick={() => setActiveTab('orders')}
+            >
+              <ShoppingBag size={17} />
+              Đơn hàng Cửa hàng
+              <span className="admin-tab-badge">Đơn hàng</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -3488,8 +3505,6 @@ export const AdminPage = () => {
                     ) : (
                       <>
                         <option value="1">🏪 Shop #1: Cyber Flagship Store</option>
-                        <option value="2">🏬 Shop #2: Cyber Official Store</option>
-                        <option value="3">🏪 Shop #3: Cyber Gaming Hub</option>
                       </>
                     )}
                   </select>
@@ -3549,7 +3564,15 @@ export const AdminPage = () => {
                 </button>
               </div>
 
-              <div className="admin-toolbar-right">
+              <div className="admin-toolbar-right" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button
+                  type="button"
+                  className="admin-btn-action-primary"
+                  onClick={handleOpenAddProduct}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '0.45rem 1rem' }}
+                >
+                  <Plus size={16} /> Thêm sản phẩm Shop
+                </button>
                 <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
                   Tổng cộng: <strong>{shopProdTotalElements}</strong> sản phẩm cửa hàng
                 </span>
@@ -3629,6 +3652,16 @@ export const AdminPage = () => {
                           </td>
                           <td style={{ textAlign: 'center' }}>
                             <div style={{ display: 'inline-flex', gap: '6px' }}>
+                              <button
+                                type="button"
+                                className="admin-btn-action-primary"
+                                style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                onClick={() => handleOpenEditProduct(p)}
+                                title="STT 48: Chỉnh sửa thông tin chi tiết sản phẩm"
+                              >
+                                <Edit size={13} />
+                                Sửa
+                              </button>
                               <button
                                 type="button"
                                 className="admin-btn-action-secondary"
@@ -3969,8 +4002,6 @@ export const AdminPage = () => {
                     ) : (
                       <>
                         <option value="1">🏪 Shop #1: Cyber Flagship Store</option>
-                        <option value="2">🏬 Shop #2: Cyber Official Store</option>
-                        <option value="3">🏪 Shop #3: Cyber Gaming Hub</option>
                       </>
                     )}
                   </select>
@@ -5091,7 +5122,7 @@ export const AdminPage = () => {
               ) : (
                 <div className="admin-prod-images-grid">
                   {productFormData.images.map((img, idx) => (
-                    <div key={idx} className={`admin-prod-img-card ${img.isPrimary ? 'primary' : ''}`}>
+                    <div key={img.id ? `img-${img.id}` : `img-idx-${idx}`} className={`admin-prod-img-card ${img.isPrimary ? 'primary' : ''}`}>
                       <div className="admin-prod-img-thumb">
                         <img
                           src={img.imageUrl}
@@ -5188,7 +5219,7 @@ export const AdminPage = () => {
                   </thead>
                   <tbody>
                     {productFormData.variants.map((v, idx) => (
-                      <tr key={idx}>
+                      <tr key={v.id ? `var-${v.id}` : `v-idx-${idx}`}>
                         <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>
                           {idx + 1}
                         </td>
@@ -5305,7 +5336,7 @@ export const AdminPage = () => {
                         cursor: 'pointer'
                       }}
                     >
-                      {preset.name}
+                      {preset.label || preset.name}
                     </button>
                   ))}
                   <button
@@ -5346,7 +5377,7 @@ export const AdminPage = () => {
                     </thead>
                     <tbody>
                       {productFormData.specifications.map((spec, sIdx) => (
-                        <tr key={sIdx}>
+                        <tr key={`spec-${sIdx}`}>
                           <td style={{ textAlign: 'center', color: '#94a3b8', fontWeight: 600 }}>{sIdx + 1}</td>
                           <td>
                             <input
