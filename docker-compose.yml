@@ -55,6 +55,7 @@ services:
   # 3. Backend Service (Spring Boot 4 / Java 21)
   # ============================================================================
   backend:
+    image: ${DOCKER_USERNAME:-minhduy2608}/ojt4-backend:latest
     build:
       context: ./OJT4_CNTT3
       dockerfile: Dockerfile
@@ -87,13 +88,14 @@ services:
   # 4. Frontend Service (React Vite + Nginx)
   # ============================================================================
   frontend:
+    image: ${DOCKER_USERNAME:-minhduy2608}/ojt4-frontend:latest
     build:
       context: "./Shopping App 2"
       dockerfile: Dockerfile
     container_name: ojt4_frontend
     restart: always
     ports:
-      - "${FRONTEND_PORT:-3000}:80"
+      - "${FRONTEND_PORT:-80}:80"
     depends_on:
       - backend
     networks:
