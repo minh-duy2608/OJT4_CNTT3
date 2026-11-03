@@ -1,6 +1,6 @@
-﻿import React, { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Twitter, Facebook, Instagram } from 'lucide-react';
+import { Twitter, Facebook, Instagram, Zap, ArrowRight } from 'lucide-react';
 import './Footer.css';
 
 /**
@@ -68,6 +68,52 @@ export const Footer = () => {
   return (
       <footer className="cyber-footer" role="contentinfo">
         <div className="container">
+
+          {/* ================================================================
+              FOOTER PROMO BANNER — Discount / Khuyến mại
+              Nằm phía trên các cột liên kết thông tin
+              ================================================================ */}
+          <div className="footer-promo-banner" aria-label="Ưu đãi giảm giá đặc biệt">
+
+            {/* Cột trái: Badge + Tiêu đề + Mô tả */}
+            <div className="footer-promo-text">
+              <div className="footer-promo-badge">
+                <Zap size={11} strokeWidth={2.5} />
+                HOT DEAL · Flash Sale
+              </div>
+
+              <h2 className="footer-promo-title">
+                Ưu đãi đặc biệt{' '}
+                <span className="footer-promo-title-accent">chỉ hôm nay!</span>
+              </h2>
+
+              <p className="footer-promo-desc">
+                Hàng trăm sản phẩm công nghệ cao cấp — iPhone, MacBook, Samsung — giảm đến{' '}
+                <strong style={{ color: '#f0abfc' }}>50%</strong>. Số lượng có hạn, nhanh tay kẻo lỡ!
+              </p>
+            </div>
+
+            {/* Cột phải: Badge % + Nút CTA */}
+            <div className="footer-promo-cta-col">
+              {/* Vòng tròn % giảm giá */}
+              <div className="footer-promo-discount-badge" aria-label="Giảm đến 50%">
+                <span className="footer-promo-discount-number">50%</span>
+                <span className="footer-promo-discount-label">OFF</span>
+              </div>
+
+              {/* Nút "Xem ưu đãi ngay" → điều hướng sang trang sản phẩm, giữ nguyên route hiện có */}
+              <Link
+                to="/products"
+                className="footer-promo-cta-btn"
+                aria-label="Xem tất cả sản phẩm đang giảm giá"
+              >
+                Xem ưu đãi ngay
+                <ArrowRight size={16} className="footer-promo-cta-arrow" />
+              </Link>
+            </div>
+          </div>
+          {/* END FOOTER PROMO BANNER */}
+
           <div className="cyber-footer-grid">
 
             {/* CỘT 1: THƯƠNG HIỆU & MẠNG XÃ HỘI */}
