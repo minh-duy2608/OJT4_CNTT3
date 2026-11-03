@@ -490,7 +490,7 @@ ul {
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
 }
 
-.dark-theme .category-brand-dropdown::before {
+.dark-theme .category-brand-dropdown::after {
   background-color: #1e293b;
 }
 
