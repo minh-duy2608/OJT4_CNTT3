@@ -1,5 +1,7 @@
 package com.example.demo.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.example.demo.dto.request.AddressRequest;
 import com.example.demo.dto.response.AddressResponse;
 import com.example.demo.dto.response.ApiResponse;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+@Tag(name = "19. Khách hàng - Sổ địa chỉ", description = "Quản lý địa chỉ giao nhận hàng và đặt địa chỉ mặc định")
 @RestController
 @RequestMapping({"/addresses", "/api/v1/addresses"})
 @RequiredArgsConstructor

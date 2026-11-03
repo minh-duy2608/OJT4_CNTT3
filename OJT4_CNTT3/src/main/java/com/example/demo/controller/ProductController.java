@@ -1,5 +1,7 @@
 package com.example.demo.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.example.demo.dto.request.ProductFilterCriteria;
 import com.example.demo.dto.response.ApiResponse;
 import com.example.demo.dto.response.PageResponse;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.math.BigDecimal;
 import java.util.List;
 
+@Tag(name = "12. Khách hàng - Tra cứu Sản phẩm", description = "Xem danh sách, tìm kiếm thời gian thực, chi tiết sản phẩm, bán chạy")
 @RestController
 @RequestMapping({"/products", "/api/v1/products"})
 @RequiredArgsConstructor

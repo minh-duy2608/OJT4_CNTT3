@@ -1,5 +1,7 @@
 package com.example.demo.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.example.demo.dto.request.AddToCartRequest;
 import com.example.demo.dto.request.UpdateCartItemRequest;
 import com.example.demo.dto.response.ApiResponse;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
 import java.util.List;
 
+@Tag(name = "15. Khách hàng - Giỏ hàng", description = "Thêm vào giỏ, cập nhật số lượng, xóa món, đồng bộ giỏ hàng")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping({"/cart", "/api/v1/cart"})

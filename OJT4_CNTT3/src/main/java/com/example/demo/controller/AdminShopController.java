@@ -1,5 +1,7 @@
 package com.example.demo.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.example.demo.dto.request.AdminUpdateShopStatusRequest;
 import com.example.demo.dto.response.ApiResponse;
 import com.example.demo.dto.response.PageResponse;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
 
+@Tag(name = "05. Admin - Kiểm duyệt Cửa hàng", description = "Kiểm duyệt và quản lý trạng thái hoạt động của Shop")
 @RestController
 @RequestMapping({"/admin/shops", "/api/v1/admin/shops"})
 @RequiredArgsConstructor

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+﻿import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   Users,
@@ -1979,6 +1979,17 @@ export const AdminPage = () => {
               <RefreshCw size={15} />
               Làm mới
             </button>
+                        <a
+              href="/swagger-ui/index.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="admin-btn-back-store"
+              title="Mở tài liệu OpenAPI 3.0 & Swagger UI"
+              style={{ background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)', color: '#fff', border: 'none', textDecoration: 'none' }}
+            >
+              <ExternalLink size={15} />
+              Tài liệu API (Swagger)
+            </a>
             <Link to="/" className="admin-btn-back-store">
               <ArrowLeft size={15} />
               Về Cửa hàng

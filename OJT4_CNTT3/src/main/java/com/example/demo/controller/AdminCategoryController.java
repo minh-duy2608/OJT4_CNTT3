@@ -1,5 +1,7 @@
 package com.example.demo.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.example.demo.dto.request.CreateCategoryRequest;
 import com.example.demo.dto.request.UpdateCategoryRequest;
 import com.example.demo.dto.response.ApiResponse;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name = "06. Admin - Quản lý Danh mục", description = "Thêm mới, cập nhật, xóa danh mục sản phẩm")
 @RestController
 @RequestMapping({"/admin/categories", "/api/v1/admin/categories"})
 @RequiredArgsConstructor
