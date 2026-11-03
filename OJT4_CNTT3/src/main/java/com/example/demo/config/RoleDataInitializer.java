@@ -158,19 +158,20 @@ public class RoleDataInitializer implements CommandLineRunner {
                         .description("Quản lý và vận hành cửa hàng")
                         .isSystem(true)
                         .build()));
-        if (managerRole.getPermissions() == null || managerRole.getPermissions().isEmpty()) {
-            Set<String> managerPermCodes = Set.of(
-                    "PRODUCT_CREATE", "PRODUCT_UPDATE_OWN", "PRODUCT_DELETE_OWN", "INVENTORY_MANAGE_OWN",
-                    "COUPON_CREATE_OWN", "COUPON_UPDATE_OWN", "COUPON_VIEW_OWN",
-                    "ORDER_VIEW_OWN", "ORDER_UPDATE_OWN", "REVIEW_VIEW",
-                    "REVIEW_REPLY_OWN", "REPORT_VIEW_OWN", "RETURN_MANAGE_OWN", "NOTIFICATION_VIEW_OWN"
-            );
-            List<PermissionEntity> managerPerms = permissionRepository.findByCodeIn(managerPermCodes);
+        Set<String> managerPermCodes = Set.of(
+                "SHOP_VIEW_ALL", "SHOP_UPDATE_OWN", "PRODUCT_VIEW",
+                "PRODUCT_CREATE", "PRODUCT_UPDATE_OWN", "PRODUCT_DELETE_OWN", "INVENTORY_MANAGE_OWN",
+                "COUPON_CREATE_OWN", "COUPON_UPDATE_OWN", "COUPON_VIEW_OWN",
+                "ORDER_VIEW_OWN", "ORDER_UPDATE_OWN", "REVIEW_VIEW",
+                "REVIEW_REPLY_OWN", "REPORT_VIEW_OWN", "RETURN_MANAGE_OWN", "NOTIFICATION_VIEW_OWN"
+        );
+        List<PermissionEntity> managerPerms = permissionRepository.findByCodeIn(managerPermCodes);
+        if (managerRole.getPermissions() == null || managerRole.getPermissions().size() < managerPerms.size()) {
             managerRole.setPermissions(new HashSet<>(managerPerms));
             roleRepository.save(managerRole);
         }
 
-        // Dọn dẹp các vai trò không còn sử dụng: SHOP_OWNER và SHOP_STAFF
+        // Dọn dẹp các vai trò cũ nếu có (SHOP_OWNER -> chuyển sang SHOP_MANAGER)
         List<String> deprecatedCodes = List.of("SHOP_OWNER", "SHOP_STAFF");
         for (String code : deprecatedCodes) {
             roleRepository.findByCode(code).ifPresent(depRole -> {
@@ -180,12 +181,12 @@ public class RoleDataInitializer implements CommandLineRunner {
                     if (u.getRoles() != null && u.getRoles().contains(depRole)) {
                         u.getRoles().remove(depRole);
                         if (u.getRoles().isEmpty()) {
-                            u.getRoles().add(clientRole);
+                            u.getRoles().add(managerRole);
                         }
                         userChanged = true;
                     }
                     if (u.getRole() == Role.SHOP_OWNER || u.getRole() == Role.SHOP_STAFF) {
-                        u.setRole(Role.CLIENT);
+                        u.setRole(Role.SHOP_MANAGER);
                         userChanged = true;
                     }
                     if (userChanged) {
@@ -283,32 +284,6 @@ public class RoleDataInitializer implements CommandLineRunner {
                     .build();
             userRepository.save(adminUser);
             log.info("Created default admin account admin@gmail.com with password Admin@123456");
-        }
-
-        // 4. Thu hồi quyền ADMIN của bất kỳ tài khoản nào khác không thuộc danh sách quản trị viên được phép
-        List<User> allUsers = userRepository.findAll();
-        for (User u : allUsers) {
-            String email = u.getEmail();
-            if (!"hson05542@gmail.com".equalsIgnoreCase(email) 
-                    && !"son666727@gmail.com".equalsIgnoreCase(email)
-                    && !"admin@gmail.com".equalsIgnoreCase(email)) {
-                boolean changed = false;
-                if (u.getRole() == Role.ROLE_ADMIN || u.getRole() == Role.ADMIN) {
-                    u.setRole(Role.ROLE_USER);
-                    changed = true;
-                }
-                if (u.getRoles() != null && adminRole != null && u.getRoles().contains(adminRole)) {
-                    u.getRoles().remove(adminRole);
-                    if (clientRole != null && u.getRoles().isEmpty()) {
-                        u.getRoles().add(clientRole);
-                    }
-                    changed = true;
-                }
-                if (changed) {
-                    userRepository.save(u);
-                    log.info("Revoked admin privilege from non-admin account: {}", u.getUsername());
-                }
-            }
         }
     }
 

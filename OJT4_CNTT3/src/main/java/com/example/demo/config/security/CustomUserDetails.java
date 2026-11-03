@@ -25,13 +25,17 @@ public class CustomUserDetails implements UserDetails {
         Set<GrantedAuthority> authorities = new HashSet<>();
         if (user.getRole() != null) {
             String roleName = user.getRole().name();
-            authorities.add(new SimpleGrantedAuthority(roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName));
+            String rolePrefixed = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;
+            authorities.add(new SimpleGrantedAuthority(rolePrefixed));
+            authorities.add(new SimpleGrantedAuthority(roleName.startsWith("ROLE_") ? roleName.substring(5) : roleName));
         }
         if (user.getRoles() != null && !user.getRoles().isEmpty()) {
             for (RoleEntity roleEntity : user.getRoles()) {
                 String code = roleEntity.getCode();
                 if (code != null && !code.isBlank()) {
-                    authorities.add(new SimpleGrantedAuthority(code.startsWith("ROLE_") ? code : "ROLE_" + code));
+                    String codePrefixed = code.startsWith("ROLE_") ? code : "ROLE_" + code;
+                    authorities.add(new SimpleGrantedAuthority(codePrefixed));
+                    authorities.add(new SimpleGrantedAuthority(code.startsWith("ROLE_") ? code.substring(5) : code));
                 }
             }
         }

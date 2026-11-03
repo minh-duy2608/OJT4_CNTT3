@@ -70,6 +70,7 @@ export const AuthPage = () => {
   const [errors, setErrors] = useState({});
 
   const { 
+    user,
     login, 
     register, 
     forgotPassword, 
@@ -87,10 +88,28 @@ export const AuthPage = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/products');
+    if (isAuthenticated && user) {
+      const roleStr = (user?.role || '').toUpperCase();
+      const hasAdmin = roleStr === 'ADMIN' || roleStr === 'ROLE_ADMIN' ||
+        (Array.isArray(user?.roles) && user.roles.some(r => {
+          const code = (typeof r === 'string' ? r : r?.code || '').toUpperCase();
+          return code === 'ADMIN' || code === 'ROLE_ADMIN';
+        }));
+      const isManager = roleStr === 'SHOP_MANAGER' || roleStr === 'ROLE_SHOP_MANAGER' || roleStr === 'SHOP_OWNER' ||
+        (Array.isArray(user?.roles) && user.roles.some(r => {
+          const code = (typeof r === 'string' ? r : r?.code || '').toUpperCase();
+          return code === 'SHOP_MANAGER' || code === 'ROLE_SHOP_MANAGER' || code === 'SHOP_OWNER';
+        }));
+
+      if (hasAdmin) {
+        navigate('/admin');
+      } else if (isManager) {
+        navigate('/admin?tab=shops');
+      } else {
+        navigate('/products');
+      }
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, user, navigate]);
 
   // Resend Countdown Timer
   useEffect(() => {
@@ -186,8 +205,9 @@ export const AuthPage = () => {
         });
         
         // Phân quyền nghiệp vụ sau đăng nhập:
-        // Nếu tài khoản có vai trò ADMIN thì chuyển thẳng vào Trung tâm Quản trị Cyber (/admin)
-        // Nếu là khách hàng bình thường thì điều hướng đến trang mua sắm (/products)
+        // - Nếu tài khoản có vai trò ADMIN: Chuyển thẳng vào Trung tâm Quản trị Cyber (/admin)
+        // - Nếu tài khoản có vai trò SHOP_MANAGER: Chuyển vào Kênh Quản lý Cửa hàng (/admin?tab=shops)
+        // - Nếu là khách hàng thông thường: Điều hướng đến trang mua sắm (/products)
         const roleStr = (loggedUser?.role || '').toUpperCase();
         const hasAdminRole = roleStr === 'ADMIN' || roleStr === 'ROLE_ADMIN' ||
           (Array.isArray(loggedUser?.roles) && loggedUser.roles.some(r => {
@@ -195,8 +215,16 @@ export const AuthPage = () => {
             return code === 'ADMIN' || code === 'ROLE_ADMIN';
           }));
 
+        const isShopManager = roleStr === 'SHOP_MANAGER' || roleStr === 'ROLE_SHOP_MANAGER' || roleStr === 'SHOP_OWNER' ||
+          (Array.isArray(loggedUser?.roles) && loggedUser.roles.some(r => {
+            const code = (typeof r === 'string' ? r : r?.code || '').toUpperCase();
+            return code === 'SHOP_MANAGER' || code === 'ROLE_SHOP_MANAGER' || code === 'SHOP_OWNER';
+          }));
+
         if (hasAdminRole) {
           navigate('/admin');
+        } else if (isShopManager) {
+          navigate('/admin?tab=shops');
         } else {
           navigate('/products');
         }

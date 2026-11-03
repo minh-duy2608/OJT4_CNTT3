@@ -64,8 +64,11 @@ public class SecurityConfig {
                                 "/brands/**", "/api/v1/brands/**",
                                 "/products", "/api/v1/products",
                                 "/products/**", "/api/v1/products/**",
+                                "/shops", "/api/v1/shops",
+                                "/shops/*", "/api/v1/shops/*",
                                 "/shops/*/products", "/api/v1/shops/*/products",
-                                "/shops/*/products/**", "/api/v1/shops/*/products/**"
+                                "/shops/*/products/**", "/api/v1/shops/*/products/**",
+                                "/shops/*/coupons", "/api/v1/shops/*/coupons"
                         ).permitAll()
                         .requestMatchers(
                                 org.springframework.http.HttpMethod.HEAD,
@@ -76,7 +79,8 @@ public class SecurityConfig {
                                 "/products", "/api/v1/products",
                                 "/products/**", "/api/v1/products/**",
                                 "/shops/*/products", "/api/v1/shops/*/products",
-                                "/shops/*/products/**", "/api/v1/shops/*/products/**"
+                                "/shops/*/products/**", "/api/v1/shops/*/products/**",
+                                "/shops/*/coupons", "/api/v1/shops/*/coupons"
                         ).permitAll()
                         // Public Authentication & Resource Endpoints
                         .requestMatchers(
@@ -94,14 +98,28 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/error"
                         ).permitAll()
-                        // Authenticated User Profile & Logout Endpoints
+                        // Authenticated User Profile, Orders, Cart, Wishlist, Addresses, Coupons & Logout Endpoints
                         .requestMatchers(
                                 "/auth/me", "/api/v1/auth/me",
                                 "/auth/me/**", "/api/v1/auth/me/**",
-                                "/auth/logout", "/api/v1/auth/logout"
+                                "/auth/logout", "/api/v1/auth/logout",
+                                "/cart", "/api/v1/cart",
+                                "/cart/**", "/api/v1/cart/**",
+                                "/orders", "/api/v1/orders",
+                                "/orders/**", "/api/v1/orders/**",
+                                "/wishlist", "/api/v1/wishlist",
+                                "/wishlist/**", "/api/v1/wishlist/**",
+                                "/addresses", "/api/v1/addresses",
+                                "/addresses/**", "/api/v1/addresses/**",
+                                "/coupons/validate", "/api/v1/coupons/validate"
                         ).authenticated()
+                        // Inventory & Shop Management Endpoints
+                        .requestMatchers(
+                                "/shops/*/inventory", "/api/v1/shops/*/inventory",
+                                "/shops/*/inventory/**", "/api/v1/shops/*/inventory/**"
+                        ).hasAnyRole("ADMIN", "SHOP_MANAGER", "SHOP_OWNER")
                         // Admin Endpoints
-                        .requestMatchers("/api/v1/admin/**", "/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/admin/**", "/admin/**").hasAnyRole("ADMIN", "SHOP_MANAGER", "SHOP_OWNER")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

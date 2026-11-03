@@ -278,8 +278,13 @@ public class AdminUserServiceImpl implements AdminUserService {
             newRoles.add(roleEntity);
         }
 
-        // Cập nhật tập roles
-        user.setRoles(newRoles);
+        // Cập nhật tập roles an toàn trên Hibernate PersistentCollection
+        if (user.getRoles() == null) {
+            user.setRoles(new HashSet<>(newRoles));
+        } else {
+            user.getRoles().clear();
+            user.getRoles().addAll(newRoles);
+        }
 
         // Đồng bộ thuộc tính role chính (primary role) trên User
         if (willHaveAdmin) {

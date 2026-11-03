@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { cartApi } from '../services/cartApi';
 
 const CartContext = createContext();
 
@@ -35,6 +36,48 @@ export const CartProvider = ({ children }) => {
   const [cartBumping, setCartBumping] = useState(false);
 
   const [toastMessage, setToastMessage] = useState(null);
+
+  // Tự động đồng bộ giỏ hàng với Backend khi người dùng đăng nhập
+  const syncWithBackendCart = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const res = await cartApi.getCart();
+      if (res && res.items) {
+        if (res.items.length > 0) {
+          const beMapped = res.items.map(it => ({
+            id: it.id,
+            backendItemId: it.id,
+            variantId: it.variantId,
+            productId: it.productId,
+            name: `${it.productName}${it.variantName ? ` (${it.variantName})` : ''}`,
+            price: Number(it.salePrice || it.price || 0),
+            quantity: it.quantity,
+            image: it.imageUrl,
+            stockQuantity: it.stockQuantity
+          }));
+          setCartItems(beMapped);
+          setSelectedItemIds(prev => (prev.length > 0 ? prev : beMapped.map(i => i.id)));
+        } else if (cartItems.length > 0) {
+          // Nếu giỏ hàng trên DB đang rỗng mà local có hàng -> đẩy từ local lên DB
+          const syncItems = cartItems
+            .filter(it => it.variantId || (typeof it.id === 'number'))
+            .map(it => ({
+              variantId: it.variantId || it.id,
+              quantity: it.quantity
+            }));
+          if (syncItems.length > 0) {
+            await cartApi.syncCart(syncItems);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Backend cart sync warning:', err);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    syncWithBackendCart();
+  }, [syncWithBackendCart]);
 
   // Đồng bộ giỏ hàng vào localStorage
   useEffect(() => {
@@ -114,7 +157,7 @@ export const CartProvider = ({ children }) => {
   };
 
   // Thêm sản phẩm vào giỏ hàng (tự động chọn sản phẩm vừa thêm)
-  const addToCart = (product, quantity = 1, options = {}) => {
+  const addToCart = async (product, quantity = 1, options = {}) => {
     if (!isAuthenticated) {
       showToast('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng và mua hàng!', 'warning');
       return { success: false, requireAuth: true };
@@ -138,22 +181,50 @@ export const CartProvider = ({ children }) => {
       triggerFlyToCart(product.image, options.startRect || null);
     }
 
+    // Đồng bộ ngay lên Backend
+    const varId = product.variantId || (typeof product.id === 'number' ? product.id : null);
+    if (varId) {
+      try {
+        await cartApi.addToCart(varId, quantity);
+      } catch (err) {
+        console.warn('Could not sync addToCart with backend:', err);
+      }
+    }
+
     return { success: true };
   };
 
-  const removeFromCart = (id) => {
+  const removeFromCart = async (id) => {
+    const target = cartItems.find((item) => item.id === id);
     setCartItems((prev) => prev.filter((item) => item.id !== id));
     setSelectedItemIds((prev) => prev.filter((itemId) => itemId !== id));
+
+    if (target?.backendItemId) {
+      try {
+        await cartApi.removeItem(target.backendItemId);
+      } catch (err) {
+        console.warn('Could not remove item from backend cart:', err);
+      }
+    }
   };
 
-  const updateQuantity = (id, quantity) => {
+  const updateQuantity = async (id, quantity) => {
     if (quantity <= 0) {
       removeFromCart(id);
       return;
     }
+    const target = cartItems.find((item) => item.id === id);
     setCartItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, quantity } : item))
     );
+
+    if (target?.backendItemId) {
+      try {
+        await cartApi.updateQuantity(target.backendItemId, quantity);
+      } catch (err) {
+        console.warn('Could not update quantity on backend cart:', err);
+      }
+    }
   };
 
   // ================= QUẢN LÝ CHỌN SẢN PHẨM ĐỂ THANH TOÁN =================
@@ -175,9 +246,14 @@ export const CartProvider = ({ children }) => {
   };
 
   // Xóa toàn bộ giỏ hàng
-  const clearCart = () => {
+  const clearCart = async () => {
     setCartItems([]);
     setSelectedItemIds([]);
+    try {
+      await cartApi.clearCart();
+    } catch (err) {
+      console.warn('Could not clear backend cart:', err);
+    }
   };
 
   // Xóa chỉ những sản phẩm đã chọn (dùng sau khi đặt hàng thành công)

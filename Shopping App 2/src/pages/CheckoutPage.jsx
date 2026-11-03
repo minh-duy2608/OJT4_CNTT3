@@ -23,6 +23,7 @@ import { formatVND } from '../data/products';
 import { AVAILABLE_VOUCHERS, calculateVoucherDiscount } from '../data/vouchers';
 import { validatePhone } from '../utils/validation';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { couponApi } from '../services/couponApi';
 import './CheckoutPage.css';
 
 export const CheckoutPage = () => {
@@ -135,8 +136,8 @@ export const CheckoutPage = () => {
   // Tổng thanh toán cuối cùng
   const finalTotal = Math.max(0, subtotalToCheckout + finalShippingFee - (appliedVoucher?.type === 'shipping' ? 0 : discountAmount));
 
-  // Xử lý áp dụng Voucher
-  const handleApplyVoucher = (codeToApply) => {
+  // Xử lý áp dụng Voucher (STT 90: POST /coupons/validate)
+  const handleApplyVoucher = async (codeToApply) => {
     const code = (codeToApply || voucherCodeInput).trim().toUpperCase();
     setVoucherError('');
     setVoucherSuccess('');
@@ -146,15 +147,43 @@ export const CheckoutPage = () => {
       return;
     }
 
-    const result = calculateVoucherDiscount(code, subtotalToCheckout, baseShippingFee);
-    if (!result.valid) {
-      setVoucherError(result.message);
-      return;
-    }
+    try {
+      const itemsPayload = itemsToCheckout.map((it) => ({
+        productId: it.productId || it.id,
+        variantId: it.variantId || null,
+        quantity: it.quantity || 1
+      }));
 
-    setAppliedVoucher(result.voucher);
-    setVoucherCodeInput(result.voucher.code);
-    setVoucherSuccess(result.message);
+      const res = await couponApi.validateCoupon({
+        code,
+        items: itemsPayload
+      });
+
+      if (res && res.valid) {
+        setAppliedVoucher({
+          code: res.couponCode,
+          type: 'fixed',
+          value: Number(res.discountAmount || 0),
+          title: `Giảm giá mã ${res.couponCode}`
+        });
+        setVoucherCodeInput(res.couponCode);
+        setVoucherSuccess(res.message || `Đã áp dụng mã giảm giá ${res.couponCode}`);
+        return;
+      } else {
+        setVoucherError(res?.message || 'Mã giảm giá không hợp lệ.');
+        return;
+      }
+    } catch (err) {
+      // Fallback local voucher validator if coupon not found in server DB
+      const result = calculateVoucherDiscount(code, subtotalToCheckout, baseShippingFee);
+      if (result.valid) {
+        setAppliedVoucher(result.voucher);
+        setVoucherCodeInput(result.voucher.code);
+        setVoucherSuccess(result.message);
+      } else {
+        setVoucherError(err.message || result.message || 'Mã giảm giá không hợp lệ.');
+      }
+    }
   };
 
   const handleRemoveVoucher = () => {
@@ -218,18 +247,19 @@ export const CheckoutPage = () => {
   };
 
   // Tiến hành ghi nhận đơn hàng sau khi người dùng bấm xác nhận trên Model Box
-  const handleExecutePlaceOrder = () => {
+  const handleExecutePlaceOrder = async () => {
     setShowConfirmOrderModal(false);
     const selectedAddr = addresses.find((a) => a.id === selectedAddressId);
     if (!selectedAddr) return;
 
     setIsSubmitting(true);
 
-    setTimeout(() => {
+    try {
       const orderPayload = {
         shippingAddress: selectedAddr,
         items: itemsToCheckout.map((item) => ({
           id: item.id,
+          variantId: item.variantId || (typeof item.id === 'number' ? item.id : null),
           productId: item.productId || (typeof item.id === 'string' ? parseInt(item.id.split('-')[0], 10) : item.id),
           name: item.name,
           price: item.price,
@@ -247,7 +277,7 @@ export const CheckoutPage = () => {
         notes: orderNotes.trim()
       };
 
-      const created = createOrder(orderPayload);
+      await createOrder(orderPayload);
 
       if (isBuyNowMode) {
         // Luồng Mua ngay: chỉ dọn session mua ngay, TUYỆT ĐỐI KHÔNG XÓA GIỎ HÀNG
@@ -262,10 +292,13 @@ export const CheckoutPage = () => {
         } catch {}
       }
 
-      setIsSubmitting(false);
       showToast('Đặt hàng thành công!', 'success');
       navigate('/orders');
-    }, 700);
+    } catch (err) {
+      showToast(err.message || 'Lỗi đặt hàng', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isAuthenticated) {
