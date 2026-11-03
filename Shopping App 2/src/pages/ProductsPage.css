@@ -3,7 +3,11 @@
    ========================================================================== */
 
 .cyber-products-container {
+  /* [FIX-3] Tách biệt rõ ràng với Banner phía trên, tránh dính liền hoặc đè lớp */
   padding: 2.5rem 0 3rem;
+  margin-top: 32px;
+  position: relative;
+  z-index: 1;
 }
 
 /* Category Filter Bar - Horizontal Pill Scroller */

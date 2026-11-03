@@ -209,7 +209,6 @@ export const HeroBanner = () => {
         style={{
           backgroundColor: '#1b1a20',
           backgroundImage: 'radial-gradient(ellipse at 75% 50%, rgba(168, 85, 247, 0.12) 0%, transparent 65%)',
-          minHeight: '480px'
         }}
         aria-label="Đang tải dữ liệu banner..."
       >
