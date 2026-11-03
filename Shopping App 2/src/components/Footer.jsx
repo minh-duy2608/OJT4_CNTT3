@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Link } from 'react-router-dom';
 import { Twitter, Facebook, Instagram } from 'lucide-react';
 import './Footer.css';
@@ -71,6 +71,11 @@ export const Footer = () => {
             <h3 className="cyber-footer-heading">Dịch vụ</h3>
             <ul className="cyber-footer-links">
               <li>
+                <a href="/swagger-ui/index.html" target="_blank" rel="noopener noreferrer" className="cyber-footer-link" style={{ color: '#10b981', fontWeight: 600 }}>
+                  ⚡ Tài liệu API (Swagger UI)
+                </a>
+              </li>
+              <li>
                 <Link to="/products" className="cyber-footer-link">
                   Chương trình khuyến mãi
                 </Link>
@@ -107,6 +112,11 @@ export const Footer = () => {
           <div className="cyber-footer-col">
             <h3 className="cyber-footer-heading">Hỗ trợ cho người mua</h3>
             <ul className="cyber-footer-links">
+              <li>
+                <a href="/swagger-ui/index.html" target="_blank" rel="noopener noreferrer" className="cyber-footer-link" style={{ color: '#10b981', fontWeight: 600 }}>
+                  ⚡ Tài liệu API (Swagger UI)
+                </a>
+              </li>
               <li>
                 <Link to="/orders" className="cyber-footer-link">
                   Tìm kiếm đơn đặt hàng

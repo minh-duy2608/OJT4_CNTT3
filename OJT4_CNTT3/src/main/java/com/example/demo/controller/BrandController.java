@@ -1,4 +1,6 @@
-package com.example.demo.controller;
+﻿package com.example.demo.controller;
+
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.example.demo.dto.response.ApiResponse;
 import com.example.demo.dto.response.BrandResponse;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+@Tag(name = "14. Khách hàng - Thương hiệu", description = "Xem danh sách thương hiệu và sản phẩm theo hãng")
 @RestController
 @RequestMapping({"/brands", "/api/v1/brands"})
 @RequiredArgsConstructor

@@ -1,4 +1,6 @@
-package com.example.demo.controller;
+﻿package com.example.demo.controller;
+
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.example.demo.dto.request.RegisterShopRequest;
 import com.example.demo.dto.response.ApiResponse;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.security.Principal;
 import java.util.List;
 
+@Tag(name = "09. Người bán - Đăng ký & Hồ sơ Shop", description = "Đăng ký mở shop, xem và sửa thông tin cửa hàng")
 @RestController
 @RequestMapping({"/shops", "/api/v1/shops"})
 @RequiredArgsConstructor

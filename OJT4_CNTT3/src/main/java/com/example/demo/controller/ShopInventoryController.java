@@ -1,4 +1,6 @@
-package com.example.demo.controller;
+﻿package com.example.demo.controller;
+
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.example.demo.dto.request.AdjustInventoryRequest;
 import com.example.demo.dto.response.ApiResponse;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.security.Principal;
 import java.util.List;
 
+@Tag(name = "11. Người bán - Quản lý Kho hàng", description = "Kiểm tra tồn kho, cảnh báo hết hàng và điều chỉnh số lượng")
 @RestController
 @RequestMapping({"/shops/{shopId}/inventory", "/api/v1/shops/{shopId}/inventory"})
 @RequiredArgsConstructor

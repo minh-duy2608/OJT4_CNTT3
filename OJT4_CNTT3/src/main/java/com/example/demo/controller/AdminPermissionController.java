@@ -1,4 +1,6 @@
-package com.example.demo.controller;
+﻿package com.example.demo.controller;
+
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.example.demo.dto.response.ApiResponse;
 import com.example.demo.dto.response.PermissionResponse;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+@Tag(name = "04. Admin - Danh mục Quyền (Permissions)", description = "Tra cứu toàn bộ quyền hạn trong hệ thống")
 @RestController
 @RequestMapping({"/admin/permissions", "/api/v1/admin/permissions"})
 @RequiredArgsConstructor

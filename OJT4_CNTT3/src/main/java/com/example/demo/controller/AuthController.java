@@ -1,4 +1,6 @@
-package com.example.demo.controller;
+﻿package com.example.demo.controller;
+
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.example.demo.dto.request.ChangePasswordRequest;
 import com.example.demo.dto.request.ForgotPasswordRequest;
@@ -33,6 +35,7 @@ import java.security.Principal;
 import java.util.Map;
 import java.util.Set;
 
+@Tag(name = "01. Xác thực & Danh tính (Auth & IAM)", description = "Đăng ký, Đăng nhập, Quản lý Token JWT, Quên mật khẩu, OTP Email")
 @RestController
 @RequestMapping({"/auth", "/api/v1/auth"})
 @RequiredArgsConstructor

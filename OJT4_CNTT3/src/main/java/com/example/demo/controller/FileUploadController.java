@@ -1,4 +1,6 @@
-package com.example.demo.controller;
+﻿package com.example.demo.controller;
+
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.example.demo.dto.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +22,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
+@Tag(name = "20. Tiện ích - Upload Tệp tin", description = "Tải ảnh sản phẩm, banner, avatar lên máy chủ")
 @RestController
 @RequestMapping({"/upload", "/api/v1/upload"})
 public class FileUploadController {

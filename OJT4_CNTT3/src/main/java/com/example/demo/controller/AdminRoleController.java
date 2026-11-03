@@ -1,4 +1,6 @@
-package com.example.demo.controller;
+﻿package com.example.demo.controller;
+
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.example.demo.dto.request.AssignRolePermissionsRequest;
 import com.example.demo.dto.request.CreateRoleRequest;
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+@Tag(name = "03. Admin - Quản lý Vai trò (Roles)", description = "Tạo, sửa, xóa Vai trò và gán quyền chi tiết")
 @RestController
 @RequestMapping({"/admin/roles", "/api/v1/admin/roles"})
 @RequiredArgsConstructor
