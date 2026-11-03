@@ -25,6 +25,7 @@ import { shopApi } from '../services/shopApi';
 import { formatVND } from '../data/products';
 import { RegisterShopModal } from './RegisterShopModal';
 import { WishlistModal } from './WishlistModal';
+import { ThemeToggle } from './ThemeToggle';
 import './Header.css';
 
 // Logo SVG icon hình tam giác công nghệ của Cyber
@@ -395,8 +396,11 @@ export const Header = () => {
             </ul>
           </nav>
 
-          {/* Nhóm Icons tác vụ: Yêu thích, Giỏ hàng, Tài khoản */}
+          {/* Nhóm Icons tác vụ: Theme Toggle, Yêu thích, Giỏ hàng, Tài khoản */}
           <div className="cyber-actions">
+            {/* Nút chuyển đổi Dark / Light mode */}
+            <ThemeToggle />
+
             {/* Wishlist - STT 79 */}
             <button 
               type="button" 
