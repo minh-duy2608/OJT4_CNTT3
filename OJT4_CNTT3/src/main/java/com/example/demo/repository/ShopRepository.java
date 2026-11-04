@@ -24,7 +24,11 @@ public interface ShopRepository extends JpaRepository<Shop, Long> {
 
     Optional<Shop> findFirstByOwnerIdOrderByIdDesc(Long ownerId);
 
+    boolean existsByOwnerId(Long ownerId);
+
     List<Shop> findByOwnerId(Long ownerId);
+
+    List<Shop> findByOwnerIdIn(java.util.Collection<Long> ownerIds);
 
     @Query("SELECT s FROM Shop s WHERE (:status IS NULL OR s.status = :status) " +
            "AND (:keyword IS NULL OR LOWER(s.name) LIKE LOWER(CONCAT('%', :keyword, '%')) " +

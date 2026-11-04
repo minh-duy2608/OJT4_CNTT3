@@ -214,14 +214,26 @@ export const AdminPage = () => {
   // Open role assign modal (API 16 & 17)
   const handleOpenRoleAssign = async (u) => {
     setRoleAssignUser(u);
+    const userOwnsShop = Boolean(
+      u.ownsShop ||
+      adminShops.some((s) => s.ownerId === u.id && s.status !== 'REJECTED')
+    );
     try {
       const userRoles = await adminUserApi.getUserRoles(u.id);
-      setSelectedRoleCodes(userRoles.map((r) => r.code));
+      let codes = userRoles.map((r) => r.code);
+      if (userOwnsShop && !codes.includes('SHOP_MANAGER')) {
+        codes.push('SHOP_MANAGER');
+      }
+      setSelectedRoleCodes(codes);
       setIsRoleAssignModalOpen(true);
     } catch (err) {
       // Fallback: extract from user object
       const currentRoles = (u.roles || []).map((r) => (typeof r === 'string' ? r : r.code));
-      setSelectedRoleCodes(currentRoles.length > 0 ? currentRoles : [u.role]);
+      let codes = currentRoles.length > 0 ? currentRoles : [u.role];
+      if (userOwnsShop && !codes.includes('SHOP_MANAGER')) {
+        codes.push('SHOP_MANAGER');
+      }
+      setSelectedRoleCodes(codes);
       setIsRoleAssignModalOpen(true);
     }
   };
@@ -232,9 +244,20 @@ export const AdminPage = () => {
       triggerAlert('Người dùng phải có ít nhất một vai trò hệ thống.', 'error');
       return;
     }
+
+    const userOwnsShop = Boolean(
+      roleAssignUser.ownsShop ||
+      adminShops.some((s) => s.ownerId === roleAssignUser.id && s.status !== 'REJECTED')
+    );
+
+    let finalRoleCodes = [...selectedRoleCodes];
+    if (userOwnsShop && !finalRoleCodes.includes('SHOP_MANAGER')) {
+      finalRoleCodes.push('SHOP_MANAGER');
+    }
+
     setIsSavingRoles(true);
     try {
-      await adminUserApi.assignUserRoles(roleAssignUser.id, { roles: selectedRoleCodes });
+      await adminUserApi.assignUserRoles(roleAssignUser.id, { roles: finalRoleCodes });
       triggerAlert(`Đã cập nhật tập vai trò cho người dùng ${roleAssignUser.username} thành công!`, 'success');
       if (roleAssignUser.id === user?.id && typeof refreshUser === 'function') {
         await refreshUser();
@@ -2381,7 +2404,7 @@ export const AdminPage = () => {
                           </td>
                           <td>{u.phone || '—'}</td>
                           <td>
-                            <div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
                               {userRolesList.map((rCode) => {
                                 const lower = rCode.toLowerCase();
                                 return (
@@ -2390,6 +2413,22 @@ export const AdminPage = () => {
                                   </span>
                                 );
                               })}
+                              {(u.ownsShop || adminShops.some((s) => s.ownerId === u.id && s.status !== 'REJECTED')) && (
+                                <span
+                                  title={`Chủ sở hữu cửa hàng: ${u.ownedShopName || 'Shop chính thức'}`}
+                                  style={{
+                                    fontSize: '0.6875rem',
+                                    fontWeight: 700,
+                                    color: '#059669',
+                                    background: '#ecfdf5',
+                                    padding: '2px 7px',
+                                    borderRadius: '12px',
+                                    border: '1px solid #a7f3d0'
+                                  }}
+                                >
+                                  🏪 Chủ shop
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td>
@@ -4089,7 +4128,14 @@ export const AdminPage = () => {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 {roles.map((r) => {
-                  const isChecked = selectedRoleCodes.includes(r.code);
+                  const isShopManagerRole = r.code === 'SHOP_MANAGER' || r.code === 'ROLE_SHOP_MANAGER';
+                  const userOwnsShop = Boolean(
+                    roleAssignUser?.ownsShop ||
+                    adminShops.some((s) => s.ownerId === roleAssignUser?.id && s.status !== 'REJECTED')
+                  );
+                  const isShopManagerLocked = isShopManagerRole && userOwnsShop;
+                  const isChecked = isShopManagerLocked ? true : selectedRoleCodes.includes(r.code);
+
                   return (
                     <label
                       key={r.code}
@@ -4101,13 +4147,16 @@ export const AdminPage = () => {
                         background: isChecked ? '#eff6ff' : '#f8fafc',
                         border: `1px solid ${isChecked ? '#93c5fd' : '#e2e8f0'}`,
                         borderRadius: '8px',
-                        cursor: 'pointer'
+                        cursor: isShopManagerLocked ? 'not-allowed' : 'pointer',
+                        opacity: isShopManagerLocked ? 0.95 : 1
                       }}
                     >
                       <input
                         type="checkbox"
                         checked={isChecked}
+                        disabled={isShopManagerLocked}
                         onChange={(e) => {
+                          if (isShopManagerLocked) return;
                           if (e.target.checked) {
                             setSelectedRoleCodes([...selectedRoleCodes, r.code]);
                           } else {
@@ -4115,12 +4164,29 @@ export const AdminPage = () => {
                           }
                         }}
                       />
-                      <div>
-                        <div style={{ fontWeight: 600, color: '#0f172a' }}>
-                          {r.name} <span style={{ fontFamily: 'monospace', color: '#2563eb' }}>({r.code})</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                          <div style={{ fontWeight: 600, color: '#0f172a' }}>
+                            {r.name} <span style={{ fontFamily: 'monospace', color: '#2563eb' }}>({r.code})</span>
+                          </div>
+                          {isShopManagerLocked && (
+                            <span style={{
+                              fontSize: '0.71875rem',
+                              fontWeight: 700,
+                              color: '#059669',
+                              background: '#ecfdf5',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              border: '1px solid #a7f3d0'
+                            }}>
+                              🔒 Đang sở hữu shop (Không thể xóa)
+                            </span>
+                          )}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                          {r.description || 'Vai trò hệ thống'}
+                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
+                          {isShopManagerLocked
+                            ? `Người dùng đang sở hữu cửa hàng (${roleAssignUser?.ownedShopName || 'Shop chính thức'}). Hệ thống bảo vệ không cho phép xóa quyền Quản lý shop.`
+                            : (r.description || 'Vai trò hệ thống')}
                         </div>
                       </div>
                     </label>

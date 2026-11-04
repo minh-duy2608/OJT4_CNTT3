@@ -44,8 +44,15 @@ public class UserDetailResponse {
 
     private List<RoleResponse> roles;
     private List<AddressResponse> addresses;
+    private Boolean ownsShop;
+    private Long ownedShopId;
+    private String ownedShopName;
 
     public static UserDetailResponse of(User user, List<RoleResponse> roles, List<AddressResponse> addresses) {
+        return of(user, roles, addresses, false, null, null);
+    }
+
+    public static UserDetailResponse of(User user, List<RoleResponse> roles, List<AddressResponse> addresses, boolean ownsShop, Long shopId, String shopName) {
         if (user == null) return null;
         return UserDetailResponse.builder()
                 .id(user.getId())
@@ -63,6 +70,9 @@ public class UserDetailResponse {
                 .updatedAt(user.getUpdatedAt())
                 .roles(roles)
                 .addresses(addresses)
+                .ownsShop(ownsShop)
+                .ownedShopId(shopId)
+                .ownedShopName(shopName)
                 .build();
     }
 }
