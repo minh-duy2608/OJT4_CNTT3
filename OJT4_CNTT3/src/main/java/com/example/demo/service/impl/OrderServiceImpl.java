@@ -316,7 +316,29 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<OrderResponse> getAdminOrders(Long shopId, OrderStatus status, int page, int size, String currentUsername) {
-        verifyAdminOrShopAccess(currentUsername);
+        User user = verifyAdminOrShopAccess(currentUsername);
+
+        boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN ||
+                (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
+                        "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
+
+        if (!isAdmin) {
+            Long userShopId = shopRepository.findFirstByOwnerIdOrderByIdDesc(user.getId())
+                    .map(Shop::getId)
+                    .orElse(null);
+            if (userShopId == null) {
+                return PageResponse.<OrderResponse>builder()
+                        .content(List.of())
+                        .page(0)
+                        .size(size)
+                        .totalElements(0)
+                        .totalPages(0)
+                        .last(true)
+                        .first(true)
+                        .build();
+            }
+            shopId = userShopId;
+        }
 
         int p = Math.max(0, page);
         int s = size > 0 ? size : 10;
@@ -339,10 +361,23 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse updateOrderStatus(Long orderId, UpdateOrderStatusRequest request, String currentUsername) {
-        verifyAdminOrShopAccess(currentUsername);
+        User user = verifyAdminOrShopAccess(currentUsername);
 
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
+
+        boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN ||
+                (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
+                        "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
+
+        if (!isAdmin) {
+            Long userShopId = shopRepository.findFirstByOwnerIdOrderByIdDesc(user.getId())
+                    .map(Shop::getId)
+                    .orElse(null);
+            if (userShopId == null || !userShopId.equals(order.getShopId())) {
+                throw new ForbiddenException("Bạn không có quyền quản lý đơn hàng của cửa hàng khác");
+            }
+        }
 
         OrderStatus oldStatus = order.getStatus();
         OrderStatus newStatus = request.getStatus();
@@ -383,21 +418,23 @@ public class OrderServiceImpl implements OrderService {
         return mapToResponse(saved);
     }
 
-    private void verifyAdminOrShopAccess(String currentUsername) {
+    private User verifyAdminOrShopAccess(String currentUsername) {
         if (currentUsername == null || currentUsername.isBlank()) {
             throw new UnauthorizedException("Yêu cầu đăng nhập");
         }
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản: " + currentUsername));
 
-        boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN ||
+        boolean hasAccess = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN ||
                 (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
                         "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode()) ||
-                        "SHOP_MANAGER".equalsIgnoreCase(r.getCode())));
+                        "SHOP_MANAGER".equalsIgnoreCase(r.getCode()) || "ROLE_SHOP_MANAGER".equalsIgnoreCase(r.getCode()) ||
+                        "SHOP_OWNER".equalsIgnoreCase(r.getCode())));
 
-        if (!isAdmin) {
+        if (!hasAccess) {
             throw new ForbiddenException("Chỉ Quản trị viên hoặc Quản lý cửa hàng mới có quyền thao tác");
         }
+        return user;
     }
 
     private OrderResponse mapToResponse(Order order) {

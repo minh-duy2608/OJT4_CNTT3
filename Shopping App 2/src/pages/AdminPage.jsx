@@ -1193,7 +1193,12 @@ export const AdminPage = () => {
         productFormData.specifications
       );
 
-      const targetShopId = selectedShopId ? Number(selectedShopId) : (myShopInfo?.id || 1);
+      const targetShopId = selectedShopId ? Number(selectedShopId) : (myShopInfo?.id || (isAdminUser ? 1 : null));
+      if (!targetShopId) {
+        triggerAlert('Vui lòng chọn cửa hàng hoặc chờ thông tin cửa hàng tải xong.', 'warning');
+        setIsSavingProduct(false);
+        return;
+      }
 
       const payload = {
         name: productFormData.name.trim(),
@@ -1421,7 +1426,10 @@ export const AdminPage = () => {
   // =========================================================================
   // 8. TAB: KÊNH CỬA HÀNG (SHOP PRODUCTS - STT 45-56)
   // =========================================================================
-  const [selectedShopId, setSelectedShopId] = useState('1');
+  const [selectedShopId, setSelectedShopId] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('shopId') || '';
+  });
   const [shopProducts, setShopProducts] = useState([]);
   const [shopProductsLoading, setShopProductsLoading] = useState(false);
   const [shopProdPage, setShopProdPage] = useState(0);
@@ -1919,16 +1927,28 @@ export const AdminPage = () => {
             setMyShopInfo(res.data);
             if (isShopManager && !isAdminUser) {
               setSelectedShopId(String(res.data.id));
+            } else if (isAdminUser) {
+              setSelectedShopId(prev => prev || String(res.data.id));
             }
+          } else if (isAdminUser) {
+            setSelectedShopId(prev => prev || '1');
           }
         })
-        .catch((e) => console.warn('Could not fetch my shop:', e));
+        .catch((e) => {
+          console.warn('Could not fetch my shop:', e);
+          if (isAdminUser) {
+            setSelectedShopId(prev => prev || '1');
+          }
+        });
 
       if (isAdminUser) {
         shopApi.getAllShops()
           .then((res) => {
             const list = Array.isArray(res?.data) ? res.data : (res?.data?.content || []);
-            if (list.length > 0) setAvailableShops(list);
+            if (list.length > 0) {
+              setAvailableShops(list);
+              setSelectedShopId(prev => prev || String(list[0].id));
+            }
           })
           .catch(() => {});
       }
@@ -1998,7 +2018,7 @@ export const AdminPage = () => {
               <p>
                 {isAdminUser
                   ? 'Toàn quyền quản trị hệ thống, tài khoản, vai trò, danh mục và kênh các cửa hàng'
-                  : `Quản lý cửa hàng #${selectedShopId}: đăng sản phẩm, quản lý phiên bản, hình ảnh và đơn hàng`}
+                  : `Quản lý cửa hàng ${myShopInfo?.name ? `"${myShopInfo.name}"` : (selectedShopId ? `#${selectedShopId}` : '')}: đăng sản phẩm, quản lý phiên bản, hình ảnh và đơn hàng`}
               </p>
             </div>
           </div>
@@ -3301,7 +3321,7 @@ export const AdminPage = () => {
                 ) : (
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', fontWeight: 600, color: '#166534', fontSize: '0.875rem' }}>
                     <Store size={16} />
-                    <span>🏪 Cửa hàng: <strong>{myShopInfo?.name || `Shop #${selectedShopId}`}</strong> (Mã shop: #{selectedShopId})</span>
+                    <span>🏪 Cửa hàng: <strong>{myShopInfo?.name || (selectedShopId ? `Shop #${selectedShopId}` : 'Đang tải...')}</strong> {selectedShopId ? `(Mã shop: #${selectedShopId})` : ''}</span>
                   </div>
                 )}
 
@@ -3798,7 +3818,7 @@ export const AdminPage = () => {
                 ) : (
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', fontWeight: 600, color: '#166534', fontSize: '0.875rem' }}>
                     <Store size={16} />
-                    <span>Kho hàng: <strong>{myShopInfo?.name || `Shop #${selectedShopId}`}</strong></span>
+                    <span>Kho hàng: <strong>{myShopInfo?.name || (selectedShopId ? `Shop #${selectedShopId}` : 'Đang tải...')}</strong></span>
                   </div>
                 )}
 
