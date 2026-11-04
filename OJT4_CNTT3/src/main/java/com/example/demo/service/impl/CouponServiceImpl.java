@@ -502,7 +502,7 @@ public class CouponServiceImpl implements CouponService {
     private boolean isUserAdmin(User user) {
         if (user == null || user.getRoles() == null) return false;
         return user.getRoles().stream()
-                .anyMatch(r -> "ROLE_ADMIN".equalsIgnoreCase(r.getName()) || "ADMIN".equalsIgnoreCase(r.getName()));
+                .anyMatch(r -> "ROLE_ADMIN".equalsIgnoreCase(r.getCode()) || "ADMIN".equalsIgnoreCase(r.getCode()));
     }
 
     private Shop validateShopAccess(Long shopId, User user) {
