@@ -1936,8 +1936,11 @@ export const AdminPage = () => {
   const fetchCoupons = useCallback(async (page = 0) => {
     setCouponsLoading(true);
     try {
+      const effectiveShop = !isAdminUser
+        ? (myShopInfo?.id || selectedShopId)
+        : (couponShopFilter ? Number(couponShopFilter) : undefined);
       const res = await couponApi.getAdminCoupons({
-        shopId: couponShopFilter ? Number(couponShopFilter) : undefined,
+        shopId: effectiveShop,
         status: couponStatusFilter || undefined,
         keyword: couponKeyword.trim() || undefined,
         page,
@@ -1955,13 +1958,16 @@ export const AdminPage = () => {
     } finally {
       setCouponsLoading(false);
     }
-  }, [couponShopFilter, couponStatusFilter, couponKeyword]);
+  }, [couponShopFilter, couponStatusFilter, couponKeyword, isAdminUser, myShopInfo?.id, selectedShopId]);
 
   const handleOpenCreateCoupon = () => {
     const { start, end } = getDefaultDateTimeRange();
+    const effectiveShopId = !isAdminUser
+      ? (myShopInfo?.id || selectedShopId || '')
+      : (adminShops.length > 0 ? String(adminShops[0].id) : (selectedShopId ? String(selectedShopId) : ''));
     setCouponFormData({
       ...defaultCouponForm,
-      shopId: adminShops.length > 0 ? String(adminShops[0].id) : (selectedShopId ? String(selectedShopId) : ''),
+      shopId: effectiveShopId ? String(effectiveShopId) : '',
       startAt: start,
       endAt: end
     });
@@ -2015,8 +2021,10 @@ export const AdminPage = () => {
       return;
     }
 
-    const targetShopId = Number(couponFormData.shopId) || selectedShopId || (adminShops[0]?.id);
-    if (!targetShopId) {
+    const targetShopId = !isAdminUser
+      ? Number(myShopInfo?.id || selectedShopId)
+      : (Number(couponFormData.shopId) || selectedShopId || (adminShops[0]?.id));
+    if (!targetShopId && isAdminUser) {
       triggerAlert('Vui lòng chọn cửa hàng áp dụng mã giảm giá', 'error');
       return;
     }
@@ -2501,6 +2509,16 @@ export const AdminPage = () => {
               <div className="admin-metric-info">
                 <div className="admin-metric-label">Quyền hạn Shop</div>
                 <div className="admin-metric-val">{myPermissions.length || 15} quyền được cấp</div>
+              </div>
+            </div>
+
+            <div className="admin-metric-card" onClick={() => setActiveTab('coupons')} style={{ cursor: 'pointer' }}>
+              <div className="admin-metric-icon-wrap" style={{ background: '#fdf2f8', color: '#db2777' }}>
+                <Ticket size={22} />
+              </div>
+              <div className="admin-metric-info">
+                <div className="admin-metric-label">Mã Giảm Giá Cửa Hàng</div>
+                <div className="admin-metric-val">{couponTotalElements || coupons.length} mã ưu đãi</div>
               </div>
             </div>
           </div>
@@ -3647,18 +3665,24 @@ export const AdminPage = () => {
                 </div>
 
                 {/* Lọc theo Cửa hàng */}
-                <select
-                  className="admin-select-filter"
-                  value={couponShopFilter}
-                  onChange={(e) => setCouponShopFilter(e.target.value)}
-                >
-                  <option value="">Tất cả Cửa hàng</option>
-                  {adminShops.map((sh) => (
-                    <option key={sh.id} value={sh.id}>
-                      {sh.name} (#{sh.id})
-                    </option>
-                  ))}
-                </select>
+                {isAdminUser ? (
+                  <select
+                    className="admin-select-filter"
+                    value={couponShopFilter}
+                    onChange={(e) => setCouponShopFilter(e.target.value)}
+                  >
+                    <option value="">Tất cả Cửa hàng</option>
+                    {adminShops.map((sh) => (
+                      <option key={sh.id} value={sh.id}>
+                        {sh.name} (#{sh.id})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.85rem', backgroundColor: '#eff6ff', color: '#1e40af', borderRadius: '6px', fontSize: '0.825rem', fontWeight: 500 }}>
+                    <Store size={14} /> Cửa hàng: <strong>{myShopInfo?.name || (selectedShopId ? `Shop #${selectedShopId}` : 'Cửa hàng của tôi')}</strong>
+                  </div>
+                )}
 
                 {/* Lọc theo trạng thái */}
                 <select
@@ -6493,20 +6517,29 @@ export const AdminPage = () => {
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
                   Cửa hàng áp dụng *:
                 </label>
-                <select
-                  className="admin-form-input"
-                  style={{ width: '100%' }}
-                  value={couponFormData.shopId}
-                  onChange={(e) => setCouponFormData({ ...couponFormData, shopId: e.target.value })}
-                  required
-                >
-                  <option value="">-- Chọn cửa hàng --</option>
-                  {adminShops.map((sh) => (
-                    <option key={sh.id} value={sh.id}>
-                      {sh.name} (#{sh.id})
-                    </option>
-                  ))}
-                </select>
+                {isAdminUser ? (
+                  <select
+                    className="admin-form-input"
+                    style={{ width: '100%' }}
+                    value={couponFormData.shopId}
+                    onChange={(e) => setCouponFormData({ ...couponFormData, shopId: e.target.value })}
+                    required
+                  >
+                    {adminShops.map((sh) => (
+                      <option key={sh.id} value={sh.id}>
+                        {sh.name} (#{sh.id})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    className="admin-form-input"
+                    style={{ width: '100%', backgroundColor: '#f1f5f9', cursor: 'not-allowed', color: '#1e293b', fontWeight: 600 }}
+                    value={`${myShopInfo?.name || 'Cửa hàng của tôi'} (#${myShopInfo?.id || selectedShopId || ''})`}
+                    disabled
+                  />
+                )}
               </div>
 
               <div>
