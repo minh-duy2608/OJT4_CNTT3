@@ -886,6 +886,8 @@ export const AdminPage = () => {
     setIsProductModalOpen(true);
   };
 
+  const handleOpenAddProduct = handleOpenCreateProduct;
+
   // Open Edit Product Modal
   const handleOpenEditProduct = async (prod) => {
     setIsEditingProduct(true);
@@ -3317,7 +3319,7 @@ export const AdminPage = () => {
                 <button
                   type="button"
                   className="admin-btn-action-primary"
-                  onClick={handleOpenAddProduct}
+                  onClick={handleOpenCreateProduct}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '0.45rem 1rem' }}
                 >
                   <Plus size={16} /> Thêm sản phẩm Shop
