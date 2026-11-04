@@ -2,6 +2,8 @@ package com.example.demo.repository;
 
 import com.example.demo.entity.Coupon;
 import com.example.demo.entity.CouponStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,10 +20,24 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
 
     Optional<Coupon> findByShopIdAndCode(Long shopId, String code);
 
+    boolean existsByShopIdAndCode(Long shopId, String code);
+
+    boolean existsByShopIdAndCodeAndIdNot(Long shopId, String code, Long id);
+
     @Query("SELECT c FROM Coupon c WHERE c.shopId = :shopId AND c.status = 'ACTIVE' " +
            "AND c.startAt <= :now AND c.endAt >= :now " +
            "AND (c.usageLimit IS NULL OR c.usageCount < c.usageLimit) " +
            "ORDER BY c.discountValue DESC")
     List<Coupon> findActivePublicCouponsByShopId(@Param("shopId") Long shopId, @Param("now") LocalDateTime now);
-}
 
+    @Query("SELECT c FROM Coupon c WHERE " +
+           "(:shopId IS NULL OR c.shopId = :shopId) AND " +
+           "(:status IS NULL OR c.status = :status) AND " +
+           "(:keyword IS NULL OR LOWER(c.code) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(c.name) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    Page<Coupon> searchCoupons(
+            @Param("shopId") Long shopId,
+            @Param("status") CouponStatus status,
+            @Param("keyword") String keyword,
+            Pageable pageable
+    );
+}
