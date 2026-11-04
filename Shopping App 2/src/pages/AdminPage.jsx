@@ -116,6 +116,41 @@ export const AdminPage = () => {
   };
 
   // =========================================================================
+  // USER ROLES & SHOP CONTEXT (HOISTED FOR SAFE INITIALIZATION)
+  // =========================================================================
+  const isAdminUser = useMemo(() => {
+    if (!user) return false;
+    const r = (user.role || '').toUpperCase();
+    if (r === 'ADMIN' || r === 'ROLE_ADMIN') return true;
+    if (Array.isArray(user.roles)) {
+      return user.roles.some(roleItem => {
+        const code = (typeof roleItem === 'string' ? roleItem : roleItem?.code || '').toUpperCase();
+        return code === 'ADMIN' || code === 'ROLE_ADMIN';
+      });
+    }
+    return false;
+  }, [user]);
+
+  const isShopManager = useMemo(() => {
+    if (!user) return false;
+    const r = (user.role || '').toUpperCase();
+    if (r === 'SHOP_MANAGER' || r === 'ROLE_SHOP_MANAGER' || r === 'SHOP_OWNER') return true;
+    if (Array.isArray(user.roles)) {
+      return user.roles.some(roleItem => {
+        const code = (typeof roleItem === 'string' ? roleItem : roleItem?.code || '').toUpperCase();
+        return code === 'SHOP_MANAGER' || code === 'ROLE_SHOP_MANAGER' || code === 'SHOP_OWNER';
+      });
+    }
+    return false;
+  }, [user]);
+
+  const hasPortalAccess = isAdminUser || isShopManager;
+
+  // selectedShopId is hoisted to top of component
+  const [myShopInfo, setMyShopInfo] = useState(null);
+  const [availableShops, setAvailableShops] = useState([]);
+
+  // =========================================================================
   // 1. TAB: QUẢN LÝ NGƯỜI DÙNG (USERS - STT 12-17)
   // =========================================================================
   const [users, setUsers] = useState([]);
@@ -2213,39 +2248,7 @@ export const AdminPage = () => {
     }
   }, [activeTab, fetchUsers, fetchRolesAndPermissions, fetchCategories, fetchBrands, fetchAdminProducts, fetchMyPermissions, fetchAdminOrders, fetchShopProducts, fetchAdminShops, fetchInventory, fetchCoupons, userPage, prodPage, orderPage, shopProdPage, adminShopsPage, inventoryPage, couponPage, roles.length]);
 
-  // Check admin role permission
-  const isAdminUser = useMemo(() => {
-    if (!user) return false;
-    const r = (user.role || '').toUpperCase();
-    if (r === 'ADMIN' || r === 'ROLE_ADMIN') return true;
-    if (Array.isArray(user.roles)) {
-      return user.roles.some(roleItem => {
-        const code = (typeof roleItem === 'string' ? roleItem : roleItem?.code || '').toUpperCase();
-        return code === 'ADMIN' || code === 'ROLE_ADMIN';
-      });
-    }
-    return false;
-  }, [user]);
-
-  // Check shop manager role permission
-  const isShopManager = useMemo(() => {
-    if (!user) return false;
-    const r = (user.role || '').toUpperCase();
-    if (r === 'SHOP_MANAGER' || r === 'ROLE_SHOP_MANAGER' || r === 'SHOP_OWNER') return true;
-    if (Array.isArray(user.roles)) {
-      return user.roles.some(roleItem => {
-        const code = (typeof roleItem === 'string' ? roleItem : roleItem?.code || '').toUpperCase();
-        return code === 'SHOP_MANAGER' || code === 'ROLE_SHOP_MANAGER' || code === 'SHOP_OWNER';
-      });
-    }
-    return false;
-  }, [user]);
-
-  const hasPortalAccess = isAdminUser || isShopManager;
-
-  // Shop info for shop manager / admin
-  const [myShopInfo, setMyShopInfo] = useState(null);
-  const [availableShops, setAvailableShops] = useState([]);
+  // isAdminUser, isShopManager, hasPortalAccess, myShopInfo are hoisted to top of component
 
   useEffect(() => {
     if (isAuthenticated && hasPortalAccess) {
@@ -2286,7 +2289,7 @@ export const AdminPage = () => {
   // If user is shop manager (not admin) and tries to view admin-only tabs, redirect tab to 'shops'
   useEffect(() => {
     if (isShopManager && !isAdminUser) {
-      const allowedShopTabs = ['shops', 'inventory', 'orders', 'permissions'];
+      const allowedShopTabs = ['shops', 'inventory', 'orders', 'coupons', 'permissions'];
       if (!allowedShopTabs.includes(activeTab)) {
         setActiveTab('shops');
       }
