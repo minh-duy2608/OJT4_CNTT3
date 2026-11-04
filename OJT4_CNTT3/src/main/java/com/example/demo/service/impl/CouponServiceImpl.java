@@ -172,7 +172,11 @@ public class CouponServiceImpl implements CouponService {
                 } else if (itemProductId != null) {
                     Product product = productRepository.findById(itemProductId).orElse(null);
                     if (product != null) {
-                        unitPrice = product.getBasePrice();
+                        unitPrice = productVariantRepository.findByProductIdOrderByPriceAsc(itemProductId).stream()
+                                .map(v -> v.getSalePrice() != null ? v.getSalePrice() : v.getPrice())
+                                .filter(Objects::nonNull)
+                                .findFirst()
+                                .orElse(BigDecimal.ZERO);
                     }
                 }
 
