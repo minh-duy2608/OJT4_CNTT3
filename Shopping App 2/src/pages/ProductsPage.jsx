@@ -5,7 +5,6 @@ import {
   ChevronLeft, 
   ChevronRight, 
   PackageSearch, 
-  Tag, 
   Smartphone, 
   Laptop, 
   Watch, 
@@ -55,6 +54,10 @@ export const ProductsPage = () => {
   const [activeTab, setActiveTab] = useState('new');
   const [currentPage, setCurrentPage] = useState(1);
   const sectionRef = useRef(null);
+
+  // [HOVER-DROPDOWN] UI state — chỉ kiểm soát hiển thị dropdown, không ảnh hưởng business logic
+  const [hoveredCategory, setHoveredCategory] = useState(null);
+  const hoverLeaveTimerRef = useRef(null);
 
   // Live data from backend APIs
   const [apiProducts, setApiProducts] = useState(null);
@@ -236,10 +239,68 @@ export const ProductsPage = () => {
     }
   };
 
+  // [HOVER-DROPDOWN] Mở dropdown cho category đang hover
+  const handleCategoryMouseEnter = (catKey) => {
+    if (hoverLeaveTimerRef.current) {
+      clearTimeout(hoverLeaveTimerRef.current);
+      hoverLeaveTimerRef.current = null;
+    }
+    setHoveredCategory(catKey);
+  };
+
+  // [HOVER-DROPDOWN] Delay ẩn dropdown 120ms để người dùng có thể di sang dropdown mà không bị đóng đột ngột
+  const handleCategoryMouseLeave = () => {
+    hoverLeaveTimerRef.current = setTimeout(() => {
+      setHoveredCategory(null);
+    }, 120);
+  };
+
+  // [HOVER-DROPDOWN] Chọn brand từ dropdown rồi đóng menu
+  const handleDropdownBrandSelect = (brandIdOrSlug) => {
+    handleSelectBrand(brandIdOrSlug);
+    setHoveredCategory(null);
+  };
+
+  // Chọn Category + Brand cùng lúc (atomic) để tránh race condition 2 lần setSearchParams
+  const handleSelectCategoryAndBrand = (catKey, brandIdOrSlug) => {
+    const newParams = new URLSearchParams(searchParams);
+    // Set category
+    if (!catKey) {
+      newParams.delete('category');
+    } else {
+      newParams.set('category', catKey);
+    }
+    // Set brand
+    if (!brandIdOrSlug) {
+      newParams.delete('brand');
+      newParams.delete('brandId');
+    } else {
+      newParams.set('brand', String(brandIdOrSlug));
+      if (/^\d+$/.test(String(brandIdOrSlug))) {
+        newParams.set('brandId', String(brandIdOrSlug));
+      } else {
+        newParams.delete('brandId');
+      }
+    }
+    setSearchParams(newParams, { replace: true });
+    setCurrentPage(1);
+    setHoveredCategory(null);
+  };
+
+  // [HOVER-DROPDOWN] Cleanup timer khi component unmount
+  useEffect(() => {
+    return () => {
+      if (hoverLeaveTimerRef.current) {
+        clearTimeout(hoverLeaveTimerRef.current);
+      }
+    };
+  }, []);
+
   return (
     <section ref={sectionRef} className="container cyber-products-container" id="products-section">
       {/* 1. THANH CHỌN DANH MỤC CÔNG NGHỆ (CATEGORY PILL BAR) */}
       <div className="category-filter-bar" role="tablist" aria-label="Danh mục công nghệ">
+        {/* Pill "Tất cả sản phẩm" — không có dropdown brand */}
         <button
           type="button"
           className={`category-pill-btn ${!categoryParam ? 'is-active' : ''}`}
@@ -248,66 +309,97 @@ export const ProductsPage = () => {
           <Grid size={15} />
           <span>Tất cả sản phẩm</span>
         </button>
+
+        {/* Các pill danh mục — mỗi pill bọc trong wrapper để chứa dropdown */}
         {CATEGORY_DEFINITIONS.map((cat) => {
           const isActive = currentCategoryDef?.id === cat.id;
+          const isDropdownOpen = hoveredCategory === cat.key;
+          // Lấy danh sách brands cho danh mục này để hiển thị trong dropdown
+          const dropdownBrands = getCategoryBrands(cat.key, allBrands);
+
           return (
-            <button
+            <div
               key={cat.id}
-              type="button"
-              className={`category-pill-btn ${isActive ? 'is-active' : ''}`}
-              onClick={() => handleSelectCategory(cat.key)}
+              className="category-pill-wrapper"
+              onMouseEnter={() => handleCategoryMouseEnter(cat.key)}
+              onMouseLeave={handleCategoryMouseLeave}
             >
-              {getCategoryIcon(cat.icon)}
-              <span>{cat.name}</span>
-            </button>
+              {/* Pill button chọn danh mục (giữ nguyên onClick handler cũ) */}
+              <button
+                type="button"
+                className={`category-pill-btn ${isActive ? 'is-active' : ''}`}
+                onClick={() => handleSelectCategory(cat.key)}
+                aria-haspopup="listbox"
+                aria-expanded={isDropdownOpen}
+              >
+                {getCategoryIcon(cat.icon)}
+                <span>{cat.name}</span>
+              </button>
+
+              {/* [HOVER-DROPDOWN] Brand dropdown — chỉ hiện khi đang hover */}
+              {dropdownBrands.length > 0 && (
+                <div
+                  className={`category-brand-dropdown ${isDropdownOpen ? 'is-open' : ''}`}
+                  role="listbox"
+                  aria-label={`Thương hiệu ${cat.name}`}
+                  onMouseEnter={() => handleCategoryMouseEnter(cat.key)}
+                  onMouseLeave={handleCategoryMouseLeave}
+                >
+                  <div className="brand-dropdown-header">{cat.name}</div>
+
+                  {/* Nút "Tất cả hãng" cho danh mục này */}
+                  <button
+                    type="button"
+                    className={`brand-dropdown-item ${isActive && !brandParam ? 'is-selected' : ''}`}
+                    onClick={() => {
+                      handleSelectCategoryAndBrand(cat.key, '');
+                    }}
+                  >
+                    <span>Tất cả hãng</span>
+                  </button>
+
+                  {/* Danh sách brands */}
+                  {dropdownBrands.map((b) => {
+                    const isSelected =
+                      String(b.id) === String(brandParam) ||
+                      b.slug === brandParam ||
+                      (brandParam && b.name.toLowerCase() === brandParam.toLowerCase());
+
+                    return (
+                      <button
+                        key={b.slug || b.id}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        className={`brand-dropdown-item ${isSelected ? 'is-selected' : ''}`}
+                        onClick={() => {
+                          // Atomic: set category + brand trong 1 lần setSearchParams
+                          handleSelectCategoryAndBrand(cat.key, b.id || b.slug);
+                        }}
+                      >
+                        {b.logoUrl && (
+                          <img
+                            src={b.logoUrl}
+                            alt={b.name}
+                            className="brand-dropdown-logo"
+                            onError={(e) => { e.target.style.display = 'none'; }}
+                          />
+                        )}
+                        <span>{b.displayName || b.name}</span>
+                        {b.productCount != null && b.productCount > 0 && (
+                          <span className="brand-dropdown-count">{b.productCount}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
 
-      {/* 2. BRAND QUICK FILTER PILLS (TÁCH BIỆT THEO DANH MỤC HIỆN TẠI) */}
-      <div className="brand-filter-bar">
-        <span className="brand-filter-label">
-          <Tag size={15} />
-          {currentCategoryDef ? `Hãng ${currentCategoryDef.name}:` : 'Thương hiệu:'}
-        </span>
-        <button
-          type="button"
-          onClick={() => handleSelectBrand('')}
-          className={`brand-pill-btn ${!brandParam ? 'is-active' : ''}`}
-        >
-          {currentCategoryDef ? `Tất cả hãng ${currentCategoryDef.name}` : 'Tất cả thương hiệu'}
-        </button>
-        {categoryBrands.map((b) => {
-          const isSelected =
-            String(b.id) === String(brandParam) ||
-            b.slug === brandParam ||
-            (brandParam && b.name.toLowerCase() === brandParam.toLowerCase());
-
-          return (
-            <button
-              key={b.slug || b.id}
-              type="button"
-              onClick={() => handleSelectBrand(b.id || b.slug)}
-              className={`brand-pill-btn ${isSelected ? 'is-active' : ''}`}
-            >
-              {b.logoUrl && (
-                <img
-                  src={b.logoUrl}
-                  alt={b.name}
-                  style={{ width: '14px', height: '14px', objectFit: 'contain' }}
-                  onError={(e) => { e.target.style.display = 'none'; }}
-                />
-              )}
-              <span>{b.displayName || b.name}</span>
-              {b.productCount != null && b.productCount > 0 && (
-                <span style={{ fontSize: '0.7rem', opacity: 0.75 }}>({b.productCount})</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* 3. TABS CHỌN CHUẨN FIGMA: New Arrival | Bestseller | Featured Products */}
+      {/* 2. TABS CHỌN CHUẨN FIGMA: New Arrival | Bestseller | Featured Products */}
       <div className="products-tab-header">
         <button
           type="button"

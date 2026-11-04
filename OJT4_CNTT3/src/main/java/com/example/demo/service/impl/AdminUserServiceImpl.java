@@ -48,6 +48,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final RoleRepository roleRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final AddressRepository addressRepository;
+    private final com.example.demo.repository.ShopRepository shopRepository;
 
     private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
             "id", "username", "email", "fullName", "role", "status", "createdAt", "updatedAt"
@@ -116,7 +117,25 @@ public class AdminUserServiceImpl implements AdminUserService {
         };
 
         Page<User> userPage = userRepository.findAll(spec, pageable);
-        return PageResponse.from(userPage.map(UserResponse::fromEntity));
+        List<Long> userIds = userPage.getContent().stream().map(User::getId).toList();
+        Map<Long, com.example.demo.entity.Shop> shopByOwner = shopRepository.findByOwnerIdIn(userIds).stream()
+                .filter(s -> s.getStatus() != com.example.demo.entity.ShopStatus.REJECTED)
+                .collect(Collectors.toMap(com.example.demo.entity.Shop::getOwnerId, java.util.function.Function.identity(), (a, b) -> a));
+
+        List<UserResponse> responses = userPage.getContent().stream().map(u -> {
+            com.example.demo.entity.Shop s = shopByOwner.get(u.getId());
+            return UserResponse.fromEntity(u, s != null, s != null ? s.getId() : null, s != null ? s.getName() : null);
+        }).toList();
+
+        return PageResponse.<UserResponse>builder()
+                .content(responses)
+                .page(userPage.getNumber())
+                .size(userPage.getSize())
+                .totalElements(userPage.getTotalElements())
+                .totalPages(userPage.getTotalPages())
+                .first(userPage.isFirst())
+                .last(userPage.isLast())
+                .build();
     }
 
     @Override
@@ -129,7 +148,11 @@ public class AdminUserServiceImpl implements AdminUserService {
                 .map(AddressResponse::fromEntity)
                 .collect(Collectors.toList());
 
-        return UserDetailResponse.of(user, roles, addresses);
+        com.example.demo.entity.Shop shop = shopRepository.findFirstByOwnerIdOrderByIdDesc(userId)
+                .filter(s -> s.getStatus() != com.example.demo.entity.ShopStatus.REJECTED)
+                .orElse(null);
+
+        return UserDetailResponse.of(user, roles, addresses, shop != null, shop != null ? shop.getId() : null, shop != null ? shop.getName() : null);
     }
 
     @Override
@@ -257,6 +280,14 @@ public class AdminUserServiceImpl implements AdminUserService {
             if (activeAdmins <= 1) {
                 throw new BadRequestException("Hệ thống phải có ít nhất 1 Quản trị viên (ADMIN) hoạt động. Không thể loại bỏ quyền của Quản trị viên cuối cùng!");
             }
+        }
+
+        // QUY TẮC BẢO VỆ 3: Không được loại bỏ quyền SHOP_MANAGER của người dùng đã đăng ký và đang sở hữu cửa hàng
+        java.util.Optional<com.example.demo.entity.Shop> ownedShopOpt = shopRepository.findFirstByOwnerIdOrderByIdDesc(user.getId())
+                .filter(s -> s.getStatus() != com.example.demo.entity.ShopStatus.REJECTED);
+        if (ownedShopOpt.isPresent() && !requestedCodes.contains("SHOP_MANAGER")) {
+            com.example.demo.entity.Shop shop = ownedShopOpt.get();
+            throw new BadRequestException("Người dùng @" + user.getUsername() + " đang sở hữu cửa hàng '" + shop.getName() + "'. Không thể thu hồi quyền Quản lý shop (SHOP_MANAGER) của chủ cửa hàng!");
         }
 
         // Tìm và gán các RoleEntity tương ứng

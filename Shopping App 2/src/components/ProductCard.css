@@ -13,14 +13,16 @@
   align-items: center;
   justify-content: space-between;
   position: relative;
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  will-change: transform, box-shadow;
+  backface-visibility: hidden;
   text-decoration: none;
   color: inherit;
 }
 
 .cyber-product-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.08);
+  transform: translateY(-5px);
+  box-shadow: 0 14px 28px -4px rgba(0, 0, 0, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.06);
 }
 
 /* Wishlist Heart Button (Top Right) */
@@ -132,7 +134,7 @@
   font-weight: 600;
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease, filter 0.25s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -142,8 +144,9 @@
 
 .product-buy-btn:hover {
   background-color: #27272a;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
 }
 
 .product-buy-btn:active {

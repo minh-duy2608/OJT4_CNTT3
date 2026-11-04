@@ -1,16 +1,16 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { 
-  Search, 
+import {
+  Search,
   X,
-  Heart, 
-  ShoppingCart, 
-  User, 
-  Smartphone, 
-  Laptop, 
-  Watch, 
-  Camera, 
-  Headphones, 
+  Heart,
+  ShoppingCart,
+  User,
+  Smartphone,
+  Laptop,
+  Watch,
+  Camera,
+  Headphones,
   Gamepad2,
   LogOut,
   ChevronDown,
@@ -25,22 +25,23 @@ import { shopApi } from '../services/shopApi';
 import { formatVND } from '../data/products';
 import { RegisterShopModal } from './RegisterShopModal';
 import { WishlistModal } from './WishlistModal';
+import { ThemeToggle } from './ThemeToggle';
 import './Header.css';
 
 // Logo SVG icon hình tam giác công nghệ của Cyber
 const CyberIcon = ({ className = "cyber-logo-icon" }) => (
-  <svg 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    xmlns="http://www.w3.org/2000/svg" 
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
     className={className}
     aria-hidden="true"
   >
-    <path 
-      d="M3 5H21L12 20L3 5Z" 
-      stroke="currentColor" 
-      strokeWidth="2.8" 
-      strokeLinejoin="round" 
+    <path
+      d="M3 5H21L12 20L3 5Z"
+      stroke="currentColor"
+      strokeWidth="2.8"
+      strokeLinejoin="round"
     />
   </svg>
 );
@@ -153,18 +154,11 @@ export const Header = () => {
             setMyShop(res.data);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     } else {
       setMyShop(null);
     }
   }, [isAuthenticated, user?.role]);
-
-  // Xác định danh mục công nghệ đang chọn trên sub-nav
-  const activeCategoryKey = useMemo(() => {
-    if (location.pathname !== '/products') return null;
-    const params = new URLSearchParams(location.search);
-    return params.get('category');
-  }, [location.pathname, location.search]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -297,8 +291,8 @@ export const Header = () => {
           <nav aria-label="Menu chính">
             <ul className="cyber-nav-links">
               <li>
-                <NavLink 
-                  to="/" 
+                <NavLink
+                  to="/"
                   className={({ isActive }) => `cyber-nav-link ${isActive ? 'active' : ''}`}
                   end
                 >
@@ -306,16 +300,16 @@ export const Header = () => {
                 </NavLink>
               </li>
               <li>
-                <NavLink 
-                  to="/about" 
+                <NavLink
+                  to="/about"
                   className={({ isActive }) => `cyber-nav-link ${isActive ? 'active' : ''}`}
                 >
                   Giới thiệu
                 </NavLink>
               </li>
               <li>
-                <NavLink 
-                  to="/contact" 
+                <NavLink
+                  to="/contact"
                   className={({ isActive }) => `cyber-nav-link ${isActive ? 'active' : ''}`}
                 >
                   Liên hệ
@@ -325,8 +319,8 @@ export const Header = () => {
               {isAuthenticated && isUserAdmin && (
                 <>
                   <li>
-                    <NavLink 
-                      to="/admin" 
+                    <NavLink
+                      to="/admin"
                       className={({ isActive }) => `cyber-nav-link ${isActive ? 'active' : ''}`}
                       style={{ color: '#2563eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
                     >
@@ -335,8 +329,8 @@ export const Header = () => {
                     </NavLink>
                   </li>
                   <li>
-                    <NavLink 
-                      to="/admin?tab=shops" 
+                    <NavLink
+                      to="/admin?tab=shops"
                       className="cyber-nav-link"
                       style={{ color: '#059669', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
                     >
@@ -350,8 +344,8 @@ export const Header = () => {
               {/* Nếu là Shop Manager (không phải admin): Hiện Kênh Người Bán */}
               {isAuthenticated && isShopManager && !isUserAdmin && (
                 <li>
-                  <NavLink 
-                    to="/admin?tab=shops" 
+                  <NavLink
+                    to="/admin?tab=shops"
                     className="cyber-nav-link"
                     style={{ color: '#059669', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
                   >
@@ -395,11 +389,14 @@ export const Header = () => {
             </ul>
           </nav>
 
-          {/* Nhóm Icons tác vụ: Yêu thích, Giỏ hàng, Tài khoản */}
+          {/* Nhóm Icons tác vụ: Theme Toggle, Yêu thích, Giỏ hàng, Tài khoản */}
           <div className="cyber-actions">
+            {/* Nút chuyển đổi Dark / Light mode */}
+            <ThemeToggle />
+
             {/* Wishlist - STT 79 */}
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => {
                 if (!isAuthenticated) {
                   navigate('/login?redirect=/');
@@ -407,17 +404,17 @@ export const Header = () => {
                   setIsWishlistModalOpen(true);
                 }
               }}
-              className="cyber-action-btn" 
+              className="cyber-action-btn"
               aria-label="Danh sách yêu thích"
             >
               <Heart size={21} strokeWidth={1.8} />
             </button>
 
             {/* Giỏ hàng với hiệu ứng nhảy khi sản phẩm bay vào */}
-            <Link 
-              to="/cart" 
+            <Link
+              to="/cart"
               id="cyber-header-cart-btn"
-              className={`cyber-action-btn ${cartBumping ? 'cyber-cart-btn-bumping' : ''}`} 
+              className={`cyber-action-btn ${cartBumping ? 'cyber-cart-btn-bumping' : ''}`}
               aria-label={`Giỏ hàng có ${cartCount} sản phẩm`}
             >
               <ShoppingCart size={21} strokeWidth={1.8} />
@@ -461,18 +458,18 @@ export const Header = () => {
                     <>
                       {isUserAdmin && (
                         <>
-                          <Link 
-                            to="/admin" 
-                            className="cyber-dropdown-item" 
+                          <Link
+                            to="/admin"
+                            className="cyber-dropdown-item"
                             onClick={() => setShowAuthDropdown(false)}
                             style={{ color: '#2563eb', fontWeight: 600, background: '#eff6ff' }}
                           >
                             <ShieldCheck size={16} color="#2563eb" />
                             Trung tâm Quản trị
                           </Link>
-                          <Link 
-                            to="/admin?tab=shops" 
-                            className="cyber-dropdown-item" 
+                          <Link
+                            to="/admin?tab=shops"
+                            className="cyber-dropdown-item"
                             onClick={() => setShowAuthDropdown(false)}
                             style={{ color: '#059669', fontWeight: 600 }}
                           >
@@ -482,9 +479,9 @@ export const Header = () => {
                         </>
                       )}
                       {isShopManager && !isUserAdmin && (
-                        <Link 
-                          to="/admin?tab=shops" 
-                          className="cyber-dropdown-item" 
+                        <Link
+                          to="/admin?tab=shops"
+                          className="cyber-dropdown-item"
                           onClick={() => setShowAuthDropdown(false)}
                           style={{ color: '#059669', fontWeight: 600, background: '#f0fdf4' }}
                         >
@@ -506,33 +503,33 @@ export const Header = () => {
                           Đăng ký mở Shop ngay
                         </button>
                       )}
-                      <Link 
-                        to="/profile" 
-                        className="cyber-dropdown-item" 
+                      <Link
+                        to="/profile"
+                        className="cyber-dropdown-item"
                         onClick={() => setShowAuthDropdown(false)}
                       >
                         <User size={15} />
                         Thông tin tài khoản
                       </Link>
-                      <Link 
-                        to="/orders" 
-                        className="cyber-dropdown-item" 
+                      <Link
+                        to="/orders"
+                        className="cyber-dropdown-item"
                         onClick={() => setShowAuthDropdown(false)}
                       >
                         <Package size={15} />
                         Đơn hàng của tôi
                       </Link>
-                      <Link 
-                        to="/cart" 
-                        className="cyber-dropdown-item" 
+                      <Link
+                        to="/cart"
+                        className="cyber-dropdown-item"
                         onClick={() => setShowAuthDropdown(false)}
                       >
                         <ShoppingCart size={15} />
                         Giỏ hàng của tôi ({cartCount})
                       </Link>
-                      <button 
-                        type="button" 
-                        className="cyber-dropdown-item danger" 
+                      <button
+                        type="button"
+                        className="cyber-dropdown-item danger"
                         onClick={() => {
                           setShowAuthDropdown(false);
                           logout();
@@ -544,16 +541,16 @@ export const Header = () => {
                     </>
                   ) : (
                     <>
-                      <Link 
-                        to="/auth?mode=login" 
-                        className="cyber-dropdown-item" 
+                      <Link
+                        to="/auth?mode=login"
+                        className="cyber-dropdown-item"
                         onClick={() => setShowAuthDropdown(false)}
                       >
                         Đăng nhập
                       </Link>
-                      <Link 
-                        to="/auth?mode=register" 
-                        className="cyber-dropdown-item" 
+                      <Link
+                        to="/auth?mode=register"
+                        className="cyber-dropdown-item"
                         onClick={() => setShowAuthDropdown(false)}
                       >
                         Đăng ký tài khoản
@@ -566,73 +563,6 @@ export const Header = () => {
           </div>
         </div>
       </div>
-
-      {/* 2. THANH DANH MỤC PHỤ (Nền xám đậm #2e2e2e có vạch ngăn) */}
-      <nav className="cyber-subnav" aria-label="Danh mục công nghệ">
-        <div className="container">
-          <ul className="cyber-subnav-list">
-            <li className="cyber-subnav-item-wrap">
-              <Link 
-                to="/products?category=phones" 
-                className={`cyber-subnav-link ${activeCategoryKey === 'phones' || activeCategoryKey === 'dien-thoai-tablet' || activeCategoryKey === '1' ? 'active' : ''}`}
-              >
-                <Smartphone className="cyber-subnav-icon" />
-                <span>Điện thoại</span>
-              </Link>
-            </li>
-
-            <li className="cyber-subnav-item-wrap">
-              <Link 
-                to="/products?category=laptops" 
-                className={`cyber-subnav-link ${activeCategoryKey === 'laptops' || activeCategoryKey === 'laptop-may-tinh' || activeCategoryKey === '2' ? 'active' : ''}`}
-              >
-                <Laptop className="cyber-subnav-icon" />
-                <span>Laptop</span>
-              </Link>
-            </li>
-
-            <li className="cyber-subnav-item-wrap">
-              <Link 
-                to="/products?category=smartwatches" 
-                className={`cyber-subnav-link ${activeCategoryKey === 'smartwatches' || activeCategoryKey === 'dong-ho-thong-minh' || activeCategoryKey === '3' ? 'active' : ''}`}
-              >
-                <Watch className="cyber-subnav-icon" />
-                <span>Đồng hồ thông minh</span>
-              </Link>
-            </li>
-
-            <li className="cyber-subnav-item-wrap">
-              <Link 
-                to="/products?category=cameras" 
-                className={`cyber-subnav-link ${activeCategoryKey === 'cameras' || activeCategoryKey === 'may-anh-quay-phim' || activeCategoryKey === '6' ? 'active' : ''}`}
-              >
-                <Camera className="cyber-subnav-icon" />
-                <span>Cameras</span>
-              </Link>
-            </li>
-
-            <li className="cyber-subnav-item-wrap">
-              <Link 
-                to="/products?category=headphones" 
-                className={`cyber-subnav-link ${activeCategoryKey === 'headphones' || activeCategoryKey === 'am-thanh-tai-nghe' || activeCategoryKey === '4' ? 'active' : ''}`}
-              >
-                <Headphones className="cyber-subnav-icon" />
-                <span>Tai nghe</span>
-              </Link>
-            </li>
-
-            <li className="cyber-subnav-item-wrap">
-              <Link 
-                to="/products?category=gaming" 
-                className={`cyber-subnav-link ${activeCategoryKey === 'gaming' || activeCategoryKey === '9' ? 'active' : ''}`}
-              >
-                <Gamepad2 className="cyber-subnav-icon" />
-                <span>Gaming</span>
-              </Link>
-            </li>
-          </ul>
-        </div>
-      </nav>
 
       {/* Modal danh sách yêu thích cho Khách hàng (STT 79-82) */}
       <WishlistModal

@@ -51,7 +51,11 @@ public class ShopServiceImpl implements ShopService {
         Optional<Shop> existingOpt = shopRepository.findFirstByOwnerIdOrderByIdDesc(user.getId());
         if (existingOpt.isPresent() && (existingOpt.get().getStatus() == ShopStatus.ACTIVE || existingOpt.get().getStatus() == ShopStatus.PENDING)) {
             Shop existing = existingOpt.get();
-            throw new BadRequestException("Tài khoản của bạn đã sở hữu cửa hàng '" + existing.getName() + "'. Mỗi tài khoản được liên kết tối đa 1 cửa hàng.");
+            // Khôi phục hoặc đảm bảo người dùng luôn có quyền SHOP_MANAGER & CLIENT để truy cập cửa hàng
+            ensureShopManagerRole(user, existing);
+            log.info("Tài khoản @{} đã có cửa hàng '{}' (#{}). Tự động đồng bộ quyền SHOP_MANAGER thành công.",
+                    currentUsername, existing.getName(), existing.getId());
+            return ShopDetailResponse.fromEntity(existing, true, isUserAdmin(user));
         }
 
         // Tạo mã slug thân thiện URL
@@ -83,35 +87,11 @@ public class ShopServiceImpl implements ShopService {
 
         Shop savedShop = shopRepository.save(shop);
 
-        // Nâng cấp vai trò người dùng thành SHOP_MANAGER
-        RoleEntity managerRole = roleRepository.findByCode("SHOP_MANAGER")
-                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
-                        .code("SHOP_MANAGER")
-                        .name("Quản lý shop")
-                        .description("Quản lý và vận hành cửa hàng")
-                        .isSystem(true)
-                        .build()));
-
-        if (user.getRoles() == null) {
-            user.setRoles(new HashSet<>());
-        }
-        user.getRoles().add(managerRole);
-
-        boolean isAdmin = isUserAdmin(user);
-        if (!isAdmin) {
-            user.setRole(Role.SHOP_MANAGER);
-        }
-        userRepository.save(user);
-
-        // Thêm liên kết thành viên cửa hàng vào bảng shop_members
-        try {
-            shopRepository.addShopMember(savedShop.getId(), user.getId(), managerRole.getId());
-        } catch (Exception e) {
-            log.warn("Không thể lưu bản ghi shop_members: {}", e.getMessage());
-        }
+        // Nâng cấp vai trò người dùng thành SHOP_MANAGER nhưng vẫn giữ vai trò CLIENT để dùng cả 2 luồng
+        ensureShopManagerRole(user, savedShop);
 
         log.info("User {} (id: {}) successfully registered shop: {} (id: {})", user.getUsername(), user.getId(), savedShop.getName(), savedShop.getId());
-        return ShopDetailResponse.fromEntity(savedShop, true, isAdmin);
+        return ShopDetailResponse.fromEntity(savedShop, true, isUserAdmin(user));
     }
 
     @Override
@@ -297,6 +277,42 @@ public class ShopServiceImpl implements ShopService {
                 .replaceAll("-+", "-")
                 .replaceAll("^-|-$", "");
         return slug.isBlank() ? "shop-" + System.currentTimeMillis() : slug;
+    }
+
+    private void ensureShopManagerRole(User user, Shop shop) {
+        RoleEntity managerRole = roleRepository.findByCode("SHOP_MANAGER")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("SHOP_MANAGER")
+                        .name("Quản lý shop")
+                        .description("Quản lý và vận hành cửa hàng")
+                        .isSystem(true)
+                        .build()));
+
+        RoleEntity clientRole = roleRepository.findByCode("CLIENT")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("CLIENT")
+                        .name("Khách hàng")
+                        .description("Người dùng mua sắm trên sàn")
+                        .isSystem(true)
+                        .build()));
+
+        if (user.getRoles() == null) {
+            user.setRoles(new HashSet<>());
+        }
+        user.getRoles().add(managerRole);
+        user.getRoles().add(clientRole);
+
+        boolean isAdmin = isUserAdmin(user);
+        if (!isAdmin) {
+            user.setRole(Role.SHOP_MANAGER);
+        }
+        userRepository.save(user);
+
+        try {
+            shopRepository.addShopMember(shop.getId(), user.getId(), managerRole.getId());
+        } catch (Exception e) {
+            log.warn("Không thể lưu bản ghi shop_members: {}", e.getMessage());
+        }
     }
 }
 

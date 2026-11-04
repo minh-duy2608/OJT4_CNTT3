@@ -219,14 +219,26 @@ export const AdminPage = () => {
   // Open role assign modal (API 16 & 17)
   const handleOpenRoleAssign = async (u) => {
     setRoleAssignUser(u);
+    const userOwnsShop = Boolean(
+      u.ownsShop ||
+      adminShops.some((s) => s.ownerId === u.id && s.status !== 'REJECTED')
+    );
     try {
       const userRoles = await adminUserApi.getUserRoles(u.id);
-      setSelectedRoleCodes(userRoles.map((r) => r.code));
+      let codes = userRoles.map((r) => r.code);
+      if (userOwnsShop && !codes.includes('SHOP_MANAGER')) {
+        codes.push('SHOP_MANAGER');
+      }
+      setSelectedRoleCodes(codes);
       setIsRoleAssignModalOpen(true);
     } catch (err) {
       // Fallback: extract from user object
       const currentRoles = (u.roles || []).map((r) => (typeof r === 'string' ? r : r.code));
-      setSelectedRoleCodes(currentRoles.length > 0 ? currentRoles : [u.role]);
+      let codes = currentRoles.length > 0 ? currentRoles : [u.role];
+      if (userOwnsShop && !codes.includes('SHOP_MANAGER')) {
+        codes.push('SHOP_MANAGER');
+      }
+      setSelectedRoleCodes(codes);
       setIsRoleAssignModalOpen(true);
     }
   };
@@ -237,9 +249,20 @@ export const AdminPage = () => {
       triggerAlert('Người dùng phải có ít nhất một vai trò hệ thống.', 'error');
       return;
     }
+
+    const userOwnsShop = Boolean(
+      roleAssignUser.ownsShop ||
+      adminShops.some((s) => s.ownerId === roleAssignUser.id && s.status !== 'REJECTED')
+    );
+
+    let finalRoleCodes = [...selectedRoleCodes];
+    if (userOwnsShop && !finalRoleCodes.includes('SHOP_MANAGER')) {
+      finalRoleCodes.push('SHOP_MANAGER');
+    }
+
     setIsSavingRoles(true);
     try {
-      await adminUserApi.assignUserRoles(roleAssignUser.id, { roles: selectedRoleCodes });
+      await adminUserApi.assignUserRoles(roleAssignUser.id, { roles: finalRoleCodes });
       triggerAlert(`Đã cập nhật tập vai trò cho người dùng ${roleAssignUser.username} thành công!`, 'success');
       if (roleAssignUser.id === user?.id && typeof refreshUser === 'function') {
         await refreshUser();
@@ -891,6 +914,8 @@ export const AdminPage = () => {
     setIsProductModalOpen(true);
   };
 
+  const handleOpenAddProduct = handleOpenCreateProduct;
+
   // Open Edit Product Modal
   const handleOpenEditProduct = async (prod) => {
     setIsEditingProduct(true);
@@ -1142,11 +1167,12 @@ export const AdminPage = () => {
   const handleApplySpecPreset = (presetId) => {
     const preset = SPEC_PRESETS.find((p) => p.id === presetId);
     if (!preset) return;
+    const newSpecs = (preset.fields || []).map((f) => ({ name: f, value: '' }));
     setProductFormData((prev) => ({
       ...prev,
-      specifications: preset.specs.map((s) => ({ ...s }))
+      specifications: newSpecs
     }));
-    triggerAlert(`Đã áp dụng mẫu thông số kỹ thuật: ${preset.name}`, 'info');
+    triggerAlert(`Đã áp dụng mẫu thông số kỹ thuật: ${preset.label || preset.id}`, 'info');
   };
 
   // Save product (Create or Edit)
@@ -1172,9 +1198,12 @@ export const AdminPage = () => {
         productFormData.specifications
       );
 
+      const targetShopId = selectedShopId ? Number(selectedShopId) : (myShopInfo?.id || 1);
+
       const payload = {
         name: productFormData.name.trim(),
         slug: productFormData.slug.trim() || generateSlug(productFormData.name),
+        shopId: targetShopId,
         categoryId: Number(productFormData.categoryId),
         brandId: productFormData.brandId ? Number(productFormData.brandId) : null,
         shortDescription: productFormData.shortDescription.trim() || null,
@@ -1183,7 +1212,7 @@ export const AdminPage = () => {
         status: productFormData.status,
         variants: productFormData.variants.map((v, idx) => ({
           id: v.id || null,
-          variantName: v.variantName.trim() || `Phiên bản #${idx + 1}`,
+          variantName: (v.variantName && v.variantName.trim()) || `Phiên bản #${idx + 1}`,
           sku: (v.sku && v.sku.trim()) || `SKU-${currentProductId || Date.now()}-${idx + 1}`,
           color: v.color || null,
           storage: v.storage || null,
@@ -1200,15 +1229,31 @@ export const AdminPage = () => {
       };
 
       if (isEditingProduct) {
-        await productApi.updateProduct(currentProductId, payload);
+        if (targetShopId) {
+          try {
+            await productApi.updateShopProduct(targetShopId, currentProductId, payload);
+          } catch {
+            await productApi.updateProduct(currentProductId, payload);
+          }
+        } else {
+          await productApi.updateProduct(currentProductId, payload);
+        }
         triggerAlert(`Cập nhật sản phẩm "${payload.name}" thành công!`, 'success');
       } else {
-        await productApi.createProduct(payload);
+        if (targetShopId) {
+          try {
+            await productApi.createShopProduct(targetShopId, payload);
+          } catch {
+            await productApi.createProduct(payload);
+          }
+        } else {
+          await productApi.createProduct(payload);
+        }
         triggerAlert(`Tạo sản phẩm mới "${payload.name}" thành công!`, 'success');
       }
 
       setIsProductModalOpen(false);
-      fetchAdminProducts(prodPage);
+      fetchShopProducts(shopProdPage);
     } catch (err) {
       console.error('Save product error:', err);
       triggerAlert(err.message || 'Lỗi khi lưu thông tin sản phẩm.', 'error');
@@ -1902,6 +1947,10 @@ export const AdminPage = () => {
       if (!allowedShopTabs.includes(activeTab)) {
         setActiveTab('shops');
       }
+    } else if (isAdminUser) {
+      if (activeTab === 'products') {
+        setActiveTab('shops');
+      }
     }
   }, [isShopManager, isAdminUser, activeTab]);
 
@@ -1986,6 +2035,17 @@ export const AdminPage = () => {
               <RefreshCw size={15} />
               Làm mới
             </button>
+                        <a
+              href="/swagger-ui/index.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="admin-btn-back-store"
+              title="Mở tài liệu OpenAPI 3.0 & Swagger UI"
+              style={{ background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)', color: '#fff', border: 'none', textDecoration: 'none' }}
+            >
+              <ExternalLink size={15} />
+              Tài liệu API (Swagger)
+            </a>
             <Link to="/" className="admin-btn-back-store">
               <ArrowLeft size={15} />
               Về Cửa hàng
@@ -2055,13 +2115,13 @@ export const AdminPage = () => {
               </div>
             </div>
 
-            <div className="admin-metric-card" onClick={() => setActiveTab('products')} style={{ cursor: 'pointer' }}>
-              <div className="admin-metric-icon-wrap products">
-                <Package size={22} />
+            <div className="admin-metric-card" onClick={() => setActiveTab('admin-shops')} style={{ cursor: 'pointer' }}>
+              <div className="admin-metric-icon-wrap" style={{ background: '#ecfdf5', color: '#059669' }}>
+                <Store size={22} />
               </div>
               <div className="admin-metric-info">
-                <div className="admin-metric-label">Sản phẩm</div>
-                <div className="admin-metric-val">{prodTotalElements || adminProducts.length} sản phẩm</div>
+                <div className="admin-metric-label">Quản trị Cửa hàng</div>
+                <div className="admin-metric-val">{adminShopsTotalElements || adminShops.length || 1} cửa hàng</div>
               </div>
             </div>
           </div>
@@ -2155,16 +2215,6 @@ export const AdminPage = () => {
                 <Award size={17} />
                 Thương hiệu
                 <span className="admin-tab-badge">STT 33-38</span>
-              </button>
-
-              <button
-                type="button"
-                className={`admin-tab-btn ${activeTab === 'products' ? 'active' : ''}`}
-                onClick={() => setActiveTab('products')}
-              >
-                <Package size={17} />
-                Quản lý Sản phẩm
-                <span className="admin-tab-badge">STT 39-44</span>
               </button>
             </>
           )}
@@ -2371,7 +2421,7 @@ export const AdminPage = () => {
                           </td>
                           <td>{u.phone || '—'}</td>
                           <td>
-                            <div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
                               {userRolesList.map((rCode) => {
                                 const lower = rCode.toLowerCase();
                                 return (
@@ -2380,6 +2430,22 @@ export const AdminPage = () => {
                                   </span>
                                 );
                               })}
+                              {(u.ownsShop || adminShops.some((s) => s.ownerId === u.id && s.status !== 'REJECTED')) && (
+                                <span
+                                  title={`Chủ sở hữu cửa hàng: ${u.ownedShopName || 'Shop chính thức'}`}
+                                  style={{
+                                    fontSize: '0.6875rem',
+                                    fontWeight: 700,
+                                    color: '#059669',
+                                    background: '#ecfdf5',
+                                    padding: '2px 7px',
+                                    borderRadius: '12px',
+                                    border: '1px solid #a7f3d0'
+                                  }}
+                                >
+                                  🏪 Chủ shop
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td>
@@ -2924,257 +2990,7 @@ export const AdminPage = () => {
         )}
 
         {/* =================================================================== */}
-        {/* TAB 5: QUẢN LÝ SẢN PHẨM & BIẾN THỂ (PRODUCTS - STT 39-44) */}
-        {/* =================================================================== */}
-        {activeTab === 'products' && (
-          <div className="admin-card-container">
-            {/* Toolbar */}
-            <div className="admin-toolbar">
-              <div className="admin-toolbar-left">
-                <div className="admin-search-box">
-                  <Search size={16} className="admin-search-icon" />
-                  <input
-                    type="text"
-                    placeholder="Tìm theo tên sản phẩm, slug..."
-                    value={prodKeyword}
-                    onChange={(e) => setProdKeyword(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') fetchAdminProducts(0);
-                    }}
-                  />
-                  {prodKeyword && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProdKeyword('');
-                        fetchAdminProducts(0);
-                      }}
-                      className="admin-search-clear"
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-
-                {/* Filter Category */}
-                <select
-                  className="admin-select-filter"
-                  value={prodCategoryFilter}
-                  onChange={(e) => {
-                    setProdCategoryFilter(e.target.value);
-                  }}
-                >
-                  <option value="">Tất cả danh mục</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-
-                {/* Filter Brand */}
-                <select
-                  className="admin-select-filter"
-                  value={prodBrandFilter}
-                  onChange={(e) => {
-                    setProdBrandFilter(e.target.value);
-                  }}
-                >
-                  <option value="">Tất cả thương hiệu</option>
-                  {brands.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-
-                <button
-                  type="button"
-                  onClick={() => fetchAdminProducts(0)}
-                  className="admin-btn-action-secondary"
-                  title="Tìm kiếm & lọc sản phẩm"
-                >
-                  <Search size={15} />
-                  Tìm
-                </button>
-              </div>
-
-              <div className="admin-toolbar-right">
-                <button
-                  type="button"
-                  onClick={handleOpenCreateProduct}
-                  className="admin-btn-action-primary"
-                >
-                  <Plus size={16} />
-                  Thêm sản phẩm mới
-                </button>
-              </div>
-            </div>
-
-            {/* Products Table */}
-            <div className="admin-table-wrapper">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '60px' }}>ID</th>
-                    <th style={{ width: '80px' }}>Ảnh</th>
-                    <th>Tên sản phẩm & Mã Slug</th>
-                    <th>Danh mục & Hãng</th>
-                    <th style={{ textAlign: 'center', width: '130px' }}>Số phiên bản</th>
-                    <th style={{ textAlign: 'right', width: '140px' }}>Khoảng giá</th>
-                    <th style={{ textAlign: 'center', width: '110px' }}>Trạng thái</th>
-                    <th style={{ textAlign: 'right', width: '150px' }}>Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {adminProductsLoading ? (
-                    <tr>
-                      <td colSpan="8" style={{ textAlign: 'center', padding: '3rem' }}>
-                        <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto', color: '#64748b' }} />
-                        <div style={{ marginTop: '0.5rem', color: '#64748b' }}>Đang tải danh sách sản phẩm...</div>
-                      </td>
-                    </tr>
-                  ) : adminProducts.length === 0 ? (
-                    <tr>
-                      <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
-                        Không có sản phẩm nào phù hợp với bộ lọc hiện tại.
-                      </td>
-                    </tr>
-                  ) : (
-                    adminProducts.map((p) => {
-                      const primaryImg =
-                        p.images?.find((img) => img.isPrimary)?.imageUrl ||
-                        p.images?.[0]?.imageUrl ||
-                        p.imageUrl ||
-                        '';
-                      return (
-                        <tr key={p.id}>
-                          <td>
-                            <span style={{ fontWeight: 600, color: '#64748b' }}>#{p.id}</span>
-                          </td>
-                          <td>
-                            <div className="admin-product-thumb">
-                              {primaryImg ? (
-                                <img
-                                  src={primaryImg}
-                                  alt={p.name}
-                                  onError={(e) => {
-                                    e.target.onerror = null;
-                                    e.target.style.display = 'none';
-                                  }}
-                                />
-                              ) : (
-                                <Box size={22} color="#94a3b8" />
-                              )}
-                            </div>
-                          </td>
-                          <td>
-                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{p.name}</div>
-                            <code style={{ fontSize: '0.75rem', color: '#475569', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>
-                              /{p.slug}
-                            </code>
-                          </td>
-                          <td>
-                            <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#334155' }}>
-                              {p.category?.name || p.categoryName || '—'}
-                            </div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                              Hãng: {p.brand?.name || p.brandName || '—'}
-                            </div>
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            <span
-                              style={{
-                                display: 'inline-block',
-                                background: '#eff6ff',
-                                color: '#1d4ed8',
-                                border: '1px solid #bfdbfe',
-                                padding: '2px 8px',
-                                borderRadius: '12px',
-                                fontSize: '0.75rem',
-                                fontWeight: 600
-                              }}
-                            >
-                              {p.variants?.length ? `${p.variants.length} phiên bản` : '1 phiên bản'}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ fontWeight: 700, color: '#2563eb', fontSize: '0.84375rem' }}>
-                              {p.minPrice ? Number(p.minPrice).toLocaleString('vi-VN') + ' đ' : 'Liên hệ'}
-                            </div>
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            <span className={`status-pill ${(p.status || 'ACTIVE').toLowerCase()}`}>
-                              {p.status === 'ACTIVE' ? 'Đang bán' : p.status === 'DRAFT' ? 'Bản nháp' : 'Tạm ẩn'}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'inline-flex', gap: '0.35rem', justifyContent: 'flex-end' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleViewProductDetail(p)}
-                                className="admin-btn-action light"
-                                title="Xem chi tiết sản phẩm"
-                              >
-                                <Eye size={15} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditProduct(p)}
-                                className="admin-btn-action light"
-                                title="Chỉnh sửa sản phẩm & phiên bản"
-                              >
-                                <Edit size={15} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenDeleteProduct(p)}
-                                className="admin-btn-action danger"
-                                title="Xóa hoặc ngừng bán sản phẩm"
-                              >
-                                <Trash2 size={15} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            {prodTotalPages > 1 && (
-              <div className="admin-pagination">
-                <div className="admin-pagination-info">
-                  Trang <strong>{prodPage + 1}</strong> / {prodTotalPages} (Tổng <strong>{prodTotalElements}</strong> sản phẩm)
-                </div>
-                <div className="admin-pagination-btns">
-                  <button
-                    type="button"
-                    disabled={prodPage === 0}
-                    onClick={() => fetchAdminProducts(prodPage - 1)}
-                    className="admin-page-btn"
-                  >
-                    <ChevronLeft size={16} /> Trước
-                  </button>
-                  <button
-                    type="button"
-                    disabled={prodPage >= prodTotalPages - 1}
-                    onClick={() => fetchAdminProducts(prodPage + 1)}
-                    className="admin-page-btn"
-                  >
-                    Sau <ChevronRight size={16} />
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* =================================================================== */}
-        {/* TAB 6: QUYỀN HẠN CỦA TÔI (MY PERMISSIONS - STT 26) */}
+        {/* TAB: QUYỀN HẠN CỦA TÔI (MY PERMISSIONS - STT 26) */}
         {/* =================================================================== */}
         {activeTab === 'permissions' && (
           <div className="admin-card-container">
@@ -3496,8 +3312,6 @@ export const AdminPage = () => {
                     ) : (
                       <>
                         <option value="1">🏪 Shop #1: Cyber Flagship Store</option>
-                        <option value="2">🏬 Shop #2: Cyber Official Store</option>
-                        <option value="3">🏪 Shop #3: Cyber Gaming Hub</option>
                       </>
                     )}
                   </select>
@@ -3557,7 +3371,15 @@ export const AdminPage = () => {
                 </button>
               </div>
 
-              <div className="admin-toolbar-right">
+              <div className="admin-toolbar-right" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button
+                  type="button"
+                  className="admin-btn-action-primary"
+                  onClick={handleOpenCreateProduct}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '0.45rem 1rem' }}
+                >
+                  <Plus size={16} /> Thêm sản phẩm Shop
+                </button>
                 <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
                   Tổng cộng: <strong>{shopProdTotalElements}</strong> sản phẩm cửa hàng
                 </span>
@@ -3637,6 +3459,16 @@ export const AdminPage = () => {
                           </td>
                           <td style={{ textAlign: 'center' }}>
                             <div style={{ display: 'inline-flex', gap: '6px' }}>
+                              <button
+                                type="button"
+                                className="admin-btn-action-primary"
+                                style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                onClick={() => handleOpenEditProduct(p)}
+                                title="STT 48: Chỉnh sửa thông tin chi tiết sản phẩm"
+                              >
+                                <Edit size={13} />
+                                Sửa
+                              </button>
                               <button
                                 type="button"
                                 className="admin-btn-action-secondary"
@@ -4281,8 +4113,6 @@ export const AdminPage = () => {
                     ) : (
                       <>
                         <option value="1">🏪 Shop #1: Cyber Flagship Store</option>
-                        <option value="2">🏬 Shop #2: Cyber Official Store</option>
-                        <option value="3">🏪 Shop #3: Cyber Gaming Hub</option>
                       </>
                     )}
                   </select>
@@ -4619,7 +4449,14 @@ export const AdminPage = () => {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 {roles.map((r) => {
-                  const isChecked = selectedRoleCodes.includes(r.code);
+                  const isShopManagerRole = r.code === 'SHOP_MANAGER' || r.code === 'ROLE_SHOP_MANAGER';
+                  const userOwnsShop = Boolean(
+                    roleAssignUser?.ownsShop ||
+                    adminShops.some((s) => s.ownerId === roleAssignUser?.id && s.status !== 'REJECTED')
+                  );
+                  const isShopManagerLocked = isShopManagerRole && userOwnsShop;
+                  const isChecked = isShopManagerLocked ? true : selectedRoleCodes.includes(r.code);
+
                   return (
                     <label
                       key={r.code}
@@ -4631,13 +4468,16 @@ export const AdminPage = () => {
                         background: isChecked ? '#eff6ff' : '#f8fafc',
                         border: `1px solid ${isChecked ? '#93c5fd' : '#e2e8f0'}`,
                         borderRadius: '8px',
-                        cursor: 'pointer'
+                        cursor: isShopManagerLocked ? 'not-allowed' : 'pointer',
+                        opacity: isShopManagerLocked ? 0.95 : 1
                       }}
                     >
                       <input
                         type="checkbox"
                         checked={isChecked}
+                        disabled={isShopManagerLocked}
                         onChange={(e) => {
+                          if (isShopManagerLocked) return;
                           if (e.target.checked) {
                             setSelectedRoleCodes([...selectedRoleCodes, r.code]);
                           } else {
@@ -4645,12 +4485,29 @@ export const AdminPage = () => {
                           }
                         }}
                       />
-                      <div>
-                        <div style={{ fontWeight: 600, color: '#0f172a' }}>
-                          {r.name} <span style={{ fontFamily: 'monospace', color: '#2563eb' }}>({r.code})</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                          <div style={{ fontWeight: 600, color: '#0f172a' }}>
+                            {r.name} <span style={{ fontFamily: 'monospace', color: '#2563eb' }}>({r.code})</span>
+                          </div>
+                          {isShopManagerLocked && (
+                            <span style={{
+                              fontSize: '0.71875rem',
+                              fontWeight: 700,
+                              color: '#059669',
+                              background: '#ecfdf5',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              border: '1px solid #a7f3d0'
+                            }}>
+                              🔒 Đang sở hữu shop (Không thể xóa)
+                            </span>
+                          )}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                          {r.description || 'Vai trò hệ thống'}
+                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
+                          {isShopManagerLocked
+                            ? `Người dùng đang sở hữu cửa hàng (${roleAssignUser?.ownedShopName || 'Shop chính thức'}). Hệ thống bảo vệ không cho phép xóa quyền Quản lý shop.`
+                            : (r.description || 'Vai trò hệ thống')}
                         </div>
                       </div>
                     </label>
@@ -5403,7 +5260,7 @@ export const AdminPage = () => {
               ) : (
                 <div className="admin-prod-images-grid">
                   {productFormData.images.map((img, idx) => (
-                    <div key={idx} className={`admin-prod-img-card ${img.isPrimary ? 'primary' : ''}`}>
+                    <div key={img.id ? `img-${img.id}` : `img-idx-${idx}`} className={`admin-prod-img-card ${img.isPrimary ? 'primary' : ''}`}>
                       <div className="admin-prod-img-thumb">
                         <img
                           src={img.imageUrl}
@@ -5500,7 +5357,7 @@ export const AdminPage = () => {
                   </thead>
                   <tbody>
                     {productFormData.variants.map((v, idx) => (
-                      <tr key={idx}>
+                      <tr key={v.id ? `var-${v.id}` : `v-idx-${idx}`}>
                         <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>
                           {idx + 1}
                         </td>
@@ -5617,7 +5474,7 @@ export const AdminPage = () => {
                         cursor: 'pointer'
                       }}
                     >
-                      {preset.name}
+                      {preset.label || preset.name}
                     </button>
                   ))}
                   <button
@@ -5658,7 +5515,7 @@ export const AdminPage = () => {
                     </thead>
                     <tbody>
                       {productFormData.specifications.map((spec, sIdx) => (
-                        <tr key={sIdx}>
+                        <tr key={`spec-${sIdx}`}>
                           <td style={{ textAlign: 'center', color: '#94a3b8', fontWeight: 600 }}>{sIdx + 1}</td>
                           <td>
                             <input

@@ -54,3 +54,14 @@ logging:
     root: INFO
     com.example.demo: DEBUG
     org.springframework.security: INFO
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    try-it-out-enabled: true
+    doc-expansion: none
