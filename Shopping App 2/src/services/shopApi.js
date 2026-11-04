@@ -120,6 +120,25 @@ export const shopApi = {
       method: 'PATCH',
       body: JSON.stringify({ status, rejectionReason })
     });
+  },
+
+  /**
+   * PUT /admin/shops/{shopId} - Cập nhật thông tin cửa hàng (ADMIN)
+   */
+  async adminUpdateShop(shopId, payload) {
+    return await request(`/admin/shops/${shopId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  /**
+   * POST /admin/shops - Tạo / Đăng ký cửa hàng mới (ADMIN)
+   */
+  async adminCreateShop(payload) {
+    return await request('/admin/shops', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
   }
 };
-
