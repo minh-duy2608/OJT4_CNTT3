@@ -1,4 +1,4 @@
-# Dự án OJT4 - Fullstack (Frontend & Backend & Database)
+﻿# Dự án OJT4 - Fullstack (Frontend & Backend & Database)
 
 Dự án tích hợp đầy đủ hệ thống bao gồm:
 - **Frontend**: Ứng dụng React + Vite (Shopping App) đóng gói qua Nginx.

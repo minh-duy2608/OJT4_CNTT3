@@ -35,7 +35,11 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     boolean existsByShopIdAndSlug(Long shopId, String slug);
 
+    boolean existsByShopIdAndSlugAndIdNot(Long shopId, String slug, Long id);
+
     boolean existsBySlug(String slug);
+
+    boolean existsBySlugAndIdNot(String slug, Long id);
 
     @org.springframework.data.jpa.repository.Query(value = "SELECT COUNT(*) FROM order_items oi JOIN product_variants pv ON oi.variant_id = pv.id WHERE pv.product_id = :productId", nativeQuery = true)
     long countOrderItemsByProductId(@org.springframework.data.repository.query.Param("productId") Long productId);

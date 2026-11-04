@@ -1,5 +1,7 @@
 package com.example.demo.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.example.demo.dto.request.CreateBrandRequest;
 import com.example.demo.dto.request.UpdateBrandRequest;
 import com.example.demo.dto.response.ApiResponse;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name = "07. Admin - Quản lý Thương hiệu", description = "Thêm mới, sửa, xóa hãng sản xuất, đối tác")
 @RestController
 @RequestMapping({"/admin/brands", "/api/v1/admin/brands"})
 @RequiredArgsConstructor

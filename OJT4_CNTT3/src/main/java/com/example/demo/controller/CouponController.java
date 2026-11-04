@@ -1,5 +1,7 @@
 package com.example.demo.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.example.demo.dto.request.ValidateCouponRequest;
 import com.example.demo.dto.response.ApiResponse;
 import com.example.demo.dto.response.CouponResponse;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.security.Principal;
 import java.util.List;
 
+@Tag(name = "17. Khách hàng - Mã giảm giá", description = "Lấy danh sách mã giảm giá của shop và kiểm tra tính hợp lệ của mã")
 @RestController
 @RequiredArgsConstructor
 public class CouponController {

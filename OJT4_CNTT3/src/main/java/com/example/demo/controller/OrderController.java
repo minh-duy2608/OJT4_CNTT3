@@ -1,5 +1,7 @@
 package com.example.demo.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.example.demo.dto.request.CreateOrderRequest;
 import com.example.demo.dto.request.UpdateOrderStatusRequest;
 import com.example.demo.dto.response.ApiResponse;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 
+@Tag(name = "16. Khách hàng & Admin - Đơn hàng", description = "Tạo đơn hàng, tra cứu lịch sử, hủy đơn và Admin duyệt trạng thái đơn")
 @RestController
 @RequiredArgsConstructor
 public class OrderController {

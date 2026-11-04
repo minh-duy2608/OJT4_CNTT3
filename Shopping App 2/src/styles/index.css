@@ -15,6 +15,25 @@
   --font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
+/* Biến CSS cho Dark Theme */
+:root.dark-theme,
+body.dark-theme {
+  --primary-color: #ffffff;
+  --primary-hover: #e2e8f0;
+  --accent-color: #3b82f6;
+  --text-color: #f8fafc;
+  --text-muted: #94a3b8;
+  --bg-color: #0f172a;
+  --card-bg: #1e293b;
+  --border-color: #334155;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -27,6 +46,7 @@ body {
   color: var(--text-color);
   line-height: 1.6;
   min-height: 100vh;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 a {
@@ -264,18 +284,20 @@ ul {
   cursor: pointer;
   font-weight: 600;
   font-size: 0.9rem;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease, filter 0.25s ease;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .btn:hover {
   background-color: #27272a;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+  box-shadow: 0 6px 14px -1px rgba(0, 0, 0, 0.16);
 }
 
 .btn:active {
   transform: translateY(0);
+  filter: brightness(0.96);
 }
 
 .card {
@@ -302,3 +324,380 @@ ul {
   font-weight: 700;
   margin-bottom: 0.5rem;
 }
+
+/* ==========================================================================
+   Dark Theme Overrides & Component Tuning
+   ========================================================================== */
+
+/* 1. Header & Navigation in Dark Mode */
+.dark-theme .cyber-header-wrapper,
+.dark-theme .cyber-main-header {
+  background-color: #111827;
+  border-bottom-color: #1f293d;
+}
+
+.dark-theme .cyber-logo {
+  color: #ffffff;
+}
+
+.dark-theme .cyber-search-form {
+  background-color: #1e293b;
+  border-color: #334155;
+}
+
+.dark-theme .cyber-search-form:focus-within {
+  background-color: #1e293b;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+}
+
+.dark-theme .cyber-search-input {
+  color: #f8fafc;
+}
+
+.dark-theme .cyber-search-input::placeholder {
+  color: #64748b;
+}
+
+.dark-theme .cyber-nav-link {
+  color: #94a3b8;
+}
+
+.dark-theme .cyber-nav-link:hover,
+.dark-theme .cyber-nav-link.active {
+  color: #ffffff;
+}
+
+.dark-theme .cyber-action-btn {
+  color: #f8fafc;
+}
+
+.dark-theme .cyber-action-btn:hover {
+  color: #60a5fa;
+}
+
+.dark-theme .cyber-cart-badge {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+.dark-theme .cyber-user-name {
+  color: #f8fafc;
+}
+
+.dark-theme .cyber-user-btn:hover {
+  background-color: #1e293b;
+}
+
+.dark-theme .cyber-auth-dropdown {
+  background-color: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+}
+
+.dark-theme .cyber-dropdown-item {
+  color: #cbd5e1;
+}
+
+.dark-theme .cyber-dropdown-item:hover {
+  background-color: #334155;
+  color: #ffffff;
+}
+
+.dark-theme .cyber-live-search-dropdown {
+  background-color: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+}
+
+.dark-theme .live-search-header {
+  border-bottom-color: #334155;
+  color: #94a3b8;
+}
+
+.dark-theme .live-search-item {
+  border-bottom-color: #334155;
+}
+
+.dark-theme .live-search-item:hover {
+  background-color: #334155;
+}
+
+.dark-theme .live-search-name {
+  color: #f8fafc;
+}
+
+.dark-theme .live-search-footer {
+  background-color: #0f172a;
+  color: #94a3b8;
+  border-top-color: #334155;
+}
+
+/* 2. Product Card in Dark Mode */
+.dark-theme .cyber-product-card {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.dark-theme .cyber-product-card:hover {
+  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.5);
+  border-color: #475569;
+}
+
+.dark-theme .product-card-title {
+  color: #f8fafc;
+}
+
+.dark-theme .product-card-price {
+  color: #38bdf8;
+}
+
+.dark-theme .product-buy-btn {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+.dark-theme .product-buy-btn:hover {
+  background-color: #38bdf8;
+  color: #0f172a;
+}
+
+/* 3. Category & Brand Filter Pills in Dark Mode */
+.dark-theme .category-pill-btn {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #cbd5e1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.dark-theme .category-pill-btn:hover {
+  background-color: #334155;
+  color: #ffffff;
+  border-color: #475569;
+}
+
+.dark-theme .category-pill-btn.is-active {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+}
+
+.dark-theme .category-brand-dropdown {
+  background-color: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+}
+
+.dark-theme .category-brand-dropdown::after {
+  background-color: #1e293b;
+}
+
+.dark-theme .brand-dropdown-header {
+  color: #94a3b8;
+  border-bottom-color: #334155;
+}
+
+.dark-theme .brand-dropdown-item {
+  color: #cbd5e1;
+}
+
+.dark-theme .brand-dropdown-item:hover {
+  background-color: #334155;
+  color: #ffffff;
+}
+
+.dark-theme .brand-dropdown-item.is-selected {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+.dark-theme .brand-filter-bar {
+  border-bottom-color: #334155;
+}
+
+.dark-theme .brand-filter-label {
+  color: #94a3b8;
+}
+
+.dark-theme .brand-pill-btn {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+.dark-theme .brand-pill-btn:hover {
+  background-color: #334155;
+  color: #ffffff;
+  border-color: #475569;
+}
+
+.dark-theme .brand-pill-btn.is-active {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.dark-theme .products-tab-header {
+  border-bottom-color: #334155;
+}
+
+.dark-theme .products-tab-btn {
+  color: #94a3b8;
+}
+
+.dark-theme .products-tab-btn.is-active {
+  color: #ffffff;
+}
+
+.dark-theme .page-number-btn {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+.dark-theme .page-number-btn:hover {
+  background-color: #334155;
+  color: #ffffff;
+}
+
+.dark-theme .page-number-btn.is-active {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.dark-theme .pagination-btn {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+.dark-theme .pagination-btn:hover:not(:disabled) {
+  background-color: #334155;
+  color: #ffffff;
+}
+
+.dark-theme .pagination-status-text {
+  color: #94a3b8;
+}
+
+/* 4. Forms, Inputs & Dialogs in Dark Mode */
+.dark-theme .form-input {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.dark-theme .form-input:focus {
+  border-color: #60a5fa;
+  background-color: #1e293b;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+}
+
+.dark-theme .form-input::placeholder {
+  color: #64748b;
+}
+
+.dark-theme .form-label {
+  color: #e2e8f0;
+}
+
+.dark-theme .card {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.dark-theme .btn {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+.dark-theme .btn:hover {
+  background-color: #2563eb;
+}
+
+/* ==========================================================================
+   Global Smooth Hover Animations & Transitions
+   ========================================================================== */
+
+/* 1. Thẻ sản phẩm & Thẻ Card: Nhấc nhẹ 5px và thêm bóng đổ tự nhiên */
+.product-card,
+.cyber-product-card,
+.card {
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  will-change: transform, box-shadow;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+.product-card:hover,
+.cyber-product-card:hover,
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 14px 28px -4px rgba(0, 0, 0, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.06);
+}
+
+/* Dark Mode Card Shadow */
+.dark-theme .product-card:hover,
+.dark-theme .cyber-product-card:hover,
+.dark-theme .card:hover {
+  box-shadow: 0 14px 30px -4px rgba(0, 0, 0, 0.55), 0 4px 12px -2px rgba(0, 0, 0, 0.4);
+}
+
+/* 2. Nút bấm (Buttons): Nổi nhẹ lên 2px và làm sáng nhẹ hiệu ứng màu nền */
+button:not(:disabled),
+.btn,
+.product-buy-btn,
+.pagination-btn,
+.page-number-btn,
+.category-pill-btn,
+.brand-pill-btn,
+.hero-cta-btn,
+.footer-promo-cta-btn,
+input[type="button"],
+input[type="submit"] {
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease, filter 0.25s ease, color 0.25s ease;
+  will-change: transform, box-shadow;
+}
+
+button:not(:disabled):hover,
+.btn:hover,
+.product-buy-btn:hover,
+.pagination-btn:not(:disabled):hover,
+.page-number-btn:hover,
+input[type="button"]:hover,
+input[type="submit"]:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+}
+
+/* Trạng thái khi click / ấn giữ */
+button:not(:disabled):active,
+.btn:active,
+.product-buy-btn:active,
+.pagination-btn:not(:disabled):active,
+.page-number-btn:active,
+input[type="button"]:active,
+input[type="submit"]:active {
+  transform: translateY(0);
+  filter: brightness(0.96);
+}
+
+/* 3. Thẻ liên kết (Navigation Links) */
+.nav-link,
+.cyber-nav-link {
+  transition: transform 0.25s ease, color 0.25s ease, opacity 0.25s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.nav-link:hover,
+.cyber-nav-link:hover {
+  transform: translateY(-1px);
+  opacity: 0.95;
+}
+
+

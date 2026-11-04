@@ -28,6 +28,9 @@ public class UserResponse {
     private Role role;
     private java.util.Set<String> roles;
     private UserStatus status;
+    private Boolean ownsShop;
+    private Long ownedShopId;
+    private String ownedShopName;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime emailVerifiedAt;
@@ -66,10 +69,21 @@ public class UserResponse {
                 .role(user.getRole())
                 .roles(roleCodes)
                 .status(user.getStatus())
+                .ownsShop(false)
                 .emailVerifiedAt(user.getEmailVerifiedAt())
                 .lastLoginAt(user.getLastLoginAt())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .build();
+    }
+
+    public static UserResponse fromEntity(User user, boolean ownsShop, Long shopId, String shopName) {
+        UserResponse response = fromEntity(user);
+        if (response != null) {
+            response.setOwnsShop(ownsShop);
+            response.setOwnedShopId(shopId);
+            response.setOwnedShopName(shopName);
+        }
+        return response;
     }
 }

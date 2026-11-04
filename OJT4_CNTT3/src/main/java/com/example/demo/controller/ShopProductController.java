@@ -1,5 +1,7 @@
 package com.example.demo.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.example.demo.dto.request.CreateProductImageRequest;
 import com.example.demo.dto.request.CreateProductRequest;
 import com.example.demo.dto.request.CreateProductVariantRequest;
@@ -33,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.math.BigDecimal;
 import java.security.Principal;
 
+@Tag(name = "10. Người bán - Sản phẩm & Biến thể", description = "Quản lý sản phẩm, biến thể màu sắc/bộ nhớ và album ảnh của shop")
 @RestController
 @RequestMapping({"/shops", "/api/v1/shops"})
 @RequiredArgsConstructor

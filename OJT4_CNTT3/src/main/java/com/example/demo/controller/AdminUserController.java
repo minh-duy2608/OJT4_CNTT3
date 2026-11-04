@@ -1,5 +1,7 @@
 package com.example.demo.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.example.demo.dto.request.AdminAssignRolesRequest;
 import com.example.demo.dto.request.AdminUpdateUserRequest;
 import com.example.demo.dto.request.AdminUpdateUserStatusRequest;
@@ -26,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+@Tag(name = "02. Admin - Quản lý Người dùng", description = "Danh sách người dùng, Khóa/Mở khóa tài khoản, Phân quyền Role")
 @RestController
 @RequestMapping({"/admin/users", "/api/v1/admin/users"})
 @RequiredArgsConstructor

@@ -1,5 +1,7 @@
 package com.example.demo.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.example.demo.dto.request.AddToWishlistRequest;
 import com.example.demo.dto.response.ApiResponse;
 import com.example.demo.dto.response.WishlistResponse;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
 
+@Tag(name = "18. Khách hàng - Danh sách yêu thích", description = "Lưu và quản lý các sản phẩm khách hàng quan tâm")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping({"/wishlist", "/api/v1/wishlist"})

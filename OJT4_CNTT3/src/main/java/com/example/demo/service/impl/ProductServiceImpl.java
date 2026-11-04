@@ -12,6 +12,8 @@ import com.example.demo.entity.ProductImage;
 import com.example.demo.entity.ProductStatus;
 import com.example.demo.entity.ProductVariant;
 import com.example.demo.entity.ProductVariantStatus;
+import com.example.demo.entity.ShopStatus;
+import com.example.demo.exception.BadRequestException;
 import com.example.demo.exception.ResourceNotFoundException;
 import com.example.demo.repository.InventoryRepository;
 import com.example.demo.repository.ProductImageRepository;
@@ -301,11 +303,18 @@ public class ProductServiceImpl implements ProductService {
                     .orElseThrow(() -> new ResourceNotFoundException("Thương hiệu không tồn tại với ID: " + request.getBrandId()));
         }
 
-        Long shopId = request.getShopId();
-        if (shopId == null) {
+        Long reqShopId = request.getShopId();
+        if (reqShopId == null) {
             com.example.demo.entity.Shop defaultShop = shopRepository.findAll().stream().findFirst()
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng nào trong hệ thống"));
-            shopId = defaultShop.getId();
+            reqShopId = defaultShop.getId();
+        }
+        final Long shopId = reqShopId;
+
+        com.example.demo.entity.Shop targetShop = shopRepository.findById(shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng với ID: " + shopId));
+        if (targetShop.getStatus() != ShopStatus.ACTIVE) {
+            throw new BadRequestException("Cửa hàng '" + targetShop.getName() + "' đang ở trạng thái " + targetShop.getStatus() + ", không thể đăng bán sản phẩm mới.");
         }
 
         String slug = request.getSlug();
@@ -416,11 +425,25 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + productId));
 
         if (request.getName() != null && !request.getName().isBlank()) {
-            product.setName(request.getName());
+            product.setName(request.getName().trim());
         }
 
         if (request.getSlug() != null && !request.getSlug().isBlank()) {
-            product.setSlug(request.getSlug());
+            String targetSlug = request.getSlug().trim();
+            String uniqueSlug = targetSlug;
+            int counter = 1;
+            while (productRepository.existsByShopIdAndSlugAndIdNot(product.getShopId(), uniqueSlug, product.getId())) {
+                uniqueSlug = targetSlug + "-" + counter++;
+            }
+            product.setSlug(uniqueSlug);
+        } else if (request.getName() != null && !request.getName().isBlank()) {
+            String targetSlug = toSlug(request.getName());
+            String uniqueSlug = targetSlug;
+            int counter = 1;
+            while (productRepository.existsByShopIdAndSlugAndIdNot(product.getShopId(), uniqueSlug, product.getId())) {
+                uniqueSlug = targetSlug + "-" + counter++;
+            }
+            product.setSlug(uniqueSlug);
         }
 
         if (request.getCategoryId() != null) {
@@ -457,12 +480,14 @@ public class ProductServiceImpl implements ProductService {
         if (request.getVariants() != null && !request.getVariants().isEmpty()) {
             List<ProductVariant> existingVariants = productVariantRepository.findByProductIdOrderByPriceAsc(productId);
             Map<Long, ProductVariant> existingById = existingVariants.stream()
-                    .collect(Collectors.toMap(ProductVariant::getId, Function.identity()));
+                    .filter(v -> v.getId() != null)
+                    .collect(Collectors.toMap(ProductVariant::getId, Function.identity(), (a, b) -> a));
             Map<String, ProductVariant> existingBySku = existingVariants.stream()
                     .filter(v -> v.getSku() != null && !v.getSku().isBlank())
                     .collect(Collectors.toMap(v -> v.getSku().trim(), Function.identity(), (a, b) -> a));
 
             Set<Long> processedVariantIds = new HashSet<>();
+            Set<String> usedSkusInBatch = new HashSet<>();
 
             for (int i = 0; i < request.getVariants().size(); i++) {
                 com.example.demo.dto.request.CreateProductVariantRequest vReq = request.getVariants().get(i);
@@ -497,10 +522,19 @@ public class ProductServiceImpl implements ProductService {
                     if (vReq.getSku() != null && !vReq.getSku().isBlank()) {
                         String newSku = vReq.getSku().trim();
                         if (!newSku.equals(variant.getSku())) {
-                            if (!productVariantRepository.existsBySkuAndIdNot(newSku, variant.getId())) {
+                            if (!productVariantRepository.existsBySkuAndIdNot(newSku, variant.getId()) && !usedSkusInBatch.contains(newSku)) {
                                 variant.setSku(newSku);
+                                usedSkusInBatch.add(newSku);
+                            } else {
+                                String fallbackSku = "SKU-" + savedProduct.getId() + "-" + System.currentTimeMillis() + "-" + (i + 1);
+                                variant.setSku(fallbackSku);
+                                usedSkusInBatch.add(fallbackSku);
                             }
+                        } else {
+                            usedSkusInBatch.add(variant.getSku());
                         }
+                    } else if (variant.getSku() != null) {
+                        usedSkusInBatch.add(variant.getSku());
                     }
                     ProductVariant savedVariant = productVariantRepository.save(variant);
 
@@ -518,11 +552,12 @@ public class ProductServiceImpl implements ProductService {
                 } else {
                     // Thêm mới biến thể
                     String sku = vReq.getSku();
-                    if (sku == null || sku.isBlank() || productVariantRepository.existsBySku(sku.trim())) {
+                    if (sku == null || sku.isBlank() || productVariantRepository.existsBySku(sku.trim()) || usedSkusInBatch.contains(sku.trim())) {
                         sku = "SKU-" + savedProduct.getId() + "-" + System.currentTimeMillis() + "-" + (i + 1);
                     } else {
                         sku = sku.trim();
                     }
+                    usedSkusInBatch.add(sku);
 
                     ProductVariant newVariant = ProductVariant.builder()
                             .product(savedProduct)
