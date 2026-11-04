@@ -261,6 +261,32 @@ export const ProductsPage = () => {
     setHoveredCategory(null);
   };
 
+  // Chọn Category + Brand cùng lúc (atomic) để tránh race condition 2 lần setSearchParams
+  const handleSelectCategoryAndBrand = (catKey, brandIdOrSlug) => {
+    const newParams = new URLSearchParams(searchParams);
+    // Set category
+    if (!catKey) {
+      newParams.delete('category');
+    } else {
+      newParams.set('category', catKey);
+    }
+    // Set brand
+    if (!brandIdOrSlug) {
+      newParams.delete('brand');
+      newParams.delete('brandId');
+    } else {
+      newParams.set('brand', String(brandIdOrSlug));
+      if (/^\d+$/.test(String(brandIdOrSlug))) {
+        newParams.set('brandId', String(brandIdOrSlug));
+      } else {
+        newParams.delete('brandId');
+      }
+    }
+    setSearchParams(newParams, { replace: true });
+    setCurrentPage(1);
+    setHoveredCategory(null);
+  };
+
   // [HOVER-DROPDOWN] Cleanup timer khi component unmount
   useEffect(() => {
     return () => {
@@ -326,8 +352,7 @@ export const ProductsPage = () => {
                     type="button"
                     className={`brand-dropdown-item ${isActive && !brandParam ? 'is-selected' : ''}`}
                     onClick={() => {
-                      handleSelectCategory(cat.key);
-                      handleDropdownBrandSelect('');
+                      handleSelectCategoryAndBrand(cat.key, '');
                     }}
                   >
                     <span>Tất cả hãng</span>
@@ -348,9 +373,8 @@ export const ProductsPage = () => {
                         aria-selected={isSelected}
                         className={`brand-dropdown-item ${isSelected ? 'is-selected' : ''}`}
                         onClick={() => {
-                          // Chọn category trước (nếu chưa chọn) rồi chọn brand
-                          if (!isActive) handleSelectCategory(cat.key);
-                          handleDropdownBrandSelect(b.id || b.slug);
+                          // Atomic: set category + brand trong 1 lần setSearchParams
+                          handleSelectCategoryAndBrand(cat.key, b.id || b.slug);
                         }}
                       >
                         {b.logoUrl && (
