@@ -510,12 +510,16 @@ public class CouponServiceImpl implements CouponService {
     }
 
     private Shop validateShopAccess(Long shopId, User user) {
+        boolean isAdmin = isUserAdmin(user);
         if (shopId == null) {
+            if (!isAdmin) {
+                return shopRepository.findFirstByOwnerIdOrderByIdDesc(user.getId())
+                        .orElseThrow(() -> new ForbiddenException("Bạn chưa sở hữu cửa hàng nào để quản lý mã giảm giá"));
+            }
             throw new BadRequestException("ID cửa hàng không được để trống");
         }
         Shop shop = shopRepository.findById(shopId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
-        boolean isAdmin = isUserAdmin(user);
         boolean isOwner = Objects.equals(shop.getOwnerId(), user.getId());
         if (!isAdmin && !isOwner) {
             throw new ForbiddenException("Bạn không có quyền quản lý mã giảm giá của cửa hàng này");
