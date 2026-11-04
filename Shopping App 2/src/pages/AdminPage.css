@@ -1149,3 +1149,55 @@
   color: #b91c1c;
 }
 
+
+
+/* ==========================================================================
+   Coupon & Shop Management UX Enhancements
+   ========================================================================== */
+.coupon-code-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  letter-spacing: 0.05em;
+  background: #f1f5f9;
+  border: 1px dashed #cbd5e1;
+  color: #1e293b;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.coupon-code-badge:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.coupon-discount-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+}
+
+.admin-form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .admin-form-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}

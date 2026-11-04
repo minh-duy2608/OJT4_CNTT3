@@ -41,8 +41,13 @@ import {
   SlidersHorizontal,
   Store,
   Archive,
-  TrendingDown
+  TrendingDown,
+  Ticket,
+  Tag,
+  Percent,
+  Copy
 } from 'lucide-react';
+import { couponApi } from '../services/couponApi';
 import { useAuth } from '../context/AuthContext';
 import { adminUserApi } from '../services/adminUserApi';
 import { adminRoleApi } from '../services/adminRoleApi';
@@ -2040,6 +2045,8 @@ export const AdminPage = () => {
                 if (activeTab === 'permissions') fetchMyPermissions();
                 if (activeTab === 'orders') fetchAdminOrders(orderPage);
                 if (activeTab === 'shops') fetchShopProducts(shopProdPage);
+                if (activeTab === 'admin-shops') fetchAdminShops(adminShopsPage);
+                if (activeTab === 'coupons') fetchCoupons(couponPage);
                 triggerAlert('Đã làm mới dữ liệu từ máy chủ.', 'info');
               }}
               className="admin-btn-back-store"
@@ -2264,17 +2271,27 @@ export const AdminPage = () => {
             <span className="admin-tab-badge">STT 70-73</span>
           </button>
 
-          {!isAdminUser && (
-            <button
-              type="button"
-              className={`admin-tab-btn ${activeTab === 'orders' ? 'active' : ''}`}
-              onClick={() => setActiveTab('orders')}
-            >
-              <ShoppingBag size={17} />
-              Đơn hàng Cửa hàng
-              <span className="admin-tab-badge">Đơn hàng</span>
-            </button>
-          )}
+          {/* TAB: Mã Giảm Giá */}
+          <button
+            type="button"
+            className={`admin-tab-btn ${activeTab === 'coupons' ? 'active' : ''}`}
+            onClick={() => setActiveTab('coupons')}
+          >
+            <Ticket size={17} />
+            Mã Giảm Giá
+            <span className="admin-tab-badge">Coupon</span>
+          </button>
+
+          <button
+            type="button"
+            className={`admin-tab-btn ${activeTab === 'orders' ? 'active' : ''}`}
+            onClick={() => setActiveTab('orders')}
+          >
+            <ShoppingBag size={17} />
+            {isAdminUser ? 'Quản lý Đơn hàng' : 'Đơn hàng Cửa hàng'}
+            <span className="admin-tab-badge">Đơn hàng</span>
+          </button>
+
 
           <button
             type="button"
@@ -3777,6 +3794,310 @@ export const AdminPage = () => {
                   type="button"
                   disabled={adminShopsPage >= adminShopsTotalPages - 1}
                   onClick={() => fetchAdminShops(adminShopsPage + 1)}
+                  className="admin-page-btn"
+                >
+                  Trang sau <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+                {/* =================================================================== */}
+        {/* TAB: QUẢN LÝ MÃ GIẢM GIÁ (COUPONS) */}
+        {/* =================================================================== */}
+        {activeTab === 'coupons' && (
+          <div className="admin-card-container">
+            <div className="admin-toolbar">
+              <div className="admin-toolbar-left">
+                {/* Tìm kiếm */}
+                <div className="admin-search-box">
+                  <Search size={16} className="admin-search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Tìm theo mã code, tên chương trình..."
+                    value={couponKeyword}
+                    onChange={(e) => setCouponKeyword(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') fetchCoupons(0);
+                    }}
+                  />
+                  {couponKeyword && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCouponKeyword('');
+                        fetchCoupons(0);
+                      }}
+                      className="admin-search-clear"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Lọc theo Cửa hàng */}
+                <select
+                  className="admin-select-filter"
+                  value={couponShopFilter}
+                  onChange={(e) => setCouponShopFilter(e.target.value)}
+                >
+                  <option value="">Tất cả Cửa hàng</option>
+                  {adminShops.map((sh) => (
+                    <option key={sh.id} value={sh.id}>
+                      {sh.name} (#{sh.id})
+                    </option>
+                  ))}
+                </select>
+
+                {/* Lọc theo trạng thái */}
+                <select
+                  className="admin-select-filter"
+                  value={couponStatusFilter}
+                  onChange={(e) => setCouponStatusFilter(e.target.value)}
+                >
+                  <option value="">Tất cả trạng thái</option>
+                  <option value="ACTIVE">ACTIVE (Đang hoạt động)</option>
+                  <option value="DRAFT">DRAFT (Bản nháp)</option>
+                  <option value="INACTIVE">INACTIVE (Đã tắt / Tạm dừng)</option>
+                  <option value="EXPIRED">EXPIRED (Hết hạn)</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => fetchCoupons(0)}
+                  className="admin-btn-action-secondary"
+                  title="Tìm kiếm"
+                >
+                  <Search size={15} />
+                  Tìm
+                </button>
+              </div>
+
+              <div className="admin-toolbar-right" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                  Tổng cộng: <strong>{couponTotalElements}</strong> mã giảm giá
+                </span>
+                <button
+                  type="button"
+                  className="admin-btn-action-primary"
+                  onClick={handleOpenCreateCoupon}
+                >
+                  <Plus size={16} /> Tạo Mã Giảm Giá
+                </button>
+              </div>
+            </div>
+
+            {/* Bảng danh sách mã giảm giá */}
+            {couponsLoading ? (
+              <div style={{ textAlign: 'center', padding: '3.5rem' }}>
+                <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto', color: '#64748b' }} />
+                <div style={{ marginTop: '0.5rem', color: '#64748b' }}>Đang tải danh sách mã giảm giá...</div>
+              </div>
+            ) : coupons.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3.5rem', color: '#64748b' }}>
+                <Ticket size={40} style={{ margin: '0 auto 0.75rem', opacity: 0.4 }} />
+                <div>Không tìm thấy mã giảm giá nào phù hợp.</div>
+                <button
+                  type="button"
+                  className="admin-btn-action-primary"
+                  style={{ marginTop: '1rem', display: 'inline-flex' }}
+                  onClick={handleOpenCreateCoupon}
+                >
+                  <Plus size={16} /> Tạo Mã Giảm Giá Đầu Tiên
+                </button>
+              </div>
+            ) : (
+              <div className="admin-table-responsive">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '60px' }}>ID</th>
+                      <th>Mã & Tên Ưu Đãi</th>
+                      <th>Cửa hàng</th>
+                      <th>Mức giảm</th>
+                      <th>Điều kiện áp dụng</th>
+                      <th>Lượt sử dụng</th>
+                      <th>Thời hạn hiệu lực</th>
+                      <th style={{ textAlign: 'center', width: '130px' }}>Trạng thái</th>
+                      <th style={{ textAlign: 'center', width: '150px' }}>Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coupons.map((c) => {
+                      const isExpired = new Date(c.endAt) < new Date();
+                      const statusColor =
+                        c.status === 'ACTIVE' && !isExpired ? '#16a34a' :
+                        c.status === 'DRAFT' ? '#64748b' :
+                        c.status === 'INACTIVE' ? '#ea580c' : '#dc2626';
+                      const statusBg =
+                        c.status === 'ACTIVE' && !isExpired ? '#f0fdf4' :
+                        c.status === 'DRAFT' ? '#f1f5f9' :
+                        c.status === 'INACTIVE' ? '#fff7ed' : '#fef2f2';
+
+                      return (
+                        <tr key={c.id}>
+                          <td style={{ fontWeight: 700, color: '#64748b' }}>#{c.id}</td>
+                          <td>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span
+                                  className="coupon-code-badge"
+                                  onClick={() => handleCopyCouponCode(c.code)}
+                                  title="Nhấn để sao chép mã"
+                                >
+                                  {c.code}
+                                  {copiedCouponCode === c.code ? (
+                                    <Check size={12} style={{ color: '#16a34a' }} />
+                                  ) : (
+                                    <Copy size={12} style={{ opacity: 0.6 }} />
+                                  )}
+                                </span>
+                              </div>
+                              <div style={{ fontWeight: 600, color: '#0f172a' }}>{c.name}</div>
+                              {c.description && (
+                                <div style={{ fontSize: '0.75rem', color: '#64748b', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {c.description}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 600 }}>{c.shopName || `Shop #${c.shopId}`}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Mã shop: #{c.shopId}</div>
+                          </td>
+                          <td>
+                            <span className="coupon-discount-tag">
+                              {c.discountType === 'PERCENTAGE' ? (
+                                <>
+                                  <Percent size={13} /> {c.discountValue}%
+                                  {c.maxDiscountAmount && (
+                                    <span style={{ fontSize: '0.7rem', color: '#047857', opacity: 0.85 }}>
+                                      (tối đa {formatVND(c.maxDiscountAmount)})
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <>Giảm {formatVND(c.discountValue)}</>
+                              )}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '0.8rem' }}>
+                            <div>Đơn tối thiểu: <strong>{c.minOrderAmount ? formatVND(c.minOrderAmount) : '0đ'}</strong></div>
+                            {c.perUserLimit && (
+                              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                Tối đa <strong>{c.perUserLimit}</strong> lần/khách
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ fontSize: '0.8125rem' }}>
+                            <div>
+                              <strong>{c.usageCount || 0}</strong>
+                              <span style={{ color: '#64748b' }}> / {c.usageLimit ? `${c.usageLimit} lượt` : 'Không giới hạn'}</span>
+                            </div>
+                            {c.usageLimit && (
+                              <div style={{ width: '80px', height: '5px', background: '#e2e8f0', borderRadius: '3px', marginTop: '4px', overflow: 'hidden' }}>
+                                <div
+                                  style={{
+                                    height: '100%',
+                                    background: (c.usageCount / c.usageLimit) >= 1 ? '#dc2626' : '#10b981',
+                                    width: `${Math.min(100, Math.round(((c.usageCount || 0) / c.usageLimit) * 100))}%`
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ fontSize: '0.75rem', color: '#475569' }}>
+                            <div>Từ: <strong>{c.startAt ? new Date(c.startAt).toLocaleDateString('vi-VN') : '—'}</strong></div>
+                            <div>Đến: <strong>{c.endAt ? new Date(c.endAt).toLocaleDateString('vi-VN') : '—'}</strong></div>
+                            {isExpired && (
+                              <span style={{ color: '#dc2626', fontWeight: 600, fontSize: '0.7rem' }}>
+                                (Đã hết hạn)
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                padding: '3px 8px',
+                                borderRadius: '9999px',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                backgroundColor: statusBg,
+                                color: statusColor,
+                                border: `1px solid ${statusColor}33`
+                              }}
+                            >
+                              {isExpired ? 'EXPIRED' : c.status}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <div style={{ display: 'inline-flex', gap: '6px' }}>
+                              {/* Sửa mã */}
+                              <button
+                                type="button"
+                                className="admin-action-btn edit"
+                                onClick={() => handleOpenEditCoupon(c)}
+                                title="Chỉnh sửa mã giảm giá"
+                              >
+                                <Edit size={15} />
+                              </button>
+
+                              {/* Bật / Tắt trạng thái */}
+                              <button
+                                type="button"
+                                className="admin-action-btn"
+                                onClick={() => handleToggleCouponStatus(c)}
+                                title={c.status === 'ACTIVE' ? 'Tạm dừng mã giảm giá' : 'Kích hoạt mã giảm giá'}
+                                style={{
+                                  color: c.status === 'ACTIVE' ? '#ea580c' : '#16a34a',
+                                  backgroundColor: c.status === 'ACTIVE' ? '#fff7ed' : '#f0fdf4'
+                                }}
+                              >
+                                {c.status === 'ACTIVE' ? <Lock size={15} /> : <Unlock size={15} />}
+                              </button>
+
+                              {/* Xóa mã */}
+                              <button
+                                type="button"
+                                className="admin-action-btn delete"
+                                onClick={() => {
+                                  setTargetCouponForDelete(c);
+                                  setShowDeleteCouponModal(true);
+                                }}
+                                title="Xóa mã giảm giá"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Pagination cho Coupons */}
+            {couponTotalPages > 1 && (
+              <div className="admin-pagination">
+                <button
+                  type="button"
+                  disabled={couponPage === 0}
+                  onClick={() => fetchCoupons(couponPage - 1)}
+                  className="admin-page-btn"
+                >
+                  <ChevronLeft size={16} /> Trang trước
+                </button>
+                <span className="admin-page-info">
+                  Trang <strong>{couponPage + 1}</strong> / {couponTotalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={couponPage >= couponTotalPages - 1}
+                  onClick={() => fetchCoupons(couponPage + 1)}
                   className="admin-page-btn"
                 >
                   Trang sau <ChevronRight size={16} />
@@ -5929,6 +6250,18 @@ export const AdminPage = () => {
                   <span>{selectedAdminShop.updatedAt ? new Date(selectedAdminShop.updatedAt).toLocaleString('vi-VN') : '—'}</span>
                 </div>
               </div>
+              <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  className="admin-btn-action-primary"
+                  onClick={() => {
+                    setShowAdminShopDetailModal(false);
+                    handleOpenEditAdminShop(selectedAdminShop);
+                  }}
+                >
+                  <Edit size={15} /> Chỉnh sửa thông tin Shop
+                </button>
+              </div>
             </div>
           )}
         </ConfirmModal>
@@ -6043,6 +6376,751 @@ export const AdminPage = () => {
             </div>
           )}
         </ConfirmModal>
+
+        {/* =================================================================== */}
+        {/* MODAL: CHỈNH SỬA CỬA HÀNG (ADMIN) */}
+        {/* =================================================================== */}
+        <ConfirmModal
+          isOpen={showEditAdminShopModal}
+          onClose={() => setShowEditAdminShopModal(false)}
+          title={`Chỉnh sửa cửa hàng: ${editingAdminShop?.name || ''}`}
+          type="confirm"
+          maxWidth="640px"
+          confirmText={isSavingAdminShop ? 'Đang lưu...' : 'Lưu thay đổi'}
+          cancelText="Hủy"
+          onConfirm={handleSaveAdminShop}
+          isLoading={isSavingAdminShop}
+        >
+          <div style={{ textAlign: 'left', fontSize: '0.875rem' }}>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                Tên cửa hàng *:
+              </label>
+              <input
+                type="text"
+                className="admin-form-input"
+                style={{ width: '100%' }}
+                value={editAdminShopData.name}
+                onChange={(e) => setEditAdminShopData({ ...editAdminShopData, name: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="admin-form-grid-2" style={{ marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Số điện thoại:
+                </label>
+                <input
+                  type="text"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={editAdminShopData.phone}
+                  onChange={(e) => setEditAdminShopData({ ...editAdminShopData, phone: e.target.value })}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Email liên hệ:
+                </label>
+                <input
+                  type="email"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={editAdminShopData.email}
+                  onChange={(e) => setEditAdminShopData({ ...editAdminShopData, email: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="admin-form-grid-2" style={{ marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Logo URL:
+                </label>
+                <input
+                  type="url"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  placeholder="https://..."
+                  value={editAdminShopData.logoUrl}
+                  onChange={(e) => setEditAdminShopData({ ...editAdminShopData, logoUrl: e.target.value })}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Banner URL:
+                </label>
+                <input
+                  type="url"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  placeholder="https://..."
+                  value={editAdminShopData.bannerUrl}
+                  onChange={(e) => setEditAdminShopData({ ...editAdminShopData, bannerUrl: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="admin-form-grid-2" style={{ marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Tỉnh / Thành phố:
+                </label>
+                <input
+                  type="text"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={editAdminShopData.province}
+                  onChange={(e) => setEditAdminShopData({ ...editAdminShopData, province: e.target.value })}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Quận / Huyện:
+                </label>
+                <input
+                  type="text"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={editAdminShopData.district}
+                  onChange={(e) => setEditAdminShopData({ ...editAdminShopData, district: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                Địa chỉ chi tiết:
+              </label>
+              <input
+                type="text"
+                className="admin-form-input"
+                style={{ width: '100%' }}
+                placeholder="Số nhà, đường, phường/xã..."
+                value={editAdminShopData.addressDetail}
+                onChange={(e) => setEditAdminShopData({ ...editAdminShopData, addressDetail: e.target.value })}
+              />
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                Mô tả cửa hàng:
+              </label>
+              <textarea
+                className="admin-form-input"
+                style={{ width: '100%', minHeight: '75px', resize: 'vertical' }}
+                value={editAdminShopData.description}
+                onChange={(e) => setEditAdminShopData({ ...editAdminShopData, description: e.target.value })}
+              />
+            </div>
+          </div>
+        </ConfirmModal>
+
+        {/* =================================================================== */}
+        {/* MODAL: TẠO CỬA HÀNG MỚI (ADMIN) */}
+        {/* =================================================================== */}
+        <ConfirmModal
+          isOpen={showCreateShopModal}
+          onClose={() => setShowCreateShopModal(false)}
+          title="Tạo / Đăng ký Cửa hàng mới"
+          type="confirm"
+          maxWidth="640px"
+          confirmText={isCreatingShop ? 'Đang tạo...' : 'Tạo cửa hàng'}
+          cancelText="Hủy"
+          onConfirm={handleCreateShop}
+          isLoading={isCreatingShop}
+        >
+          <div style={{ textAlign: 'left', fontSize: '0.875rem' }}>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                Tên cửa hàng *:
+              </label>
+              <input
+                type="text"
+                className="admin-form-input"
+                style={{ width: '100%' }}
+                placeholder="VD: Cyber Tech Store..."
+                value={createShopData.name}
+                onChange={(e) => setCreateShopData({ ...createShopData, name: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="admin-form-grid-2" style={{ marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Số điện thoại:
+                </label>
+                <input
+                  type="text"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  placeholder="0912..."
+                  value={createShopData.phone}
+                  onChange={(e) => setCreateShopData({ ...createShopData, phone: e.target.value })}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Email liên hệ:
+                </label>
+                <input
+                  type="email"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  placeholder="shop@example.com"
+                  value={createShopData.email}
+                  onChange={(e) => setCreateShopData({ ...createShopData, email: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="admin-form-grid-2" style={{ marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Logo URL:
+                </label>
+                <input
+                  type="url"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  placeholder="https://..."
+                  value={createShopData.logoUrl}
+                  onChange={(e) => setCreateShopData({ ...createShopData, logoUrl: e.target.value })}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Banner URL:
+                </label>
+                <input
+                  type="url"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  placeholder="https://..."
+                  value={createShopData.bannerUrl}
+                  onChange={(e) => setCreateShopData({ ...createShopData, bannerUrl: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="admin-form-grid-2" style={{ marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Tỉnh / Thành phố:
+                </label>
+                <input
+                  type="text"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  placeholder="Hà Nội, TP.HCM..."
+                  value={createShopData.province}
+                  onChange={(e) => setCreateShopData({ ...createShopData, province: e.target.value })}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Quận / Huyện:
+                </label>
+                <input
+                  type="text"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  placeholder="Cầu Giấy, Quận 1..."
+                  value={createShopData.district}
+                  onChange={(e) => setCreateShopData({ ...createShopData, district: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                Địa chỉ chi tiết:
+              </label>
+              <input
+                type="text"
+                className="admin-form-input"
+                style={{ width: '100%' }}
+                placeholder="Số nhà, đường phố..."
+                value={createShopData.addressDetail}
+                onChange={(e) => setCreateShopData({ ...createShopData, addressDetail: e.target.value })}
+              />
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                Mô tả cửa hàng:
+              </label>
+              <textarea
+                className="admin-form-input"
+                style={{ width: '100%', minHeight: '75px', resize: 'vertical' }}
+                placeholder="Giới thiệu về cửa hàng..."
+                value={createShopData.description}
+                onChange={(e) => setCreateShopData({ ...createShopData, description: e.target.value })}
+              />
+            </div>
+          </div>
+        </ConfirmModal>
+
+        {/* =================================================================== */}
+        {/* MODAL: TẠO MÃ GIẢM GIÁ MỚI */}
+        {/* =================================================================== */}
+        <ConfirmModal
+          isOpen={showCreateCouponModal}
+          onClose={() => setShowCreateCouponModal(false)}
+          title="Tạo Mã Giảm Giá Mới"
+          type="confirm"
+          maxWidth="680px"
+          confirmText={isSavingCoupon ? 'Đang tạo...' : 'Tạo mã giảm giá'}
+          cancelText="Hủy"
+          onConfirm={() => handleSaveCoupon(false)}
+          isLoading={isSavingCoupon}
+        >
+          <div style={{ textAlign: 'left', fontSize: '0.875rem' }}>
+            <div className="admin-form-grid-2" style={{ marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Cửa hàng áp dụng *:
+                </label>
+                <select
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={couponFormData.shopId}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, shopId: e.target.value })}
+                  required
+                >
+                  <option value="">-- Chọn cửa hàng --</option>
+                  {adminShops.map((sh) => (
+                    <option key={sh.id} value={sh.id}>
+                      {sh.name} (#{sh.id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Mã Voucher (Code) *:
+                </label>
+                <input
+                  type="text"
+                  className="admin-form-input"
+                  style={{ width: '100%', textTransform: 'uppercase', fontFamily: 'monospace', fontWeight: 700 }}
+                  placeholder="VD: SUMMER2026, CYBER50K..."
+                  value={couponFormData.code}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, code: e.target.value.toUpperCase() })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                Tên chương trình ưu đãi *:
+              </label>
+              <input
+                type="text"
+                className="admin-form-input"
+                style={{ width: '100%' }}
+                placeholder="VD: Giảm 20% Chào Hè rực rỡ..."
+                value={couponFormData.name}
+                onChange={(e) => setCouponFormData({ ...couponFormData, name: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="admin-form-grid-2" style={{ marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Loại giảm giá *:
+                </label>
+                <select
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={couponFormData.discountType}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, discountType: e.target.value })}
+                >
+                  <option value="PERCENTAGE">Giảm theo Phần trăm (%)</option>
+                  <option value="FIXED_AMOUNT">Giảm Số tiền cố định (VNĐ)</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Mức giảm ({couponFormData.discountType === 'PERCENTAGE' ? '%' : 'VNĐ'}) *:
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  placeholder={couponFormData.discountType === 'PERCENTAGE' ? 'VD: 20' : 'VD: 50000'}
+                  value={couponFormData.discountValue}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, discountValue: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="admin-form-grid-2" style={{ marginBottom: '1rem' }}>
+              {couponFormData.discountType === 'PERCENTAGE' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                    Giảm tối đa (VNĐ):
+                  </label>
+                  <input
+                    type="number"
+                    className="admin-form-input"
+                    style={{ width: '100%' }}
+                    placeholder="VD: 100000 (để trống nếu không giới hạn)"
+                    value={couponFormData.maxDiscountAmount}
+                    onChange={(e) => setCouponFormData({ ...couponFormData, maxDiscountAmount: e.target.value })}
+                  />
+                </div>
+              )}
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Đơn hàng tối thiểu (VNĐ):
+                </label>
+                <input
+                  type="number"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  placeholder="VD: 200000 (mặc định 0đ)"
+                  value={couponFormData.minOrderAmount}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, minOrderAmount: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="admin-form-grid-2" style={{ marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Tổng số lượt sử dụng tối đa:
+                </label>
+                <input
+                  type="number"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  placeholder="VD: 500 (để trống nếu không giới hạn)"
+                  value={couponFormData.usageLimit}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, usageLimit: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Lượt dùng / Mỗi khách hàng:
+                </label>
+                <input
+                  type="number"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  placeholder="VD: 1 hoặc 2 (để trống nếu không giới hạn)"
+                  value={couponFormData.perUserLimit}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, perUserLimit: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="admin-form-grid-2" style={{ marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Thời gian bắt đầu *:
+                </label>
+                <input
+                  type="datetime-local"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={couponFormData.startAt}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, startAt: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Thời gian kết thúc *:
+                </label>
+                <input
+                  type="datetime-local"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={couponFormData.endAt}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, endAt: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="admin-form-grid-2" style={{ marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Trạng thái khởi tạo:
+                </label>
+                <select
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={couponFormData.status}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, status: e.target.value })}
+                >
+                  <option value="ACTIVE">ACTIVE (Kích hoạt ngay)</option>
+                  <option value="DRAFT">DRAFT (Lưu bản nháp)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                Mô tả chi tiết / Thể lệ áp dụng:
+              </label>
+              <textarea
+                className="admin-form-input"
+                style={{ width: '100%', minHeight: '60px', resize: 'vertical' }}
+                placeholder="Điều kiện áp dụng ưu đãi..."
+                value={couponFormData.description}
+                onChange={(e) => setCouponFormData({ ...couponFormData, description: e.target.value })}
+              />
+            </div>
+          </div>
+        </ConfirmModal>
+
+        {/* =================================================================== */}
+        {/* MODAL: CHỈNH SỬA MÃ GIẢM GIÁ */}
+        {/* =================================================================== */}
+        <ConfirmModal
+          isOpen={showEditCouponModal}
+          onClose={() => setShowEditCouponModal(false)}
+          title={`Chỉnh sửa mã giảm giá: ${couponFormData.code || ''}`}
+          type="confirm"
+          maxWidth="680px"
+          confirmText={isSavingCoupon ? 'Đang lưu...' : 'Lưu thay đổi'}
+          cancelText="Hủy"
+          onConfirm={() => handleSaveCoupon(true)}
+          isLoading={isSavingCoupon}
+        >
+          <div style={{ textAlign: 'left', fontSize: '0.875rem' }}>
+            <div className="admin-form-grid-2" style={{ marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Cửa hàng áp dụng *:
+                </label>
+                <select
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={couponFormData.shopId}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, shopId: e.target.value })}
+                  required
+                >
+                  {adminShops.map((sh) => (
+                    <option key={sh.id} value={sh.id}>
+                      {sh.name} (#{sh.id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Mã Voucher (Code) *:
+                </label>
+                <input
+                  type="text"
+                  className="admin-form-input"
+                  style={{ width: '100%', textTransform: 'uppercase', fontFamily: 'monospace', fontWeight: 700 }}
+                  value={couponFormData.code}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, code: e.target.value.toUpperCase() })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                Tên chương trình ưu đãi *:
+              </label>
+              <input
+                type="text"
+                className="admin-form-input"
+                style={{ width: '100%' }}
+                value={couponFormData.name}
+                onChange={(e) => setCouponFormData({ ...couponFormData, name: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="admin-form-grid-2" style={{ marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Loại giảm giá *:
+                </label>
+                <select
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={couponFormData.discountType}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, discountType: e.target.value })}
+                >
+                  <option value="PERCENTAGE">Giảm theo Phần trăm (%)</option>
+                  <option value="FIXED_AMOUNT">Giảm Số tiền cố định (VNĐ)</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Mức giảm ({couponFormData.discountType === 'PERCENTAGE' ? '%' : 'VNĐ'}) *:
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={couponFormData.discountValue}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, discountValue: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="admin-form-grid-2" style={{ marginBottom: '1rem' }}>
+              {couponFormData.discountType === 'PERCENTAGE' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                    Giảm tối đa (VNĐ):
+                  </label>
+                  <input
+                    type="number"
+                    className="admin-form-input"
+                    style={{ width: '100%' }}
+                    value={couponFormData.maxDiscountAmount}
+                    onChange={(e) => setCouponFormData({ ...couponFormData, maxDiscountAmount: e.target.value })}
+                  />
+                </div>
+              )}
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Đơn hàng tối thiểu (VNĐ):
+                </label>
+                <input
+                  type="number"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={couponFormData.minOrderAmount}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, minOrderAmount: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="admin-form-grid-2" style={{ marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Tổng số lượt sử dụng tối đa:
+                </label>
+                <input
+                  type="number"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={couponFormData.usageLimit}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, usageLimit: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Lượt dùng / Mỗi khách hàng:
+                </label>
+                <input
+                  type="number"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={couponFormData.perUserLimit}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, perUserLimit: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="admin-form-grid-2" style={{ marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Thời gian bắt đầu *:
+                </label>
+                <input
+                  type="datetime-local"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={couponFormData.startAt}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, startAt: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Thời gian kết thúc *:
+                </label>
+                <input
+                  type="datetime-local"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={couponFormData.endAt}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, endAt: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="admin-form-grid-2" style={{ marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Trạng thái:
+                </label>
+                <select
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={couponFormData.status}
+                  onChange={(e) => setCouponFormData({ ...couponFormData, status: e.target.value })}
+                >
+                  <option value="ACTIVE">ACTIVE (Đang hoạt động)</option>
+                  <option value="DRAFT">DRAFT (Bản nháp)</option>
+                  <option value="INACTIVE">INACTIVE (Đã tắt)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                Mô tả chi tiết / Thể lệ áp dụng:
+              </label>
+              <textarea
+                className="admin-form-input"
+                style={{ width: '100%', minHeight: '60px', resize: 'vertical' }}
+                value={couponFormData.description}
+                onChange={(e) => setCouponFormData({ ...couponFormData, description: e.target.value })}
+              />
+            </div>
+          </div>
+        </ConfirmModal>
+
+        {/* =================================================================== */}
+        {/* MODAL: XÁC NHẬN XÓA MÃ GIẢM GIÁ */}
+        {/* =================================================================== */}
+        <ConfirmModal
+          isOpen={showDeleteCouponModal}
+          onClose={() => setShowDeleteCouponModal(false)}
+          title={`Xóa mã giảm giá: ${targetCouponForDelete?.code || ''}`}
+          type="danger"
+          confirmText={isDeletingCoupon ? 'Đang xóa...' : 'Xác nhận Xóa'}
+          cancelText="Hủy"
+          onConfirm={handleDeleteCoupon}
+          isLoading={isDeletingCoupon}
+          message={
+            targetCouponForDelete?.usageCount > 0
+              ? `Mã "${targetCouponForDelete?.code}" đã có ${targetCouponForDelete?.usageCount} lượt sử dụng. Để bảo đảm dữ liệu đơn hàng, hệ thống sẽ chuyển trạng thái sang INACTIVE (vô hiệu hóa).`
+              : `Bạn có chắc chắn muốn xóa vĩnh viễn mã giảm giá "${targetCouponForDelete?.code}"? Hành động này không thể hoàn tác.`
+          }
+        />
       </div>
     </div>
   );

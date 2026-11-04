@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -34,8 +35,13 @@ public class CouponResponse {
     private LocalDateTime endAt;
     private CouponStatus status;
     private boolean applicableToAllProducts;
+    private List<Long> productIds;
 
     public static CouponResponse fromEntity(Coupon c, String shopName, boolean allProducts) {
+        return fromEntity(c, shopName, allProducts, null);
+    }
+
+    public static CouponResponse fromEntity(Coupon c, String shopName, boolean allProducts, List<Long> productIds) {
         if (c == null) return null;
         return CouponResponse.builder()
                 .id(c.getId())
@@ -55,7 +61,7 @@ public class CouponResponse {
                 .endAt(c.getEndAt())
                 .status(c.getStatus())
                 .applicableToAllProducts(allProducts)
+                .productIds(productIds)
                 .build();
     }
 }
-

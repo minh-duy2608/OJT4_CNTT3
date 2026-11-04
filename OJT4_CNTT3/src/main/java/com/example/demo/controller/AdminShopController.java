@@ -3,6 +3,7 @@ package com.example.demo.controller;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.example.demo.dto.request.AdminUpdateShopStatusRequest;
+import com.example.demo.dto.request.RegisterShopRequest;
 import com.example.demo.dto.response.ApiResponse;
 import com.example.demo.dto.response.PageResponse;
 import com.example.demo.dto.response.ShopDetailResponse;
@@ -10,11 +11,14 @@ import com.example.demo.entity.ShopStatus;
 import com.example.demo.service.ShopService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -67,5 +71,32 @@ public class AdminShopController {
         ShopDetailResponse response = shopService.updateShopStatus(shopId, request, adminUsername);
         return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái cửa hàng thành công", response));
     }
-}
 
+    /**
+     * PUT /admin/shops/{shopId} - Cập nhật thông tin cửa hàng (ADMIN)
+     */
+    @PutMapping("/{shopId}")
+    public ResponseEntity<ApiResponse<ShopDetailResponse>> updateShop(
+            @PathVariable Long shopId,
+            @Valid @RequestBody RegisterShopRequest request,
+            Principal principal
+    ) {
+        String adminUsername = principal != null ? principal.getName() : null;
+        ShopDetailResponse response = shopService.updateShop(shopId, request, adminUsername);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật thông tin cửa hàng thành công", response));
+    }
+
+    /**
+     * POST /admin/shops - Tạo cửa hàng mới (ADMIN)
+     */
+    @PostMapping
+    public ResponseEntity<ApiResponse<ShopDetailResponse>> createShop(
+            @Valid @RequestBody RegisterShopRequest request,
+            Principal principal
+    ) {
+        String adminUsername = principal != null ? principal.getName() : null;
+        ShopDetailResponse response = shopService.registerShop(request, adminUsername);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Tạo cửa hàng mới thành công", response));
+    }
+}
