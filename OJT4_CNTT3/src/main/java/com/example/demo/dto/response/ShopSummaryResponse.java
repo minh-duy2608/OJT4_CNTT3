@@ -16,6 +16,7 @@ import lombok.Setter;
 public class ShopSummaryResponse {
 
     private Long id;
+    private Long ownerId;
     private String name;
     private String slug;
     private String logoUrl;
@@ -25,6 +26,7 @@ public class ShopSummaryResponse {
         if (shop == null) return null;
         return ShopSummaryResponse.builder()
                 .id(shop.getId())
+                .ownerId(shop.getOwnerId())
                 .name(shop.getName())
                 .slug(shop.getSlug())
                 .logoUrl(shop.getLogoUrl())
@@ -32,4 +34,3 @@ public class ShopSummaryResponse {
                 .build();
     }
 }
-

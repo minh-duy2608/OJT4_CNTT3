@@ -18,7 +18,7 @@ import java.security.Principal;
 @RestController
 @RequestMapping({"/admin/revenue", "/api/v1/admin/revenue"})
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN', 'ROLE_ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN')")
 public class AdminRevenueController {
 
     private final RevenueService revenueService;

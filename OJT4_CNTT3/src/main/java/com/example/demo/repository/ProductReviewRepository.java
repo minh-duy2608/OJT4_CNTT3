@@ -32,10 +32,11 @@ public interface ProductReviewRepository extends JpaRepository<ProductReview, Lo
     @Query("SELECT r.rating, COUNT(r) FROM ProductReview r WHERE r.product.id = :productId GROUP BY r.rating")
     List<Object[]> countReviewsGroupByRating(@Param("productId") Long productId);
 
-    // Kiểm tra xem user đã có đơn hàng thành công chứa variant của product này không
+    // Kiểm tra xem khách hàng đã mua sản phẩm này trong đơn hàng thành công chưa
     @Query("SELECT COUNT(oi) > 0 FROM OrderItem oi " +
            "JOIN oi.order o " +
-           "JOIN oi.variant v " +
-           "WHERE o.user.id = :userId AND v.product.id = :productId AND o.status IN (com.example.demo.entity.OrderStatus.DELIVERED, com.example.demo.entity.OrderStatus.CONFIRMED, com.example.demo.entity.OrderStatus.SHIPPED)")
+           "WHERE (o.userId = :userId OR o.user.id = :userId) " +
+           "AND o.status IN (com.example.demo.entity.OrderStatus.DELIVERED, com.example.demo.entity.OrderStatus.CONFIRMED, com.example.demo.entity.OrderStatus.PROCESSING, com.example.demo.entity.OrderStatus.SHIPPED) " +
+           "AND (oi.variant.product.id = :productId OR EXISTS (SELECT v FROM ProductVariant v WHERE v.id = oi.variantId AND v.product.id = :productId))")
     boolean hasUserPurchasedProduct(@Param("userId") Long userId, @Param("productId") Long productId);
 }

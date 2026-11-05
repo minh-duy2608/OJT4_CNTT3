@@ -10,6 +10,7 @@ import com.example.demo.entity.ProductReview;
 import com.example.demo.entity.Role;
 import com.example.demo.entity.Shop;
 import com.example.demo.entity.User;
+import com.example.demo.exception.BadRequestException;
 import com.example.demo.exception.ConflictException;
 import com.example.demo.exception.ForbiddenException;
 import com.example.demo.exception.ResourceNotFoundException;
@@ -46,15 +47,16 @@ public class ProductReviewServiceImpl implements ProductReviewService {
     @Override
     @Transactional(readOnly = true)
     public ProductReviewSummaryResponse getProductReviews(Long productId, Integer ratingFilter, Pageable pageable, String currentUsername) {
-        if (!productRepository.existsById(productId)) {
-            throw new ResourceNotFoundException("Không tìm thấy sản phẩm với id: " + productId);
-        }
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với id: " + productId));
 
         Long currentUserId = null;
+        User currentUser = null;
         if (currentUsername != null && !currentUsername.isBlank()) {
             Optional<User> currentUserOpt = userRepository.findByUsernameOrEmail(currentUsername, currentUsername);
             if (currentUserOpt.isPresent()) {
-                currentUserId = currentUserOpt.get().getId();
+                currentUser = currentUserOpt.get();
+                currentUserId = currentUser.getId();
             }
         }
 
@@ -90,6 +92,34 @@ public class ProductReviewServiceImpl implements ProductReviewService {
             }
         }
 
+        // Xác định quyền hạn của người dùng hiện tại
+        boolean hasPurchased = false;
+        boolean canReview = false;
+        boolean isShopOwnerOfProduct = false;
+        String sellerShopName = "Cyber Official Store";
+
+        if (product.getShopId() != null) {
+            Optional<Shop> shopOpt = shopRepository.findById(product.getShopId());
+            if (shopOpt.isPresent()) {
+                sellerShopName = shopOpt.get().getName();
+            }
+        }
+
+        if (currentUser != null) {
+            try {
+                hasPurchased = productReviewRepository.hasUserPurchasedProduct(currentUser.getId(), productId);
+            } catch (Exception e) {
+                log.warn("Lỗi kiểm tra lịch sử mua hàng: {}", e.getMessage());
+            }
+
+            boolean hasReviewed = productReviewRepository.existsByProductIdAndUserId(productId, currentUser.getId());
+            // Chỉ khi đã mua hàng và chưa từng đánh giá thì mới được phép viết đánh giá
+            canReview = hasPurchased && !hasReviewed;
+
+            // Kiểm tra xem người dùng hiện tại có phải là chủ shop của sản phẩm này không
+            isShopOwnerOfProduct = isUserShopOwner(currentUser, product.getShopId()) || isUserAdmin(currentUser);
+        }
+
         return ProductReviewSummaryResponse.builder()
                 .averageRating(averageRating)
                 .totalReviews(totalReviews)
@@ -98,6 +128,10 @@ public class ProductReviewServiceImpl implements ProductReviewService {
                 .currentPage(reviewPage.getNumber() + 1)
                 .totalPages(reviewPage.getTotalPages())
                 .totalElements(reviewPage.getTotalElements())
+                .hasPurchased(hasPurchased)
+                .canReview(canReview)
+                .isShopOwnerOfProduct(isShopOwnerOfProduct)
+                .sellerShopName(sellerShopName)
                 .build();
     }
 
@@ -120,17 +154,21 @@ public class ProductReviewServiceImpl implements ProductReviewService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với id: " + productId));
 
-        // Kiểm tra mỗi người mua chỉ được viết 1 bài viết
+        // Ràng buộc 1: Mỗi người mua chỉ được viết 1 bài đánh giá cho 1 sản phẩm
         if (productReviewRepository.existsByProductIdAndUserId(productId, user.getId())) {
             throw new ConflictException("Bạn đã đánh giá sản phẩm này rồi. Mỗi khách hàng chỉ được viết 1 bài đánh giá cho mỗi sản phẩm.");
         }
 
-        // Kiểm tra xem khách hàng đã từng mua sản phẩm này chưa
+        // Ràng buộc 2: CHỈ KHI NÀO KHÁCH HÀNG MUA HÀNG XONG MỚI ĐƯỢC ĐÁNH GIÁ
         boolean isBuyer = false;
         try {
             isBuyer = productReviewRepository.hasUserPurchasedProduct(user.getId(), productId);
         } catch (Exception e) {
-            log.warn("Error checking purchased status: {}", e.getMessage());
+            log.warn("Lỗi kiểm tra lịch sử mua hàng: {}", e.getMessage());
+        }
+
+        if (!isBuyer) {
+            throw new BadRequestException("Bạn chỉ có thể đánh giá sản phẩm này sau khi đã mua hàng và đơn hàng được hoàn tất thành công.");
         }
 
         ProductReview review = ProductReview.builder()
@@ -139,11 +177,11 @@ public class ProductReviewServiceImpl implements ProductReviewService {
                 .rating(request.getRating())
                 .title(request.getTitle() != null ? request.getTitle().trim() : null)
                 .content(request.getContent().trim())
-                .isBuyer(isBuyer)
+                .isBuyer(true)
                 .build();
 
         ProductReview saved = productReviewRepository.save(review);
-        log.info("User {} created review {} for product {}", user.getUsername(), saved.getId(), productId);
+        log.info("User {} (Buyer) created review {} for product {}", user.getUsername(), saved.getId(), productId);
 
         return ProductReviewResponse.fromEntity(saved, user.getId());
     }
@@ -208,15 +246,15 @@ public class ProductReviewServiceImpl implements ProductReviewService {
             throw new ResourceNotFoundException("Đánh giá không thuộc sản phẩm này");
         }
 
-        // Kiểm tra quyền: Phải là Người bán (chủ shop sở hữu sản phẩm) hoặc Quản trị viên (ADMIN)
+        // RÀNG BUỘC NGƯỜI BÁN: Khách mua của shop nào thì CHỈ SHOP ĐÓ mới được phản hồi đánh giá
         boolean isAdmin = isUserAdmin(user);
-        boolean isShopOwner = isUserShopOwner(user, product.getShopId());
+        boolean isShopOwnerOfThisProduct = isUserShopOwner(user, product.getShopId());
 
-        if (!isAdmin && !isShopOwner) {
-            throw new ForbiddenException("Chỉ người bán của sản phẩm hoặc Quản trị viên mới có thể phản hồi đánh giá này");
+        if (!isAdmin && !isShopOwnerOfThisProduct) {
+            throw new ForbiddenException("Chỉ người bán sở hữu sản phẩm này hoặc Quản trị viên mới có thể phản hồi đánh giá");
         }
 
-        String shopName = "Quản trị viên";
+        String shopName = "Người bán chính thức";
         if (product.getShopId() != null) {
             Optional<Shop> shopOpt = shopRepository.findById(product.getShopId());
             if (shopOpt.isPresent()) {
@@ -226,10 +264,10 @@ public class ProductReviewServiceImpl implements ProductReviewService {
 
         review.setSellerReply(request.getReply().trim());
         review.setSellerReplyAt(LocalDateTime.now());
-        review.setSellerReplierName(shopName + " (Phản hồi chính thức)");
+        review.setSellerReplierName(shopName + " (Phản hồi từ Người bán)");
 
         ProductReview saved = productReviewRepository.save(review);
-        log.info("Review {} replied by {} for product {}", reviewId, user.getUsername(), productId);
+        log.info("Review {} replied by Shop {} (User {}) for product {}", reviewId, shopName, user.getUsername(), productId);
 
         return ProductReviewResponse.fromEntity(saved, user.getId());
     }
@@ -247,10 +285,10 @@ public class ProductReviewServiceImpl implements ProductReviewService {
         }
 
         boolean isAdmin = isUserAdmin(user);
-        boolean isShopOwner = isUserShopOwner(user, product.getShopId());
+        boolean isShopOwnerOfThisProduct = isUserShopOwner(user, product.getShopId());
 
-        if (!isAdmin && !isShopOwner) {
-            throw new ForbiddenException("Bạn không có quyền xóa phản hồi này");
+        if (!isAdmin && !isShopOwnerOfThisProduct) {
+            throw new ForbiddenException("Bạn không có quyền xóa phản hồi của sản phẩm này");
         }
 
         review.setSellerReply(null);
