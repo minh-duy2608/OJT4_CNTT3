@@ -42,11 +42,17 @@ import {
   Store,
   Archive,
   TrendingDown,
+  TrendingUp,
+  DollarSign,
+  CreditCard,
+  Wallet,
+  BarChart3,
   Ticket,
   Tag,
   Percent,
   Copy
 } from 'lucide-react';
+import { revenueApi } from '../services/revenueApi';
 import { couponApi } from '../services/couponApi';
 import { useAuth } from '../context/AuthContext';
 import { adminUserApi } from '../services/adminUserApi';
@@ -95,7 +101,7 @@ export const AdminPage = () => {
   // Active top-level tab
   const [activeTab, setActiveTab] = useState(() => {
     const p = new URLSearchParams(window.location.search);
-    return p.get('tab') || 'users';
+    return p.get('tab') || 'revenue';
   });
 
   useEffect(() => {
@@ -1857,39 +1863,6 @@ export const AdminPage = () => {
     }
   };
 
-  // Preload metrics on mount
-  useEffect(() => {
-    fetchCategories();
-    fetchBrands();
-    fetchAdminProducts(0);
-  }, [fetchCategories, fetchBrands, fetchAdminProducts]);
-
-  // Sync data on tab change
-  useEffect(() => {
-    if (activeTab === 'users') {
-      fetchUsers(userPage);
-      if (roles.length === 0) fetchRolesAndPermissions();
-    } else if (activeTab === 'roles') {
-      fetchRolesAndPermissions();
-    } else if (activeTab === 'categories') {
-      fetchCategories();
-    } else if (activeTab === 'brands') {
-      fetchBrands();
-    } else if (activeTab === 'products') {
-      fetchAdminProducts(prodPage);
-    } else if (activeTab === 'permissions') {
-      fetchMyPermissions();
-    } else if (activeTab === 'orders') {
-      fetchAdminOrders(orderPage);
-    } else if (activeTab === 'shops') {
-      fetchShopProducts(shopProdPage);
-    } else if (activeTab === 'admin-shops') {
-      fetchAdminShops(adminShopsPage);
-    } else if (activeTab === 'inventory') {
-      fetchInventory(inventoryPage);
-    }
-  }, [activeTab, fetchUsers, fetchRolesAndPermissions, fetchCategories, fetchBrands, fetchAdminProducts, fetchMyPermissions, fetchAdminOrders, fetchShopProducts, fetchAdminShops, fetchInventory, userPage, prodPage, orderPage, shopProdPage, adminShopsPage, inventoryPage, roles.length]);
-
   // Check admin role permission
   const isAdminUser = useMemo(() => {
     if (!user) return false;
@@ -1923,6 +1896,42 @@ export const AdminPage = () => {
   // Shop info for shop manager / admin
   const [myShopInfo, setMyShopInfo] = useState(null);
   const [availableShops, setAvailableShops] = useState([]);
+
+  // =========================================================================
+  // REVENUE & ANALYTICS STATE (ADMIN ONLY)
+  // =========================================================================
+  const [revenueData, setRevenueData] = useState(null);
+  const [revenueLoading, setRevenueLoading] = useState(false);
+  const [revenueShopFilter, setRevenueShopFilter] = useState('');
+  const [revenueTimeFilter, setRevenueTimeFilter] = useState('all');
+
+  const fetchPlatformRevenue = useCallback(async () => {
+    if (!isAdminUser) return;
+    setRevenueLoading(true);
+    try {
+      const data = await revenueApi.getPlatformRevenue({
+        shopId: revenueShopFilter ? Number(revenueShopFilter) : undefined,
+        timeRange: revenueTimeFilter !== 'all' ? revenueTimeFilter : undefined
+      });
+      if (data) {
+        setRevenueData(data);
+      }
+    } catch (err) {
+      console.error('Failed to load platform revenue report:', err);
+      triggerAlert(err.message || 'Không thể tải báo cáo doanh thu toàn hệ thống.', 'error');
+    } finally {
+      setRevenueLoading(false);
+    }
+  }, [isAdminUser, revenueShopFilter, revenueTimeFilter]);
+
+  // Preload base metadata on mount
+  useEffect(() => {
+    fetchCategories();
+    fetchBrands();
+    if (isAdminUser) {
+      fetchPlatformRevenue();
+    }
+  }, [fetchCategories, fetchBrands, isAdminUser, fetchPlatformRevenue]);
 
   useEffect(() => {
     if (isAuthenticated && hasPortalAccess) {
@@ -1960,16 +1969,49 @@ export const AdminPage = () => {
     }
   }, [isAuthenticated, hasPortalAccess, isAdminUser, isShopManager]);
 
-  // If user is shop manager (not admin) and tries to view admin-only tabs, redirect tab to 'shops'
+  // Sync data on tab change
+  useEffect(() => {
+    if (isAdminUser) {
+      if (activeTab === 'revenue') {
+        fetchPlatformRevenue();
+      } else if (activeTab === 'users') {
+        fetchUsers(userPage);
+        if (roles.length === 0) fetchRolesAndPermissions();
+      } else if (activeTab === 'roles') {
+        fetchRolesAndPermissions();
+      } else if (activeTab === 'categories') {
+        fetchCategories();
+      } else if (activeTab === 'brands') {
+        fetchBrands();
+      } else if (activeTab === 'admin-shops') {
+        fetchAdminShops(adminShopsPage);
+      }
+    } else if (isShopManager) {
+      if (activeTab === 'shops') {
+        fetchShopProducts(shopProdPage);
+      } else if (activeTab === 'inventory') {
+        fetchInventory(inventoryPage);
+      } else if (activeTab === 'orders') {
+        fetchAdminOrders(orderPage);
+      } else if (activeTab === 'coupons') {
+        fetchCoupons(couponPage);
+      } else if (activeTab === 'permissions') {
+        fetchMyPermissions();
+      }
+    }
+  }, [activeTab, isAdminUser, isShopManager, fetchPlatformRevenue, fetchUsers, fetchRolesAndPermissions, fetchCategories, fetchBrands, fetchAdminShops, fetchShopProducts, fetchInventory, fetchAdminOrders, fetchCoupons, fetchMyPermissions, userPage, adminShopsPage, shopProdPage, inventoryPage, orderPage, couponPage, roles.length]);
+
+  // Strict Role Separation for Portal Tabs
   useEffect(() => {
     if (isShopManager && !isAdminUser) {
-      const allowedShopTabs = ['shops', 'inventory', 'orders', 'permissions'];
+      const allowedShopTabs = ['shops', 'inventory', 'orders', 'coupons', 'permissions'];
       if (!allowedShopTabs.includes(activeTab)) {
         setActiveTab('shops');
       }
     } else if (isAdminUser) {
-      if (activeTab === 'products') {
-        setActiveTab('shops');
+      const allowedAdminTabs = ['revenue', 'admin-shops', 'users', 'roles', 'categories', 'brands'];
+      if (!allowedAdminTabs.includes(activeTab)) {
+        setActiveTab('revenue');
       }
     }
   }, [isShopManager, isAdminUser, activeTab]);
@@ -2017,13 +2059,13 @@ export const AdminPage = () => {
               <h1>
                 {isAdminUser ? 'Trung tâm Quản trị Cyber' : 'Kênh Người Bán Cyber'}
                 <span className="admin-role-badge">
-                  {isAdminUser ? 'Admin Console' : (myShopInfo?.name || 'Shop Manager')}
+                  {isAdminUser ? 'Quản trị viên Hệ thống' : (myShopInfo?.name || 'Shop Manager')}
                 </span>
               </h1>
               <p>
                 {isAdminUser
-                  ? 'Toàn quyền quản trị hệ thống, tài khoản, vai trò, danh mục và kênh các cửa hàng'
-                  : `Quản lý cửa hàng ${myShopInfo?.name ? `"${myShopInfo.name}"` : (selectedShopId ? `#${selectedShopId}` : '')}: đăng sản phẩm, quản lý phiên bản, hình ảnh và đơn hàng`}
+                  ? 'Quản lý người dùng & phân quyền, kiểm duyệt cửa hàng, giám sát doanh thu toàn hệ thống, danh mục và thương hiệu'
+                  : `Quản lý cửa hàng ${myShopInfo?.name ? `"${myShopInfo.name}"` : (selectedShopId ? `#${selectedShopId}` : '')}: đăng sản phẩm, tồn kho, đơn hàng và khuyến mãi`}
               </p>
             </div>
           </div>
@@ -2037,16 +2079,20 @@ export const AdminPage = () => {
             <button
               type="button"
               onClick={() => {
-                if (activeTab === 'users') fetchUsers(userPage);
-                if (activeTab === 'roles') fetchRolesAndPermissions();
-                if (activeTab === 'categories') fetchCategories();
-                if (activeTab === 'brands') fetchBrands();
-                if (activeTab === 'products') fetchAdminProducts(prodPage);
-                if (activeTab === 'permissions') fetchMyPermissions();
-                if (activeTab === 'orders') fetchAdminOrders(orderPage);
-                if (activeTab === 'shops') fetchShopProducts(shopProdPage);
-                if (activeTab === 'admin-shops') fetchAdminShops(adminShopsPage);
-                if (activeTab === 'coupons') fetchCoupons(couponPage);
+                if (isAdminUser) {
+                  if (activeTab === 'revenue') fetchPlatformRevenue();
+                  if (activeTab === 'users') fetchUsers(userPage);
+                  if (activeTab === 'roles') fetchRolesAndPermissions();
+                  if (activeTab === 'categories') fetchCategories();
+                  if (activeTab === 'brands') fetchBrands();
+                  if (activeTab === 'admin-shops') fetchAdminShops(adminShopsPage);
+                } else {
+                  if (activeTab === 'shops') fetchShopProducts(shopProdPage);
+                  if (activeTab === 'inventory') fetchInventory(inventoryPage);
+                  if (activeTab === 'orders') fetchAdminOrders(orderPage);
+                  if (activeTab === 'coupons') fetchCoupons(couponPage);
+                  if (activeTab === 'permissions') fetchMyPermissions();
+                }
                 triggerAlert('Đã làm mới dữ liệu từ máy chủ.', 'info');
               }}
               className="admin-btn-back-store"
@@ -2055,7 +2101,7 @@ export const AdminPage = () => {
               <RefreshCw size={15} />
               Làm mới
             </button>
-                        <a
+            <a
               href="/swagger-ui/index.html"
               target="_blank"
               rel="noopener noreferrer"
@@ -2095,23 +2141,45 @@ export const AdminPage = () => {
         {/* =================================================================== */}
         {isAdminUser ? (
           <div className="admin-metrics-grid">
+            <div className="admin-metric-card" onClick={() => setActiveTab('revenue')} style={{ cursor: 'pointer' }}>
+              <div className="admin-metric-icon-wrap" style={{ background: '#ecfdf5', color: '#059669' }}>
+                <TrendingUp size={22} />
+              </div>
+              <div className="admin-metric-info">
+                <div className="admin-metric-label">Doanh thu Toàn sàn</div>
+                <div className="admin-metric-val" style={{ color: '#059669', fontSize: '1.25rem' }}>
+                  {formatVND(revenueData?.totalRevenue || 0)}
+                </div>
+              </div>
+            </div>
+
+            <div className="admin-metric-card" onClick={() => setActiveTab('revenue')} style={{ cursor: 'pointer' }}>
+              <div className="admin-metric-icon-wrap" style={{ background: '#eff6ff', color: '#2563eb' }}>
+                <ShoppingBag size={22} />
+              </div>
+              <div className="admin-metric-info">
+                <div className="admin-metric-label">Tổng Đơn Hệ thống</div>
+                <div className="admin-metric-val">{revenueData?.totalOrders || 0} đơn hàng</div>
+              </div>
+            </div>
+
+            <div className="admin-metric-card" onClick={() => setActiveTab('admin-shops')} style={{ cursor: 'pointer' }}>
+              <div className="admin-metric-icon-wrap" style={{ background: '#fef3c7', color: '#d97706' }}>
+                <Store size={22} />
+              </div>
+              <div className="admin-metric-info">
+                <div className="admin-metric-label">Quản trị Cửa hàng</div>
+                <div className="admin-metric-val">{adminShopsTotalElements || adminShops.length || 0} cửa hàng</div>
+              </div>
+            </div>
+
             <div className="admin-metric-card" onClick={() => setActiveTab('users')} style={{ cursor: 'pointer' }}>
               <div className="admin-metric-icon-wrap users">
                 <Users size={22} />
               </div>
               <div className="admin-metric-info">
                 <div className="admin-metric-label">Tổng Người dùng</div>
-                <div className="admin-metric-val">{userTotalElements || users.length}</div>
-              </div>
-            </div>
-
-            <div className="admin-metric-card" onClick={() => setActiveTab('roles')} style={{ cursor: 'pointer' }}>
-              <div className="admin-metric-icon-wrap roles">
-                <Shield size={22} />
-              </div>
-              <div className="admin-metric-info">
-                <div className="admin-metric-label">Vai trò & Quyền</div>
-                <div className="admin-metric-val">{roles.length} vai trò / {allPermissions.length || 44} quyền</div>
+                <div className="admin-metric-val">{userTotalElements || users.length} tài khoản</div>
               </div>
             </div>
 
@@ -2120,28 +2188,8 @@ export const AdminPage = () => {
                 <FolderTree size={22} />
               </div>
               <div className="admin-metric-info">
-                <div className="admin-metric-label">Danh mục</div>
-                <div className="admin-metric-val">{categories.length} danh mục</div>
-              </div>
-            </div>
-
-            <div className="admin-metric-card" onClick={() => setActiveTab('brands')} style={{ cursor: 'pointer' }}>
-              <div className="admin-metric-icon-wrap brands">
-                <Award size={22} />
-              </div>
-              <div className="admin-metric-info">
-                <div className="admin-metric-label">Thương hiệu</div>
-                <div className="admin-metric-val">{brands.length} thương hiệu</div>
-              </div>
-            </div>
-
-            <div className="admin-metric-card" onClick={() => setActiveTab('admin-shops')} style={{ cursor: 'pointer' }}>
-              <div className="admin-metric-icon-wrap" style={{ background: '#ecfdf5', color: '#059669' }}>
-                <Store size={22} />
-              </div>
-              <div className="admin-metric-info">
-                <div className="admin-metric-label">Quản trị Cửa hàng</div>
-                <div className="admin-metric-val">{adminShopsTotalElements || adminShops.length || 1} cửa hàng</div>
+                <div className="admin-metric-label">Danh mục & Hãng</div>
+                <div className="admin-metric-val">{categories.length} danh mục / {brands.length} hãng</div>
               </div>
             </div>
           </div>
@@ -2167,15 +2215,13 @@ export const AdminPage = () => {
               </div>
             </div>
 
-            <div className="admin-metric-card" style={{ cursor: 'default' }}>
-              <div className="admin-metric-icon-wrap categories" style={{ background: '#fef3c7', color: '#d97706' }}>
-                <ShieldCheck size={22} />
+            <div className="admin-metric-card" onClick={() => setActiveTab('inventory')} style={{ cursor: 'pointer' }}>
+              <div className="admin-metric-icon-wrap" style={{ background: '#fef3c7', color: '#d97706' }}>
+                <Archive size={22} />
               </div>
               <div className="admin-metric-info">
-                <div className="admin-metric-label">Trạng thái Cửa hàng</div>
-                <div className="admin-metric-val" style={{ color: '#059669', fontSize: '1.05rem', fontWeight: 700 }}>
-                  ACTIVE (Đang kinh doanh)
-                </div>
+                <div className="admin-metric-label">Tồn kho Kho hàng</div>
+                <div className="admin-metric-val">{inventoryTotalElements || inventoryItems.length} mặt hàng</div>
               </div>
             </div>
 
@@ -2197,6 +2243,26 @@ export const AdminPage = () => {
         <div className="admin-tabs-bar">
           {isAdminUser && (
             <>
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'revenue' ? 'active' : ''}`}
+                onClick={() => setActiveTab('revenue')}
+              >
+                <TrendingUp size={17} />
+                Quản lý Doanh thu Hệ thống
+                <span className="admin-tab-badge">Tài chính</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'admin-shops' ? 'active' : ''}`}
+                onClick={() => setActiveTab('admin-shops')}
+              >
+                <Store size={17} />
+                Quản lý Cửa hàng
+                <span className="admin-tab-badge">STT 67-69</span>
+              </button>
+
               <button
                 type="button"
                 className={`admin-tab-btn ${activeTab === 'users' ? 'active' : ''}`}
@@ -2239,75 +2305,460 @@ export const AdminPage = () => {
             </>
           )}
 
-          {isAdminUser && (
-            <button
-              type="button"
-              className={`admin-tab-btn ${activeTab === 'admin-shops' ? 'active' : ''}`}
-              onClick={() => setActiveTab('admin-shops')}
-            >
-              <Store size={17} />
-              Quản trị Cửa hàng
-              <span className="admin-tab-badge">STT 67-69</span>
-            </button>
+          {!isAdminUser && isShopManager && (
+            <>
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'shops' ? 'active' : ''}`}
+                onClick={() => setActiveTab('shops')}
+              >
+                <Box size={17} />
+                Sản phẩm Cửa hàng
+                <span className="admin-tab-badge">STT 45-56</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'inventory' ? 'active' : ''}`}
+                onClick={() => setActiveTab('inventory')}
+              >
+                <Archive size={17} />
+                Quản lý Kho
+                <span className="admin-tab-badge">STT 70-73</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'orders' ? 'active' : ''}`}
+                onClick={() => setActiveTab('orders')}
+              >
+                <ShoppingBag size={17} />
+                Đơn hàng Cửa hàng
+                <span className="admin-tab-badge">Đơn hàng</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'coupons' ? 'active' : ''}`}
+                onClick={() => setActiveTab('coupons')}
+              >
+                <Ticket size={17} />
+                Mã Giảm Giá Shop
+                <span className="admin-tab-badge">Coupon</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'permissions' ? 'active' : ''}`}
+                onClick={() => setActiveTab('permissions')}
+              >
+                <Key size={17} />
+                Quyền hạn của tôi
+                <span className="admin-tab-badge">STT 26</span>
+              </button>
+            </>
           )}
-
-          <button
-            type="button"
-            className={`admin-tab-btn ${activeTab === 'shops' ? 'active' : ''}`}
-            onClick={() => setActiveTab('shops')}
-          >
-            <Box size={17} />
-            {isAdminUser ? 'Kênh Cửa hàng' : 'Sản phẩm Cửa hàng'}
-            <span className="admin-tab-badge">STT 45-56</span>
-          </button>
-
-          <button
-            type="button"
-            className={`admin-tab-btn ${activeTab === 'inventory' ? 'active' : ''}`}
-            onClick={() => setActiveTab('inventory')}
-          >
-            <Archive size={17} />
-            Quản lý Kho
-            <span className="admin-tab-badge">STT 70-73</span>
-          </button>
-
-          {/* TAB: Mã Giảm Giá */}
-          <button
-            type="button"
-            className={`admin-tab-btn ${activeTab === 'coupons' ? 'active' : ''}`}
-            onClick={() => setActiveTab('coupons')}
-          >
-            <Ticket size={17} />
-            Mã Giảm Giá
-            <span className="admin-tab-badge">Coupon</span>
-          </button>
-
-          <button
-            type="button"
-            className={`admin-tab-btn ${activeTab === 'orders' ? 'active' : ''}`}
-            onClick={() => setActiveTab('orders')}
-          >
-            <ShoppingBag size={17} />
-            {isAdminUser ? 'Quản lý Đơn hàng' : 'Đơn hàng Cửa hàng'}
-            <span className="admin-tab-badge">Đơn hàng</span>
-          </button>
-
-
-          <button
-            type="button"
-            className={`admin-tab-btn ${activeTab === 'permissions' ? 'active' : ''}`}
-            onClick={() => setActiveTab('permissions')}
-          >
-            <Key size={17} />
-            Quyền hạn của tôi
-            <span className="admin-tab-badge">STT 26</span>
-          </button>
         </div>
+
+        {/* =================================================================== */}
+        {/* TAB 0: QUẢN LÝ DOANH THU TOÀN BỘ HỆ THỐNG (ADMIN ONLY) */}
+        {/* =================================================================== */}
+        {activeTab === 'revenue' && isAdminUser && (
+          <div className="admin-card-container">
+            {/* Toolbar Filter */}
+            <div className="admin-toolbar" style={{ flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between' }}>
+              <div className="admin-toolbar-left" style={{ flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '1.05rem', color: '#0f172a' }}>
+                  <TrendingUp size={22} color="#059669" />
+                  <span>Báo Cáo Doanh Thu & Dòng Tiền Toàn Hệ Thống</span>
+                </div>
+
+                {/* Chọn Shop nếu muốn xem chi tiết doanh thu từng shop */}
+                <select
+                  className="admin-select-filter"
+                  style={{ fontWeight: 600, backgroundColor: '#f8fafc', borderColor: '#cbd5e1' }}
+                  value={revenueShopFilter}
+                  onChange={(e) => setRevenueShopFilter(e.target.value)}
+                >
+                  <option value="">🏬 Tất cả cửa hàng trên sàn</option>
+                  {availableShops.map((s) => (
+                    <option key={s.id} value={String(s.id)}>
+                      🏪 #{s.id}: {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="admin-toolbar-right" style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="admin-btn-action-secondary"
+                  onClick={fetchPlatformRevenue}
+                  disabled={revenueLoading}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '0.45rem 0.85rem' }}
+                >
+                  <RefreshCw size={14} className={revenueLoading ? 'animate-spin' : ''} />
+                  {revenueLoading ? 'Đang cập nhật...' : 'Cập nhật số liệu'}
+                </button>
+              </div>
+            </div>
+
+            {/* 4 THẺ CHỈ SỐ DOANH THU LỚN */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              gap: '1rem',
+              padding: '1.25rem'
+            }}>
+              {/* Card 1: Doanh thu thực nhận */}
+              <div style={{
+                background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                color: '#fff',
+                borderRadius: '12px',
+                padding: '1.25rem',
+                boxShadow: '0 4px 14px rgba(5, 150, 105, 0.25)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Doanh thu thực nhận
+                    </div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.35rem', letterSpacing: '-0.02em' }}>
+                      {formatVND(revenueData?.totalRevenue || 0)}
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.2)', padding: '0.6rem', borderRadius: '10px' }}>
+                    <TrendingUp size={24} />
+                  </div>
+                </div>
+                <div style={{ fontSize: '0.78rem', opacity: 0.85, marginTop: '0.75rem' }}>
+                  ✓ Đã giao thành công hoặc đã thanh toán
+                </div>
+              </div>
+
+              {/* Card 2: Tổng giá trị GMV */}
+              <div style={{
+                background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
+                color: '#fff',
+                borderRadius: '12px',
+                padding: '1.25rem',
+                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.25)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Tổng giá trị sàn (GMV)
+                    </div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.35rem', letterSpacing: '-0.02em' }}>
+                      {formatVND(revenueData?.grossMerchandiseValue || 0)}
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.2)', padding: '0.6rem', borderRadius: '10px' }}>
+                    <DollarSign size={24} />
+                  </div>
+                </div>
+                <div style={{ fontSize: '0.78rem', opacity: 0.85, marginTop: '0.75rem' }}>
+                  📊 Toàn bộ đơn hàng hợp lệ phát sinh
+                </div>
+              </div>
+
+              {/* Card 3: Tổng đơn hàng & Trạng thái */}
+              <div style={{
+                background: 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)',
+                color: '#fff',
+                borderRadius: '12px',
+                padding: '1.25rem',
+                boxShadow: '0 4px 14px rgba(217, 119, 6, 0.25)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Tổng đơn hàng sàn
+                    </div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.35rem', letterSpacing: '-0.02em' }}>
+                      {revenueData?.totalOrders || 0} <span style={{ fontSize: '1rem', fontWeight: 500 }}>đơn</span>
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.2)', padding: '0.6rem', borderRadius: '10px' }}>
+                    <ShoppingBag size={24} />
+                  </div>
+                </div>
+                <div style={{ fontSize: '0.78rem', opacity: 0.9, marginTop: '0.75rem' }}>
+                  {revenueData?.completedOrders || 0} hoàn tất • {revenueData?.processingOrders || 0} đang giao • {revenueData?.cancelledOrders || 0} đã hủy
+                </div>
+              </div>
+
+              {/* Card 4: Giá trị trung bình đơn AOV */}
+              <div style={{
+                background: 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)',
+                color: '#fff',
+                borderRadius: '12px',
+                padding: '1.25rem',
+                boxShadow: '0 4px 14px rgba(124, 58, 237, 0.25)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Giá trị TB / đơn (AOV)
+                    </div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.35rem', letterSpacing: '-0.02em' }}>
+                      {formatVND(revenueData?.averageOrderValue || 0)}
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.2)', padding: '0.6rem', borderRadius: '10px' }}>
+                    <CreditCard size={24} />
+                  </div>
+                </div>
+                <div style={{ fontSize: '0.78rem', opacity: 0.85, marginTop: '0.75rem' }}>
+                  ⚡ Trung bình mỗi giỏ hàng chi tiêu
+                </div>
+              </div>
+            </div>
+
+            {/* BIỂU ĐỒ DOANH THU 7 NGÀY GẦN NHẤT */}
+            <div style={{ padding: '0 1.25rem 1.25rem 1.25rem' }}>
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                padding: '1.25rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: '#1e293b' }}>
+                    <BarChart3 size={18} color="#2563eb" />
+                    <span>Xu hướng Doanh thu 7 ngày gần nhất</span>
+                  </div>
+                  <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Đơn vị tính: VNĐ</span>
+                </div>
+
+                {revenueData?.dailyRevenues && revenueData.dailyRevenues.length > 0 ? (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    gap: '12px',
+                    height: '160px',
+                    paddingTop: '20px',
+                    borderBottom: '1px solid #cbd5e1'
+                  }}>
+                    {(() => {
+                      const maxDaily = Math.max(...revenueData.dailyRevenues.map(d => Number(d.revenue) || 0), 100000);
+                      return revenueData.dailyRevenues.map((day, idx) => {
+                        const heightPct = Math.min(100, Math.max(12, ((Number(day.revenue) || 0) / maxDaily) * 100));
+                        return (
+                          <div key={idx} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
+                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#059669', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                              {Number(day.revenue) > 0 ? (Number(day.revenue) >= 1000000 ? `${(Number(day.revenue) / 1000000).toFixed(1)}M` : `${(Number(day.revenue) / 1000).toFixed(0)}k`) : '0'}
+                            </div>
+                            <div
+                              title={`${day.date}: ${formatVND(day.revenue)} (${day.orderCount} đơn)`}
+                              style={{
+                                width: '80%',
+                                maxWidth: '42px',
+                                height: `${heightPct}%`,
+                                background: Number(day.revenue) > 0 ? 'linear-gradient(180deg, #10b981 0%, #059669 100%)' : '#e2e8f0',
+                                borderRadius: '6px 6px 0 0',
+                                transition: 'height 0.3s ease'
+                              }}
+                            />
+                            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginTop: '6px' }}>
+                              {day.date}
+                            </div>
+                            <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
+                              {day.orderCount} đơn
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                    Chưa có giao dịch phát sinh trong tuần này.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* BẢNG 1: DOANH THU THEO TỪNG CỬA HÀNG */}
+            <div style={{ padding: '0 1.25rem 1.25rem 1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Store size={18} color="#059669" />
+                  Bảng Phân Bổ Doanh Thu Theo Từng Cửa Hàng
+                </h3>
+                <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+                  Tổng cộng: <strong>{revenueData?.shopRevenues?.length || 0}</strong> cửa hàng
+                </span>
+              </div>
+
+              <div className="admin-table-wrapper">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '80px' }}>Mã Shop</th>
+                      <th>Tên Cửa Hàng</th>
+                      <th>Chủ Sở Hữu</th>
+                      <th>Liên Hệ</th>
+                      <th>Trạng Thái</th>
+                      <th style={{ textAlign: 'center' }}>Số Đơn Hàng</th>
+                      <th style={{ textAlign: 'right' }}>Doanh Thu Thực Nhận</th>
+                      <th style={{ textAlign: 'right' }}>Doanh Thu Đang Chờ</th>
+                      <th style={{ textAlign: 'center' }}>Thao Tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {revenueData?.shopRevenues && revenueData.shopRevenues.length > 0 ? (
+                      revenueData.shopRevenues.map((s) => (
+                        <tr key={s.shopId}>
+                          <td><strong>#{s.shopId}</strong></td>
+                          <td>
+                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{s.shopName}</div>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 600 }}>{s.ownerName || '—'}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{s.ownerEmail || ''}</div>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: '0.8125rem', color: '#334155' }}>{s.shopPhone || '—'}</div>
+                          </td>
+                          <td>
+                            <span className={`admin-status-badge ${s.shopStatus === 'ACTIVE' ? 'active' : 'inactive'}`}>
+                              {s.shopStatus === 'ACTIVE' ? 'Đang hoạt động' : s.shopStatus}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center', fontWeight: 600 }}>
+                            {s.totalOrders}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#059669' }}>
+                            {formatVND(s.totalRevenue || 0)}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 600, color: '#d97706' }}>
+                            {formatVND(s.pendingRevenue || 0)}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              className="admin-btn-action-secondary"
+                              style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                              onClick={() => {
+                                handleViewAdminShopDetail(s.shopId);
+                                setActiveTab('admin-shops');
+                              }}
+                            >
+                              <Eye size={13} /> Xem Shop
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="9" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                          Chưa có dữ liệu doanh thu của các shop.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* BẢNG 2: NHẬT KÝ ĐƠN HÀNG GẦN NHẤT TOÀN SÀN */}
+            <div style={{ padding: '0 1.25rem 1.25rem 1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ShoppingBag size={18} color="#2563eb" />
+                  Giao Dịch / Đơn Hàng Gần Nhất Trên Toàn Sàn
+                </h3>
+                <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>10 giao dịch mới nhất</span>
+              </div>
+
+              <div className="admin-table-wrapper">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Mã Đơn</th>
+                      <th>Cửa Hàng</th>
+                      <th>Khách Hàng</th>
+                      <th>Tổng Giá Trị</th>
+                      <th>Trạng Thái Đơn</th>
+                      <th>Thanh Toán</th>
+                      <th>Thời Gian</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {revenueData?.recentOrders && revenueData.recentOrders.length > 0 ? (
+                      revenueData.recentOrders.map((ord) => {
+                        const st = getOrderStatusBadge(ord.orderStatus);
+                        return (
+                          <tr key={ord.orderId}>
+                            <td>
+                              <strong style={{ fontFamily: 'monospace', color: '#1e293b' }}>
+                                #{ord.orderCode || ord.orderId}
+                              </strong>
+                            </td>
+                            <td>
+                              <span style={{ fontWeight: 600, color: '#0f172a' }}>{ord.shopName}</span>
+                            </td>
+                            <td>{ord.customerName || 'Khách hàng'}</td>
+                            <td style={{ fontWeight: 700, color: '#059669' }}>
+                              {formatVND(ord.totalAmount || 0)}
+                            </td>
+                            <td>
+                              <span style={{
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                background: st.bg,
+                                color: st.color
+                              }}>
+                                {st.label}
+                              </span>
+                            </td>
+                            <td>
+                              <span style={{
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                background: ord.paymentStatus === 'PAID' ? '#ecfdf5' : '#fef2f2',
+                                color: ord.paymentStatus === 'PAID' ? '#059669' : '#dc2626'
+                              }}>
+                                {ord.paymentStatus === 'PAID' ? 'ĐÃ THANH TOÁN' : 'CHƯA THANH TOÁN'}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+                              {ord.createdAt ? new Date(ord.createdAt).toLocaleString('vi-VN') : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                          Chưa có đơn hàng nào được ghi nhận.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* =================================================================== */}
         {/* TAB 1: QUẢN LÝ NGƯỜI DÙNG (USERS - STT 12-17) */}
         {/* =================================================================== */}
-        {activeTab === 'users' && (
+        {activeTab === 'users' && isAdminUser && (
           <div className="admin-card-container">
             {/* Toolbar search & filter */}
             <div className="admin-toolbar">
@@ -2604,7 +3055,7 @@ export const AdminPage = () => {
         {/* =================================================================== */}
         {/* TAB 2: VAI TRÒ & PHÂN QUYỀN (ROLES & PERMISSIONS - STT 18-25) */}
         {/* =================================================================== */}
-        {activeTab === 'roles' && (
+        {activeTab === 'roles' && isAdminUser && (
           <div className="admin-card-container">
             <div className="admin-toolbar">
               <div className="admin-toolbar-left">
@@ -2708,7 +3159,7 @@ export const AdminPage = () => {
         {/* =================================================================== */}
         {/* TAB 3: QUẢN LÝ DANH MỤC SẢN PHẨM (CATEGORIES - STT 27-32) */}
         {/* =================================================================== */}
-        {activeTab === 'categories' && (
+        {activeTab === 'categories' && isAdminUser && (
           <div className="admin-card-container">
             <div className="admin-toolbar">
               <div className="admin-toolbar-left">
@@ -2846,7 +3297,7 @@ export const AdminPage = () => {
         {/* =================================================================== */}
         {/* TAB 4: QUẢN LÝ THƯƠNG HIỆU (BRANDS - STT 33-38) */}
         {/* =================================================================== */}
-        {activeTab === 'brands' && (
+        {activeTab === 'brands' && isAdminUser && (
           <div className="admin-card-container">
             <div className="admin-toolbar">
               <div className="admin-toolbar-left">
@@ -3012,7 +3463,7 @@ export const AdminPage = () => {
         {/* =================================================================== */}
         {/* TAB: QUYỀN HẠN CỦA TÔI (MY PERMISSIONS - STT 26) */}
         {/* =================================================================== */}
-        {activeTab === 'permissions' && (
+        {activeTab === 'permissions' && !isAdminUser && isShopManager && (
           <div className="admin-card-container">
             <div className="admin-toolbar">
               <div className="admin-toolbar-left">
@@ -3048,12 +3499,18 @@ export const AdminPage = () => {
         )}
 
         {/* =================================================================== */}
-        {/* TAB 7: QUẢN LÝ ĐƠN HÀNG (ADMIN ORDERS) */}
+        {/* TAB 7: ĐƠN HÀNG CỬA HÀNG (SHOP MANAGER) */}
         {/* =================================================================== */}
-        {activeTab === 'orders' && (
+        {activeTab === 'orders' && !isAdminUser && isShopManager && (
           <div className="admin-card-container">
             <div className="admin-toolbar">
               <div className="admin-toolbar-left">
+                {/* Huy hiệu shop */}
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', fontWeight: 600, color: '#166534', fontSize: '0.85rem' }}>
+                  <Store size={15} />
+                  <span>🏪 Đơn hàng: <strong>{myShopInfo?.name || `Shop #${selectedShopId}`}</strong></span>
+                </div>
+
                 {/* Lọc trạng thái đơn */}
                 <select
                   className="admin-select-filter"
@@ -3070,16 +3527,6 @@ export const AdminPage = () => {
                   <option value="DELIVERED">5. Giao thành công (DELIVERED)</option>
                   <option value="CANCELLED">0. Đã hủy (CANCELLED)</option>
                 </select>
-
-                {/* Lọc Shop ID */}
-                <input
-                  type="text"
-                  placeholder="Lọc theo ID Shop (VD: 1)..."
-                  className="admin-select-filter"
-                  style={{ width: '180px' }}
-                  value={orderShopFilter}
-                  onChange={(e) => setOrderShopFilter(e.target.value)}
-                />
 
                 <button
                   type="button"
@@ -3307,40 +3754,17 @@ export const AdminPage = () => {
         )}
 
         {/* =================================================================== */}
-        {/* TAB 8: KÊNH CỬA HÀNG (SHOP PRODUCTS - STT 45-56) */}
+        {/* TAB 8: SẢN PHẨM CỬA HÀNG (SHOP MANAGER - STT 45-56) */}
         {/* =================================================================== */}
-        {activeTab === 'shops' && (
+        {activeTab === 'shops' && !isAdminUser && isShopManager && (
           <div className="admin-card-container">
             <div className="admin-toolbar">
               <div className="admin-toolbar-left">
-                {/* Chọn Shop nếu là Admin, hoặc hiển thị thông tin Shop nếu là Shop Manager */}
-                {isAdminUser ? (
-                  <select
-                    className="admin-select-filter"
-                    style={{ fontWeight: 700, backgroundColor: '#eff6ff', borderColor: '#93c5fd' }}
-                    value={selectedShopId}
-                    onChange={(e) => {
-                      setSelectedShopId(e.target.value);
-                    }}
-                  >
-                    {availableShops.length > 0 ? (
-                      availableShops.map((s) => (
-                        <option key={s.id} value={String(s.id)}>
-                          🏪 Shop #{s.id}: {s.name} {s.ownerName ? `(${s.ownerName})` : ''}
-                        </option>
-                      ))
-                    ) : (
-                      <>
-                        <option value="1">🏪 Shop #1: Cyber Flagship Store</option>
-                      </>
-                    )}
-                  </select>
-                ) : (
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', fontWeight: 600, color: '#166534', fontSize: '0.875rem' }}>
-                    <Store size={16} />
-                    <span>🏪 Cửa hàng: <strong>{myShopInfo?.name || (selectedShopId ? `Shop #${selectedShopId}` : 'Đang tải...')}</strong> {selectedShopId ? `(Mã shop: #${selectedShopId})` : ''}</span>
-                  </div>
-                )}
+                {/* Thông tin Cửa hàng */}
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', fontWeight: 600, color: '#166534', fontSize: '0.875rem' }}>
+                  <Store size={16} />
+                  <span>🏪 Cửa hàng: <strong>{myShopInfo?.name || (selectedShopId ? `Shop #${selectedShopId}` : 'Đang tải...')}</strong> {selectedShopId ? `(Mã shop: #${selectedShopId})` : ''}</span>
+                </div>
 
                 {/* Tìm kiếm */}
                 <div className="admin-search-box">
@@ -3560,7 +3984,7 @@ export const AdminPage = () => {
         {/* =================================================================== */}
         {/* TAB: QUẢN TRỊ CỬA HÀNG (ADMIN SHOPS - STT 67-69) */}
         {/* =================================================================== */}
-        {activeTab === 'admin-shops' && (
+        {activeTab === 'admin-shops' && isAdminUser && (
           <div className="admin-card-container">
             <div className="admin-toolbar">
               <div className="admin-toolbar-left">
@@ -3803,10 +4227,10 @@ export const AdminPage = () => {
           </div>
         )}
 
-                {/* =================================================================== */}
-        {/* TAB: QUẢN LÝ MÃ GIẢM GIÁ (COUPONS) */}
         {/* =================================================================== */}
-        {activeTab === 'coupons' && (
+        {/* TAB: QUẢN LÝ MÃ GIẢM GIÁ (COUPONS - SHOP MANAGER) */}
+        {/* =================================================================== */}
+        {activeTab === 'coupons' && !isAdminUser && isShopManager && (
           <div className="admin-card-container">
             <div className="admin-toolbar">
               <div className="admin-toolbar-left">
@@ -4108,40 +4532,17 @@ export const AdminPage = () => {
         )}
 
         {/* =================================================================== */}
-        {/* TAB: QUẢN LÝ TỒN KHO CỬA HÀNG (INVENTORY - STT 70-73) */}
+        {/* TAB: QUẢN LÝ TỒN KHO CỬA HÀNG (INVENTORY - SHOP MANAGER) */}
         {/* =================================================================== */}
-        {activeTab === 'inventory' && (
+        {activeTab === 'inventory' && !isAdminUser && isShopManager && (
           <div className="admin-card-container">
             <div className="admin-toolbar">
               <div className="admin-toolbar-left">
-                {/* Chọn Shop nếu là Admin */}
-                {isAdminUser ? (
-                  <select
-                    className="admin-select-filter"
-                    style={{ fontWeight: 700, backgroundColor: '#eff6ff', borderColor: '#93c5fd' }}
-                    value={selectedShopId}
-                    onChange={(e) => {
-                      setSelectedShopId(e.target.value);
-                    }}
-                  >
-                    {availableShops.length > 0 ? (
-                      availableShops.map((s) => (
-                        <option key={s.id} value={String(s.id)}>
-                          🏪 Shop #{s.id}: {s.name} {s.ownerName ? `(${s.ownerName})` : ''}
-                        </option>
-                      ))
-                    ) : (
-                      <>
-                        <option value="1">🏪 Shop #1: Cyber Flagship Store</option>
-                      </>
-                    )}
-                  </select>
-                ) : (
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', fontWeight: 600, color: '#166534', fontSize: '0.875rem' }}>
-                    <Store size={16} />
-                    <span>Kho hàng: <strong>{myShopInfo?.name || (selectedShopId ? `Shop #${selectedShopId}` : 'Đang tải...')}</strong></span>
-                  </div>
-                )}
+                {/* Thông tin Cửa hàng */}
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', fontWeight: 600, color: '#166534', fontSize: '0.875rem' }}>
+                  <Store size={16} />
+                  <span>Kho hàng: <strong>{myShopInfo?.name || (selectedShopId ? `Shop #${selectedShopId}` : 'Đang tải...')}</strong></span>
+                </div>
 
                 {/* Tìm kiếm biến thể */}
                 <div className="admin-search-box">

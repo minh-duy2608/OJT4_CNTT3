@@ -315,30 +315,18 @@ export const Header = () => {
                   Liên hệ
                 </NavLink>
               </li>
-              {/* Nếu là Admin: Hiện Quản trị và Kênh Cửa hàng */}
+              {/* Nếu là Admin: Hiện Quản trị */}
               {isAuthenticated && isUserAdmin && (
-                <>
-                  <li>
-                    <NavLink
-                      to="/admin"
-                      className={({ isActive }) => `cyber-nav-link ${isActive ? 'active' : ''}`}
-                      style={{ color: '#2563eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
-                    >
-                      <ShieldCheck size={16} />
-                      Quản trị
-                    </NavLink>
-                  </li>
-                  <li>
-                    <NavLink
-                      to="/admin?tab=shops"
-                      className="cyber-nav-link"
-                      style={{ color: '#059669', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
-                    >
-                      <Store size={16} />
-                      Kênh Cửa hàng
-                    </NavLink>
-                  </li>
-                </>
+                <li>
+                  <NavLink
+                    to="/admin"
+                    className={({ isActive }) => `cyber-nav-link ${isActive ? 'active' : ''}`}
+                    style={{ color: '#2563eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <ShieldCheck size={16} />
+                    Quản trị Hệ Thống
+                  </NavLink>
+                </li>
               )}
 
               {/* Nếu là Shop Manager (không phải admin): Hiện Kênh Người Bán */}
@@ -457,26 +445,15 @@ export const Header = () => {
                   {isAuthenticated && user ? (
                     <>
                       {isUserAdmin && (
-                        <>
-                          <Link
-                            to="/admin"
-                            className="cyber-dropdown-item"
-                            onClick={() => setShowAuthDropdown(false)}
-                            style={{ color: '#2563eb', fontWeight: 600, background: '#eff6ff' }}
-                          >
-                            <ShieldCheck size={16} color="#2563eb" />
-                            Trung tâm Quản trị
-                          </Link>
-                          <Link
-                            to="/admin?tab=shops"
-                            className="cyber-dropdown-item"
-                            onClick={() => setShowAuthDropdown(false)}
-                            style={{ color: '#059669', fontWeight: 600 }}
-                          >
-                            <Store size={16} color="#059669" />
-                            Kênh Cửa hàng
-                          </Link>
-                        </>
+                        <Link
+                          to="/admin"
+                          className="cyber-dropdown-item"
+                          onClick={() => setShowAuthDropdown(false)}
+                          style={{ color: '#2563eb', fontWeight: 600, background: '#eff6ff' }}
+                        >
+                          <ShieldCheck size={16} color="#2563eb" />
+                          Trung tâm Quản trị
+                        </Link>
                       )}
                       {isShopManager && !isUserAdmin && (
                         <Link
