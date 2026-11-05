@@ -518,7 +518,7 @@ public class CouponServiceImpl implements CouponService {
 
     private boolean isUserShopManager(User user) {
         if (user == null) return false;
-        if (user.getRole() == Role.ROLE_SHOP_MANAGER || user.getRole() == Role.SHOP_MANAGER || user.getRole() == Role.SHOP_OWNER) return true;
+        if (user.getRole() == Role.SHOP_MANAGER || user.getRole() == Role.SHOP_OWNER) return true;
         if (user.getRoles() != null) {
             return user.getRoles().stream()
                     .anyMatch(r -> "ROLE_SHOP_MANAGER".equalsIgnoreCase(r.getCode())
