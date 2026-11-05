@@ -1,66 +1,75 @@
 /* ==========================================================================
-   Figma Exact Product Card Styles (White Background)
+   Modern Responsive Product Card Styles (Support Light & Dark Mode)
    ========================================================================== */
 
 .cyber-product-card {
-  background-color: #f6f6f6; /* Nền xám nhạt #f6f6f6 chuẩn 100% theo Figma */
-  border: 1px solid transparent;
-  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
   cursor: pointer;
-  padding: 1.5rem 1.15rem 1.25rem;
+  padding: 1.25rem 1rem 1rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
   position: relative;
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   will-change: transform, box-shadow;
-  backface-visibility: hidden;
   text-decoration: none;
   color: inherit;
+  backdrop-filter: blur(10px);
 }
 
 .cyber-product-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 14px 28px -4px rgba(0, 0, 0, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.06);
+  transform: translateY(-6px);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(59, 130, 246, 0.4); /* Highlight viền xanh nhè nhẹ khi hover */
+  box-shadow: 0 16px 32px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(59, 130, 246, 0.2);
 }
 
 /* Wishlist Heart Button (Top Right) */
 .product-wishlist-btn {
   position: absolute;
-  top: 14px;
-  right: 14px;
-  background: none;
-  border: none;
+  top: 12px;
+  right: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
   cursor: pointer;
-  padding: 4px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #a1a1aa;
-  transition: transform 0.2s ease, color 0.2s ease;
+  transition: all 0.2s ease;
   z-index: 5;
 }
 
 .product-wishlist-btn:hover {
-  transform: scale(1.15);
+  transform: scale(1.1);
   color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
 }
 
 .product-wishlist-btn.is-active {
   color: #ef4444;
 }
 
-/* Image Container */
+/* Image Container - Xử lý khung ảnh ăn nhập nền */
 .product-img-wrapper {
   width: 100%;
-  height: 175px;
+  height: 180px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0.25rem 0 1.25rem;
+  margin-bottom: 1rem;
   overflow: hidden;
-  background-color: transparent;
+  border-radius: 10px;
+  background-color: #ffffff; /* Nền trắng mịn làm nổi ảnh sản phẩm */
+  padding: 8px;
+  box-sizing: border-box;
 }
 
 .product-card-img {
@@ -69,13 +78,12 @@
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  background-color: transparent;
-  image-rendering: -webkit-optimize-contrast;
+  transition: transform 0.35s ease;
+  mix-blend-mode: multiply; /* Hòa trộn viền ảnh trắng mịn đẹp */
 }
 
 .cyber-product-card:hover .product-card-img {
-  transform: scale(1.05);
+  transform: scale(1.06);
 }
 
 /* Product Content */
@@ -90,11 +98,11 @@
 }
 
 .product-card-title {
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: #000000;
+  font-size: 0.925rem;
+  font-weight: 600;
+  color: #f3f4f6; /* Chữ trắng sáng mịn trong Dark Mode */
   line-height: 1.4;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
   text-align: center;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -111,30 +119,30 @@
 }
 
 .product-title-link:hover,
-.product-card-title:hover {
-  color: #2563eb;
+.cyber-product-card:hover .product-card-title {
+  color: #60a5fa;
 }
 
 .product-card-price {
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   font-weight: 700;
-  color: #000000;
-  letter-spacing: -0.02em;
+  color: #38bdf8; /* Màu xanh cyan sáng nổi bật tuyệt đối trên nền tối */
+  letter-spacing: -0.01em;
   margin: 0.25rem 0 0.85rem;
 }
 
 /* Action Button: "Xem chi tiết & Mua" */
 .product-buy-btn {
   width: 100%;
-  background-color: #000000;
+  background: rgba(255, 255, 255, 0.08);
   color: #ffffff;
-  border: none;
-  padding: 0.65rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0.6rem 1rem;
   font-size: 0.8125rem;
   font-weight: 600;
   border-radius: 8px;
   cursor: pointer;
-  transition: transform 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease, filter 0.25s ease;
+  transition: all 0.25s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -142,13 +150,13 @@
   white-space: nowrap;
 }
 
-.product-buy-btn:hover {
-  background-color: #27272a;
-  transform: translateY(-2px);
-  filter: brightness(1.08);
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+.cyber-product-card:hover .product-buy-btn {
+  background: #2563eb; /* Khi rê chuột vào card, nút đổi sang xanh dương công nghệ rất đẹp */
+  border-color: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
 }
 
 .product-buy-btn:active {
-  transform: translateY(0);
+  transform: scale(0.98);
 }
