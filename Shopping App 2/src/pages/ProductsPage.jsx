@@ -227,6 +227,11 @@ export const ProductsPage = () => {
       String(brand.id) === String(brandParam) ||
       brand.slug?.toLowerCase() === brandParam.toLowerCase() ||
       brand.name?.toLowerCase() === brandParam.toLowerCase()
+  ) || allBrands.find(
+    (brand) =>
+      String(brand.id) === String(brandParam) ||
+      brand.slug?.toLowerCase() === brandParam.toLowerCase() ||
+      brand.name?.toLowerCase() === brandParam.toLowerCase()
   );
   const activeSearchLabel = searchKeyword.trim();
   const activeBreadcrumbLabel =
@@ -419,7 +424,15 @@ export const ProductsPage = () => {
                 <button
                   type="button"
                   className="products-breadcrumb-link"
-                  onClick={() => handleSelectCategory(currentCategoryDef.key)}
+                  onClick={() => {
+                    const newParams = new URLSearchParams(searchParams);
+                    newParams.set('category', currentCategoryDef.key);
+                    newParams.delete('brand');
+                    newParams.delete('brandId');
+                    newParams.delete('search');
+                    setSearchParams(newParams, { replace: true });
+                    setCurrentPage(1);
+                  }}
                 >
                   {currentCategoryDef.name}
                 </button>
