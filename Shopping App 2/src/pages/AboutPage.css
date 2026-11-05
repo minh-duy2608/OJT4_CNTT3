@@ -11,13 +11,14 @@
 .about-badge {
   display: inline-block;
   padding: 4px 12px;
-  background: #f3f4f6;
-  color: #111827;
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   border-radius: 9999px;
   margin-bottom: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .about-hero-title {
@@ -28,20 +29,9 @@
   margin-bottom: 1rem;
 }
 
-[data-theme='dark'] .about-hero-title,
-.dark .about-hero-title {
-  color: #ffffff;
-}
-
-[data-theme='dark'] .about-hero-desc,
-.dark .about-hero-desc {
-  color: #9ca3af;
-}
-
-
 .about-hero-desc {
   font-size: 1.05rem;
-  color: #6b7280;
+  color: #9ca3af;
   line-height: 1.6;
 }
 
@@ -52,60 +42,69 @@
   margin-bottom: 4rem;
 }
 
+/* Tối ưu ô Card chuẩn Dark/Light Mode */
 .about-feature-card {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   padding: 2rem 1.5rem;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
+  backdrop-filter: blur(8px);
 }
 
 .about-feature-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .about-feature-icon {
   width: 56px;
   height: 56px;
   border-radius: 12px;
-  background: #000000;
+  background: rgba(255, 255, 255, 0.1);
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .about-feature-card h3 {
   font-size: 1.15rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
+  color: inherit;
 }
 
 .about-feature-card p {
-  color: #6b7280;
+  color: #9ca3af;
   font-size: 0.9rem;
   line-height: 1.5;
 }
 
+/* Khung Sứ mệnh & Tầm nhìn */
 .about-mission-section {
-  background: #fafafa;
-  border: 1px solid #e5e7eb;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 20px;
   padding: 3rem 2rem;
   max-width: 900px;
   margin: 0 auto;
+  backdrop-filter: blur(8px);
 }
 
 .about-mission-content h2 {
   font-size: 1.75rem;
   font-weight: 800;
   margin-bottom: 1rem;
+  color: inherit;
 }
 
 .about-mission-content p {
-  color: #4b5563;
+  color: #d1d5db;
   line-height: 1.7;
   font-size: 0.95rem;
   margin-bottom: 1.5rem;
@@ -126,6 +125,15 @@
   gap: 10px;
   font-size: 0.95rem;
   font-weight: 500;
-  color: #1f2937;
+  color: #e5e7eb;
 }
 
+/* Rule ép màu trắng cho Dark Mode */
+[data-theme='dark'] .about-hero-title,
+[data-theme='dark'] .about-feature-card h3,
+[data-theme='dark'] .about-mission-content h2,
+.dark .about-hero-title,
+.dark .about-feature-card h3,
+.dark .about-mission-content h2 {
+  color: #ffffff;
+}
