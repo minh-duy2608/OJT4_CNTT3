@@ -1950,6 +1950,23 @@ export const AdminPage = () => {
     return { start, end };
   };
 
+  const [availableCouponProducts, setAvailableCouponProducts] = useState([]);
+  const [couponProductsLoading, setCouponProductsLoading] = useState(false);
+  const [couponProductSearch, setCouponProductSearch] = useState('');
+
+  const loadProductsForCoupon = async (targetShopId) => {
+    if (!targetShopId) return;
+    setCouponProductsLoading(true);
+    try {
+      const res = await productApi.getProducts({ shopId: targetShopId, size: 100 });
+      setAvailableCouponProducts(res?.content || []);
+    } catch (err) {
+      console.warn('Could not load products for coupon:', err);
+    } finally {
+      setCouponProductsLoading(false);
+    }
+  };
+
   const defaultCouponForm = {
     shopId: '',
     code: '',
@@ -1963,7 +1980,9 @@ export const AdminPage = () => {
     perUserLimit: '',
     startAt: '',
     endAt: '',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
+    applyScope: 'ALL',
+    productIds: []
   };
 
   const [couponFormData, setCouponFormData] = useState(defaultCouponForm);
@@ -1998,21 +2017,29 @@ export const AdminPage = () => {
   const handleOpenCreateCoupon = () => {
     const { start, end } = getDefaultDateTimeRange();
     const effectiveShopId = !isAdminUser
-      ? (myShopInfo?.id || selectedShopId || '')
-      : (adminShops.length > 0 ? String(adminShops[0].id) : (selectedShopId ? String(selectedShopId) : ''));
+      ? (myShopInfo?.id || selectedShopId || (availableShops[0]?.id) || '1')
+      : (adminShops.length > 0 ? String(adminShops[0].id) : (selectedShopId || myShopInfo?.id || '1'));
     setCouponFormData({
       ...defaultCouponForm,
       shopId: effectiveShopId ? String(effectiveShopId) : '',
       startAt: start,
-      endAt: end
+      endAt: end,
+      applyScope: 'ALL',
+      productIds: []
     });
+    setCouponProductSearch('');
+    if (effectiveShopId) {
+      loadProductsForCoupon(Number(effectiveShopId));
+    }
     setShowCreateCouponModal(true);
   };
 
   const handleOpenEditCoupon = (c) => {
     setEditingCouponId(c.id);
+    const hasSpecificProducts = Array.isArray(c.productIds) && c.productIds.length > 0;
+    const targetShop = String(c.shopId || '');
     setCouponFormData({
-      shopId: String(c.shopId || ''),
+      shopId: targetShop,
       code: c.code || '',
       name: c.name || '',
       description: c.description || '',
@@ -2024,8 +2051,14 @@ export const AdminPage = () => {
       perUserLimit: c.perUserLimit !== null && c.perUserLimit !== undefined ? String(c.perUserLimit) : '',
       startAt: formatDateTimeInput(c.startAt),
       endAt: formatDateTimeInput(c.endAt),
-      status: c.status || 'ACTIVE'
+      status: c.status || 'ACTIVE',
+      applyScope: hasSpecificProducts ? 'SPECIFIC' : 'ALL',
+      productIds: c.productIds || []
     });
+    setCouponProductSearch('');
+    if (targetShop) {
+      loadProductsForCoupon(Number(targetShop));
+    }
     setShowEditCouponModal(true);
   };
 
@@ -2064,6 +2097,13 @@ export const AdminPage = () => {
       return;
     }
 
+    if (couponFormData.applyScope === 'SPECIFIC') {
+      if (!couponFormData.productIds || couponFormData.productIds.length === 0) {
+        triggerAlert('Vui lòng chọn ít nhất một sản phẩm trong danh sách để áp dụng mã giảm giá', 'error');
+        return;
+      }
+    }
+
     try {
       setIsSavingCoupon(true);
       const payload = {
@@ -2079,7 +2119,8 @@ export const AdminPage = () => {
         perUserLimit: couponFormData.perUserLimit ? parseInt(couponFormData.perUserLimit, 10) : null,
         startAt: couponFormData.startAt.length === 16 ? `${couponFormData.startAt}:00` : couponFormData.startAt,
         endAt: couponFormData.endAt.length === 16 ? `${couponFormData.endAt}:00` : couponFormData.endAt,
-        status: couponFormData.status || 'ACTIVE'
+        status: couponFormData.status || 'ACTIVE',
+        productIds: couponFormData.applyScope === 'SPECIFIC' ? couponFormData.productIds : []
       };
 
       if (isEdit && editingCouponId) {
@@ -3826,6 +3867,17 @@ export const AdminPage = () => {
                                 Tối đa <strong>{c.perUserLimit}</strong> lần/khách
                               </div>
                             )}
+                            <div style={{ marginTop: '4px' }}>
+                              {(!c.productIds || c.productIds.length === 0) ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.7rem', padding: '2px 6px', backgroundColor: '#ecfdf5', color: '#059669', borderRadius: '4px', fontWeight: 600 }}>
+                                  ✓ Tất cả SP
+                                </span>
+                              ) : (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.7rem', padding: '2px 6px', backgroundColor: '#eff6ff', color: '#2563eb', borderRadius: '4px', fontWeight: 600 }} title={`Áp dụng cho ID: ${c.productIds.join(', ')}`}>
+                                  🏷️ {c.productIds.length} SP chỉ định
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ fontSize: '0.8125rem' }}>
                             <div>
@@ -4205,7 +4257,141 @@ export const AdminPage = () => {
                 </div>
               </div>
 
-              <div style={{ marginBottom: '1rem' }}>
+                          {/* PHẠM VI ÁP DỤNG: TẤT CẢ HOẶC CHỈ ĐỊNH TỪNG SẢN PHẨM */}
+            <div style={{ marginBottom: '1.25rem', padding: '0.85rem', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#1e293b', marginBottom: '8px' }}>
+                Phạm vi áp dụng mã giảm giá *:
+              </label>
+              <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}>
+                  <input
+                    type="radio"
+                    name="applyScope"
+                    value="ALL"
+                    checked={couponFormData.applyScope === 'ALL'}
+                    onChange={() => setCouponFormData({ ...couponFormData, applyScope: 'ALL' })}
+                  />
+                  <span>Áp dụng cho <strong>Tất cả sản phẩm</strong> của cửa hàng</span>
+                </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}>
+                  <input
+                    type="radio"
+                    name="applyScope"
+                    value="SPECIFIC"
+                    checked={couponFormData.applyScope === 'SPECIFIC'}
+                    onChange={() => setCouponFormData({ ...couponFormData, applyScope: 'SPECIFIC' })}
+                  />
+                  <span>Chỉ áp dụng cho <strong>Sản phẩm được chọn</strong></span>
+                </label>
+              </div>
+
+              {couponFormData.applyScope === 'SPECIFIC' && (
+                <div style={{ marginTop: '0.75rem', backgroundColor: '#ffffff', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative', flex: 1, minWidth: '160px' }}>
+                      <input
+                        type="text"
+                        placeholder="Tìm sản phẩm của shop..."
+                        className="admin-form-input"
+                        style={{ width: '100%', fontSize: '0.8rem', padding: '0.35rem 0.6rem' }}
+                        value={couponProductSearch}
+                        onChange={(e) => setCouponProductSearch(e.target.value)}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className="admin-btn-action-secondary"
+                        style={{ fontSize: '0.75rem', padding: '0.35rem 0.6rem', whiteSpace: 'nowrap' }}
+                        onClick={() => {
+                          const allIds = availableCouponProducts.map(p => p.id);
+                          const isAllSelected = allIds.length > 0 && allIds.every(id => couponFormData.productIds.includes(id));
+                          setCouponFormData({
+                            ...couponFormData,
+                            productIds: isAllSelected ? [] : allIds
+                          });
+                        }}
+                      >
+                        {availableCouponProducts.length > 0 && availableCouponProducts.every(p => couponFormData.productIds.includes(p.id))
+                          ? 'Bỏ chọn tất cả'
+                          : 'Chọn tất cả'}
+                      </button>
+                      <span style={{ fontSize: '0.75rem', color: '#64748b', whiteSpace: 'nowrap' }}>
+                        Đã chọn: <strong style={{ color: '#2563eb' }}>{couponFormData.productIds.length}</strong> sản phẩm
+                      </span>
+                    </div>
+                  </div>
+
+                  {couponProductsLoading ? (
+                    <div style={{ textAlign: 'center', padding: '1.5rem', color: '#64748b', fontSize: '0.8rem' }}>
+                      <RefreshCw size={16} className="animate-spin" style={{ margin: '0 auto 0.25rem' }} />
+                      Đang tải danh sách sản phẩm...
+                    </div>
+                  ) : availableCouponProducts.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '1.25rem', color: '#64748b', fontSize: '0.8rem' }}>
+                      Cửa hàng chưa có sản phẩm nào. Vui lòng đăng sản phẩm trước khi tạo mã theo sản phẩm.
+                    </div>
+                  ) : (
+                    <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #f1f5f9', borderRadius: '4px' }}>
+                      {availableCouponProducts
+                        .filter(p => !couponProductSearch.trim() || p.name?.toLowerCase().includes(couponProductSearch.toLowerCase().trim()))
+                        .map(p => {
+                          const isSelected = couponFormData.productIds.includes(p.id);
+                          return (
+                            <div
+                              key={p.id}
+                              onClick={() => {
+                                const newIds = isSelected
+                                  ? couponFormData.productIds.filter(id => id !== p.id)
+                                  : [...couponFormData.productIds, p.id];
+                                setCouponFormData({ ...couponFormData, productIds: newIds });
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.6rem',
+                                padding: '0.45rem 0.6rem',
+                                borderBottom: '1px solid #f8fafc',
+                                cursor: 'pointer',
+                                backgroundColor: isSelected ? '#eff6ff' : 'transparent',
+                                transition: 'background-color 0.15s'
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {}}
+                                style={{ cursor: 'pointer' }}
+                              />
+                              {p.thumbnailUrl ? (
+                                <img
+                                  src={p.thumbnailUrl}
+                                  alt={p.name}
+                                  style={{ width: '28px', height: '28px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #e2e8f0' }}
+                                />
+                              ) : (
+                                <div style={{ width: '28px', height: '28px', backgroundColor: '#f1f5f9', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <Package size={14} color="#94a3b8" />
+                                </div>
+                              )}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '0.8rem', fontWeight: 500, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {p.name}
+                                </div>
+                                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                                  Mã: #{p.id} {p.brandName ? `• ${p.brandName}` : ''}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+<div style={{ marginBottom: '1rem' }}>
                 <strong style={{ display: 'block', color: '#0f172a', marginBottom: '0.4rem' }}>Tập vai trò hệ thống:</strong>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                   {(selectedUserDetail.roles || []).map((r) => (
@@ -6783,7 +6969,141 @@ export const AdminPage = () => {
               </div>
             </div>
 
-            <div style={{ marginBottom: '1rem' }}>
+                        {/* PHẠM VI ÁP DỤNG: TẤT CẢ HOẶC CHỈ ĐỊNH TỪNG SẢN PHẨM */}
+            <div style={{ marginBottom: '1.25rem', padding: '0.85rem', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#1e293b', marginBottom: '8px' }}>
+                Phạm vi áp dụng mã giảm giá *:
+              </label>
+              <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}>
+                  <input
+                    type="radio"
+                    name="applyScope"
+                    value="ALL"
+                    checked={couponFormData.applyScope === 'ALL'}
+                    onChange={() => setCouponFormData({ ...couponFormData, applyScope: 'ALL' })}
+                  />
+                  <span>Áp dụng cho <strong>Tất cả sản phẩm</strong> của cửa hàng</span>
+                </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}>
+                  <input
+                    type="radio"
+                    name="applyScope"
+                    value="SPECIFIC"
+                    checked={couponFormData.applyScope === 'SPECIFIC'}
+                    onChange={() => setCouponFormData({ ...couponFormData, applyScope: 'SPECIFIC' })}
+                  />
+                  <span>Chỉ áp dụng cho <strong>Sản phẩm được chọn</strong></span>
+                </label>
+              </div>
+
+              {couponFormData.applyScope === 'SPECIFIC' && (
+                <div style={{ marginTop: '0.75rem', backgroundColor: '#ffffff', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative', flex: 1, minWidth: '160px' }}>
+                      <input
+                        type="text"
+                        placeholder="Tìm sản phẩm của shop..."
+                        className="admin-form-input"
+                        style={{ width: '100%', fontSize: '0.8rem', padding: '0.35rem 0.6rem' }}
+                        value={couponProductSearch}
+                        onChange={(e) => setCouponProductSearch(e.target.value)}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className="admin-btn-action-secondary"
+                        style={{ fontSize: '0.75rem', padding: '0.35rem 0.6rem', whiteSpace: 'nowrap' }}
+                        onClick={() => {
+                          const allIds = availableCouponProducts.map(p => p.id);
+                          const isAllSelected = allIds.length > 0 && allIds.every(id => couponFormData.productIds.includes(id));
+                          setCouponFormData({
+                            ...couponFormData,
+                            productIds: isAllSelected ? [] : allIds
+                          });
+                        }}
+                      >
+                        {availableCouponProducts.length > 0 && availableCouponProducts.every(p => couponFormData.productIds.includes(p.id))
+                          ? 'Bỏ chọn tất cả'
+                          : 'Chọn tất cả'}
+                      </button>
+                      <span style={{ fontSize: '0.75rem', color: '#64748b', whiteSpace: 'nowrap' }}>
+                        Đã chọn: <strong style={{ color: '#2563eb' }}>{couponFormData.productIds.length}</strong> sản phẩm
+                      </span>
+                    </div>
+                  </div>
+
+                  {couponProductsLoading ? (
+                    <div style={{ textAlign: 'center', padding: '1.5rem', color: '#64748b', fontSize: '0.8rem' }}>
+                      <RefreshCw size={16} className="animate-spin" style={{ margin: '0 auto 0.25rem' }} />
+                      Đang tải danh sách sản phẩm...
+                    </div>
+                  ) : availableCouponProducts.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '1.25rem', color: '#64748b', fontSize: '0.8rem' }}>
+                      Cửa hàng chưa có sản phẩm nào. Vui lòng đăng sản phẩm trước khi tạo mã theo sản phẩm.
+                    </div>
+                  ) : (
+                    <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #f1f5f9', borderRadius: '4px' }}>
+                      {availableCouponProducts
+                        .filter(p => !couponProductSearch.trim() || p.name?.toLowerCase().includes(couponProductSearch.toLowerCase().trim()))
+                        .map(p => {
+                          const isSelected = couponFormData.productIds.includes(p.id);
+                          return (
+                            <div
+                              key={p.id}
+                              onClick={() => {
+                                const newIds = isSelected
+                                  ? couponFormData.productIds.filter(id => id !== p.id)
+                                  : [...couponFormData.productIds, p.id];
+                                setCouponFormData({ ...couponFormData, productIds: newIds });
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.6rem',
+                                padding: '0.45rem 0.6rem',
+                                borderBottom: '1px solid #f8fafc',
+                                cursor: 'pointer',
+                                backgroundColor: isSelected ? '#eff6ff' : 'transparent',
+                                transition: 'background-color 0.15s'
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {}}
+                                style={{ cursor: 'pointer' }}
+                              />
+                              {p.thumbnailUrl ? (
+                                <img
+                                  src={p.thumbnailUrl}
+                                  alt={p.name}
+                                  style={{ width: '28px', height: '28px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #e2e8f0' }}
+                                />
+                              ) : (
+                                <div style={{ width: '28px', height: '28px', backgroundColor: '#f1f5f9', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <Package size={14} color="#94a3b8" />
+                                </div>
+                              )}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '0.8rem', fontWeight: 500, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {p.name}
+                                </div>
+                                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                                  Mã: #{p.id} {p.brandName ? `• ${p.brandName}` : ''}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+<div style={{ marginBottom: '1rem' }}>
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
                 Tên chương trình ưu đãi *:
               </label>

@@ -51,15 +51,14 @@ public class UpdateCouponRequest {
     private Integer perUserLimit;
 
     @NotNull(message = "Thời gian bắt đầu áp dụng không được để trống")
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd['T'][ ]HH:mm[:ss]")
     private LocalDateTime startAt;
 
     @NotNull(message = "Thời gian kết thúc không được để trống")
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd['T'][ ]HH:mm[:ss]")
     private LocalDateTime endAt;
 
     private CouponStatus status;
 
     private List<Long> productIds;
 }
-
