@@ -32,4 +32,10 @@ public class ProductReviewSummaryResponse {
     private Integer currentPage;
     private Integer totalPages;
     private Long totalElements;
+
+    // Trạng thái của người dùng hiện tại đối với sản phẩm này
+    private Boolean hasPurchased;
+    private Boolean canReview;
+    private Boolean isShopOwnerOfProduct;
+    private String sellerShopName;
 }

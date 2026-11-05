@@ -23,3 +23,4 @@ public interface ProductReviewService {
 
     ProductReviewResponse deleteReply(Long productId, Long reviewId, String currentUsername);
 }
+

@@ -19,3 +19,4 @@ public class ReplyProductReviewRequest {
     @Size(max = 2000, message = "Nội dung phản hồi không quá 2000 ký tự")
     private String reply;
 }
+

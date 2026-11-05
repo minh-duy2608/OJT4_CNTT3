@@ -10,7 +10,9 @@ import {
   CornerDownRight, 
   Send, 
   ShieldCheck,
-  Store
+  Store,
+  Lock,
+  ShoppingBag
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { productReviewApi } from '../../services/productReviewApi';
@@ -42,15 +44,21 @@ export const ProductReviewsSection = ({ product }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
+  // Modal thông báo chưa mua hàng
+  const [showNotPurchasedModal, setShowNotPurchasedModal] = useState(false);
+
   // Seller Reply State
   const [replyingReviewId, setReplyingReviewId] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
 
-  // Check if current user is seller (shop owner) or admin
-  const isSellerOrAdmin = useMemo(() => {
+  // Quyền phản hồi: CHỈ CHỦ SHOP CỦA SẢN PHẨM NÀY HOẶC ADMIN MỚI ĐƯỢC PHẢN HỒI
+  const isSellerOfThisProduct = useMemo(() => {
     if (!user) return false;
-    // Check admin
+    // 1. Kiểm tra trực tiếp từ Backend đã verify quyền sở hữu
+    if (summaryData?.isShopOwnerOfProduct) return true;
+
+    // 2. Kiểm tra quyền Admin
     const roleStr = String(user.role || '').toUpperCase();
     const hasAdminRole = roleStr.includes('ADMIN') || 
       (Array.isArray(user.roles) && user.roles.some(r => {
@@ -59,12 +67,13 @@ export const ProductReviewsSection = ({ product }) => {
       }));
     if (hasAdminRole) return true;
 
-    // Check shop owner of this product
-    if (product?.shopId && user.id) {
-      if (product.shop?.ownerId === user.id) return true;
+    // 3. Kiểm tra Shop Owner ID trùng khớp với Product Shop
+    if (product?.shopId && (user.id === product?.shop?.ownerId || user.shopId === product?.shopId)) {
+      return true;
     }
+
     return false;
-  }, [user, product]);
+  }, [user, product, summaryData]);
 
   // Load reviews from API
   const fetchReviews = useCallback(async () => {
@@ -112,17 +121,27 @@ export const ProductReviewsSection = ({ product }) => {
       return;
     }
 
+    // Nếu đã đánh giá rồi: cho phép mở modal chỉnh sửa bài viết của mình
     if (myReview) {
-      // Editing existing review
       setModalRating(myReview.rating || 5);
       setModalTitle(myReview.title || '');
       setModalContent(myReview.content || '');
-    } else {
-      // New review
-      setModalRating(5);
-      setModalTitle('');
-      setModalContent('');
+      setFormError('');
+      setIsModalOpen(true);
+      return;
     }
+
+    // CHỈ CHO PHÉP ĐÁNH GIÁ NẾU ĐÃ MUA HÀNG THÀNH CÔNG
+    const hasPurchased = summaryData?.hasPurchased;
+    if (!hasPurchased) {
+      setShowNotPurchasedModal(true);
+      return;
+    }
+
+    // New review
+    setModalRating(5);
+    setModalTitle('');
+    setModalContent('');
     setFormError('');
     setIsModalOpen(true);
   };
@@ -181,7 +200,7 @@ export const ProductReviewsSection = ({ product }) => {
     }
   };
 
-  // Seller Submit Reply
+  // Seller Submit Reply (Chỉ người bán của shop này mới được gửi)
   const handleSubmitSellerReply = async (reviewId) => {
     if (!replyText.trim()) return;
     setIsSubmittingReply(true);
@@ -213,6 +232,7 @@ export const ProductReviewsSection = ({ product }) => {
   const averageRating = summaryData?.averageRating || 0.0;
   const ratingCounts = summaryData?.ratingCounts || { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
   const reviewsList = summaryData?.reviews || [];
+  const hasPurchased = Boolean(summaryData?.hasPurchased);
 
   return (
     <section className="cellphone-reviews-container" id="product-reviews-section">
@@ -221,7 +241,7 @@ export const ProductReviewsSection = ({ product }) => {
         <span>Đánh giá & nhận xét {product?.name || 'sản phẩm'}</span>
       </h2>
 
-      {/* 1. OVERVIEW SCORE CARD (CHUẨN CELLPHONES) */}
+      {/* 1. OVERVIEW SCORE CARD (CHUẨN CELLPHONES - LUÔN HIỂN THỊ ĐỂ NGƯỜI MỚI XEM ĐÁNH GIÁ CŨ) */}
       <div className="review-overview-card">
         {/* Cột trái: Điểm trung bình */}
         <div className="review-score-box">
@@ -276,13 +296,19 @@ export const ProductReviewsSection = ({ product }) => {
         {/* Cột phải: Lời kêu gọi & Nút Viết đánh giá */}
         <div className="review-cta-box">
           <div className="review-cta-text">
-            Bạn đã từng trải nghiệm sản phẩm này? Chia sẻ cảm nhận ngay nhé!
+            {myReview ? (
+              'Bạn đã gửi đánh giá cho sản phẩm này.'
+            ) : hasPurchased ? (
+              'Bạn đã mua sản phẩm này! Hãy chia sẻ cảm nhận thực tế nhé.'
+            ) : (
+              'Chỉ khách hàng đã mua sản phẩm mới có thể viết đánh giá.'
+            )}
           </div>
 
           {myReview ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
               <div className="btn-my-review-badge">
-                <CheckCircle2 size={14} /> Bạn đã đánh giá ({myReview.rating}★)
+                <CheckCircle2 size={14} /> Đã đánh giá ({myReview.rating}★)
               </div>
               <button 
                 type="button" 
@@ -296,11 +322,19 @@ export const ProductReviewsSection = ({ product }) => {
           ) : (
             <button 
               type="button" 
-              className="btn-write-review"
+              className={`btn-write-review ${!hasPurchased ? 'btn-write-locked' : ''}`}
               onClick={handleOpenModal}
+              title={!hasPurchased ? 'Cần mua hàng thành công để đánh giá' : 'Viết đánh giá ngay'}
             >
+              {!hasPurchased && <Lock size={15} style={{ marginRight: '2px' }} />}
               <Edit3 size={16} /> Viết đánh giá
             </button>
+          )}
+
+          {!myReview && !hasPurchased && isAuthenticated && (
+            <span style={{ fontSize: '0.725rem', color: '#64748b', textAlign: 'center' }}>
+              (Yêu cầu đã mua hàng thành công)
+            </span>
           )}
         </div>
       </div>
@@ -329,7 +363,7 @@ export const ProductReviewsSection = ({ product }) => {
         ))}
       </div>
 
-      {/* 3. DANH SÁCH BÀI ĐÁNH GIÁ */}
+      {/* 3. DANH SÁCH BÀI ĐÁNH GIÁ (HIỂN THỊ CÔNG KHAI ĐỂ NGƯỜI MỚI XEM ĐÁNH GIÁ CỦA NGƯỜI CŨ) */}
       {isLoading ? (
         <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
           Đang tải danh sách đánh giá...
@@ -385,7 +419,7 @@ export const ProductReviewsSection = ({ product }) => {
                         <Edit3 size={13} /> Sửa
                       </button>
                     )}
-                    {(isOwner || isSellerOrAdmin) && (
+                    {(isOwner || isSellerOfThisProduct) && (
                       <button 
                         type="button" 
                         className="review-action-btn delete"
@@ -425,7 +459,7 @@ export const ProductReviewsSection = ({ product }) => {
                       <div className="seller-reply-author">
                         <Store size={15} />
                         <span>{review.sellerReplierName || 'Phản hồi từ Người bán'}</span>
-                        <span className="seller-badge-qtv">QTV</span>
+                        <span className="seller-badge-qtv">Người bán</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span className="seller-reply-date">
@@ -435,7 +469,7 @@ export const ProductReviewsSection = ({ product }) => {
                             day: '2-digit'
                           }) : ''}
                         </span>
-                        {isSellerOrAdmin && (
+                        {isSellerOfThisProduct && (
                           <button
                             type="button"
                             className="review-action-btn delete"
@@ -454,14 +488,14 @@ export const ProductReviewsSection = ({ product }) => {
                   </div>
                 )}
 
-                {/* Nút / Form cho Seller hoặc Admin trả lời */}
-                {isSellerOrAdmin && !review.sellerReply && (
+                {/* Nút / Form trả lời: CHỈ SHOP SỞ HỮU SẢN PHẨM NÀY MỚI ĐƯỢC PHẢN HỒI */}
+                {isSellerOfThisProduct && !review.sellerReply && (
                   <div className="seller-reply-form-wrap">
                     {replyingReviewId === review.id ? (
                       <div>
                         <textarea
                           className="seller-reply-textarea"
-                          placeholder="Nhập câu trả lời phản hồi cho khách hàng với tư cách người bán..."
+                          placeholder={`Nhập phản hồi cho khách hàng với tư cách ${summaryData?.sellerShopName || 'Người bán'}...`}
                           value={replyText}
                           onChange={(e) => setReplyText(e.target.value)}
                         />
@@ -513,16 +547,15 @@ export const ProductReviewsSection = ({ product }) => {
           <p style={{ fontSize: '0.875rem' }}>
             {selectedRatingFilter 
               ? `Chưa có đánh giá nào cho mức ${selectedRatingFilter} sao. Hãy thử chọn mức sao khác!` 
-              : 'Hãy là người đầu tiên đánh giá sản phẩm này để giúp khách hàng khác có trải nghiệm tốt nhất!'}
+              : 'Hiện chưa có đánh giá nào cho sản phẩm này. Khách hàng đã mua hàng sẽ chia sẻ trải nghiệm sớm nhất!'}
           </p>
         </div>
       )}
 
-      {/* 5. MODAL VIẾT ĐÁNH GIÁ (POPUP CHUẨN CELLPHONES) */}
+      {/* 5. MODAL VIẾT ĐÁNH GIÁ (CHỈ MỞ KHI ĐÃ MUA HÀNG THÀNH CÔNG) */}
       {isModalOpen && (
         <div className="review-modal-backdrop" onClick={handleCloseModal}>
           <div className="review-modal-content" onClick={(e) => e.stopPropagation()}>
-            {/* Header */}
             <div className="review-modal-header">
               <h3 className="review-modal-title">
                 {myReview ? 'Chỉnh sửa bài đánh giá' : 'Đánh giá sản phẩm'}
@@ -537,7 +570,6 @@ export const ProductReviewsSection = ({ product }) => {
               </button>
             </div>
 
-            {/* Form */}
             <form onSubmit={handleSubmitReview}>
               <div className="review-modal-body">
                 {/* Thông tin sản phẩm */}
@@ -582,7 +614,6 @@ export const ProductReviewsSection = ({ product }) => {
                   </div>
                 </div>
 
-                {/* Thông báo lỗi nếu có */}
                 {formError && (
                   <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '0.65rem 0.85rem', borderRadius: '8px', fontSize: '0.8125rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <AlertCircle size={16} />
@@ -590,7 +621,6 @@ export const ProductReviewsSection = ({ product }) => {
                   </div>
                 )}
 
-                {/* Tiêu đề cảm nhận */}
                 <div className="review-form-group">
                   <label className="review-form-label">
                     Tiêu đề (Tùy chọn)
@@ -605,7 +635,6 @@ export const ProductReviewsSection = ({ product }) => {
                   />
                 </div>
 
-                {/* Nội dung nhận xét */}
                 <div className="review-form-group">
                   <label className="review-form-label">
                     Cảm nhận chi tiết về sản phẩm *
@@ -620,13 +649,11 @@ export const ProductReviewsSection = ({ product }) => {
                   />
                 </div>
 
-                {/* Quy định 1 người / 1 bài */}
                 <div className="review-policy-notice">
-                  ℹ️ <strong>Quy định:</strong> Mỗi khách hàng chỉ được viết <strong>1 bài đánh giá</strong> cho mỗi sản phẩm. Bạn có thể chỉnh sửa lại nội dung đánh giá bất kỳ lúc nào.
+                  ℹ️ <strong>Quy định:</strong> Bạn đã mua sản phẩm này tại Cyber. Mỗi khách hàng chỉ được viết <strong>1 bài đánh giá</strong> và có thể chỉnh sửa lại nội dung bất kỳ lúc nào.
                 </div>
               </div>
 
-              {/* Footer */}
               <div className="review-modal-footer">
                 <button 
                   type="button" 
@@ -645,6 +672,51 @@ export const ProductReviewsSection = ({ product }) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6. MODAL THÔNG BÁO KHI CHƯA MUA HÀNG */}
+      {showNotPurchasedModal && (
+        <div className="review-modal-backdrop" onClick={() => setShowNotPurchasedModal(false)}>
+          <div className="review-modal-content" style={{ maxWidth: '440px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+            <div className="review-modal-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
+              <div style={{ width: '100%' }} />
+              <button 
+                type="button" 
+                className="review-modal-close" 
+                onClick={() => setShowNotPurchasedModal(false)}
+                aria-label="Đóng"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="review-modal-body" style={{ padding: '0.5rem 1.75rem 1.75rem', alignItems: 'center' }}>
+              <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem' }}>
+                <ShoppingBag size={30} color="#ea580c" />
+              </div>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.5rem' }}>
+                Chỉ dành cho khách đã mua hàng
+              </h3>
+              <p style={{ fontSize: '0.875rem', color: '#475569', lineHeight: 1.6, margin: 0 }}>
+                Bạn cần mua sản phẩm <strong>"{product?.name}"</strong> và hoàn tất đơn hàng thành công trước khi có thể viết đánh giá & nhận xét.
+              </p>
+              <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '8px', fontSize: '0.8125rem', color: '#64748b', marginTop: '1rem', width: '100%' }}>
+                💡 Tính năng này giúp đảm bảo 100% đánh giá trên hệ thống là khách quan từ người dùng thực tế.
+              </div>
+            </div>
+
+            <div className="review-modal-footer" style={{ justifyContent: 'center' }}>
+              <button 
+                type="button" 
+                className="btn-modal-submit"
+                style={{ width: '100%' }}
+                onClick={() => setShowNotPurchasedModal(false)}
+              >
+                Đã hiểu
+              </button>
+            </div>
           </div>
         </div>
       )}

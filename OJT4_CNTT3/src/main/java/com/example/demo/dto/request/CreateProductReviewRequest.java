@@ -30,3 +30,4 @@ public class CreateProductReviewRequest {
     @Size(min = 5, max = 2000, message = "Nội dung nhận xét phải từ 5 đến 2000 ký tự")
     private String content;
 }
+
