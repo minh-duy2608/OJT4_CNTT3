@@ -78,7 +78,7 @@ export const couponApi = {
   },
 
   /**
-   * GET /admin/coupons - Danh sách mã giảm giá cho trang quản trị (Admin / Shop)
+   * GET /api/v1/admin/coupons - Danh sách mã giảm giá cho trang quản trị (Admin / Shop)
    */
   async getAdminCoupons({ shopId, status, keyword, page = 0, size = 10 } = {}) {
     const params = new URLSearchParams();
@@ -87,51 +87,51 @@ export const couponApi = {
     if (keyword) params.append('keyword', keyword);
     params.append('page', page);
     params.append('size', size);
-    return await request(`/admin/coupons?${params.toString()}`, { method: 'GET' });
+    return await request(`/api/v1/admin/coupons?${params.toString()}`, { method: 'GET' });
   },
 
   /**
-   * GET /admin/coupons/{id} - Lấy chi tiết mã giảm giá theo ID
+   * GET /api/v1/admin/coupons/{id} - Lấy chi tiết mã giảm giá theo ID
    */
   async getAdminCouponById(couponId) {
-    return await request(`/admin/coupons/${couponId}`, { method: 'GET' });
+    return await request(`/api/v1/admin/coupons/${couponId}`, { method: 'GET' });
   },
 
   /**
-   * POST /admin/coupons - Tạo mã giảm giá mới
+   * POST /api/v1/admin/coupons - Tạo mã giảm giá mới
    */
   async createCoupon(payload) {
-    return await request('/admin/coupons', {
+    return await request('/api/v1/admin/coupons', {
       method: 'POST',
       body: JSON.stringify(payload)
     });
   },
 
   /**
-   * PUT /admin/coupons/{id} - Cập nhật mã giảm giá
+   * PUT /api/v1/admin/coupons/{id} - Cập nhật mã giảm giá
    */
   async updateCoupon(couponId, payload) {
-    return await request(`/admin/coupons/${couponId}`, {
+    return await request(`/api/v1/admin/coupons/${couponId}`, {
       method: 'PUT',
       body: JSON.stringify(payload)
     });
   },
 
   /**
-   * PATCH /admin/coupons/{id}/status - Cập nhật trạng thái mã giảm giá (ACTIVE, INACTIVE, DRAFT, EXPIRED)
+   * PATCH /api/v1/admin/coupons/{id}/status - Cập nhật trạng thái mã giảm giá (ACTIVE, INACTIVE, DRAFT, EXPIRED)
    */
   async updateCouponStatus(couponId, status) {
-    return await request(`/admin/coupons/${couponId}/status`, {
+    return await request(`/api/v1/admin/coupons/${couponId}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status })
     });
   },
 
   /**
-   * DELETE /admin/coupons/{id} - Xóa mã giảm giá
+   * DELETE /api/v1/admin/coupons/{id} - Xóa mã giảm giá
    */
   async deleteCoupon(couponId) {
-    return await request(`/admin/coupons/${couponId}`, {
+    return await request(`/api/v1/admin/coupons/${couponId}`, {
       method: 'DELETE'
     });
   }
