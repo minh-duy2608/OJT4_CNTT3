@@ -22,7 +22,7 @@ import java.util.List;
 @AllArgsConstructor
 public class CreateCouponRequest {
 
-    @NotNull(message = "ID cửa hàng không được để trống")
+    // Có thể null nếu người tạo là Người bán (sẽ tự động gán shop do người dùng sở hữu)
     private Long shopId;
 
     @NotBlank(message = "Mã giảm giá không được để trống")
@@ -52,11 +52,11 @@ public class CreateCouponRequest {
     private Integer perUserLimit;
 
     @NotNull(message = "Thời gian bắt đầu áp dụng không được để trống")
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd['T'][ ]HH:mm[:ss]")
     private LocalDateTime startAt;
 
     @NotNull(message = "Thời gian kết thúc không được để trống")
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd['T'][ ]HH:mm[:ss]")
     private LocalDateTime endAt;
 
     @Builder.Default
@@ -64,4 +64,3 @@ public class CreateCouponRequest {
 
     private List<Long> productIds;
 }
-

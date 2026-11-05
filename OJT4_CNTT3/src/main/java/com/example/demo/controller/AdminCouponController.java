@@ -8,8 +8,6 @@ import com.example.demo.dto.response.CouponResponse;
 import com.example.demo.dto.response.PageResponse;
 import com.example.demo.entity.CouponStatus;
 import com.example.demo.service.CouponService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -19,16 +17,17 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 
-@Tag(name = "18. Quản trị - Mã giảm giá", description = "Quản lý và tạo mã giảm giá ưu đãi cho hệ thống và cửa hàng")
 @RestController
 @RequestMapping({"/admin/coupons", "/api/v1/admin/coupons"})
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN', 'ROLE_ADMIN', 'SHOP_MANAGER', 'ROLE_SHOP_MANAGER', 'SHOP_OWNER')")
+@PreAuthorize("hasAnyRole('ADMIN', 'ROLE_ADMIN', 'SHOP_MANAGER', 'ROLE_SHOP_MANAGER', 'SHOP_OWNER', 'ROLE_SHOP_OWNER')")
 public class AdminCouponController {
 
     private final CouponService couponService;
 
-    @Operation(summary = "Lấy danh sách mã giảm giá quản trị có phân trang và bộ lọc")
+    /**
+     * GET /admin/coupons - Danh sách mã giảm giá quản trị (phân trang, bộ lọc)
+     */
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<CouponResponse>>> getAllCoupons(
             @RequestParam(required = false) Long shopId,
@@ -43,7 +42,9 @@ public class AdminCouponController {
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách mã giảm giá thành công", response));
     }
 
-    @Operation(summary = "Lấy chi tiết mã giảm giá theo ID")
+    /**
+     * GET /admin/coupons/{id} - Chi tiết mã giảm giá theo ID
+     */
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<CouponResponse>> getCouponById(
             @PathVariable Long id,
@@ -54,7 +55,9 @@ public class AdminCouponController {
         return ResponseEntity.ok(ApiResponse.success("Lấy chi tiết mã giảm giá thành công", response));
     }
 
-    @Operation(summary = "Tạo mã giảm giá mới")
+    /**
+     * POST /admin/coupons - Tạo mã giảm giá mới
+     */
     @PostMapping
     public ResponseEntity<ApiResponse<CouponResponse>> createCoupon(
             @Valid @RequestBody CreateCouponRequest request,
@@ -66,7 +69,9 @@ public class AdminCouponController {
                 .body(ApiResponse.created("Tạo mã giảm giá mới thành công", response));
     }
 
-    @Operation(summary = "Cập nhật thông tin mã giảm giá")
+    /**
+     * PUT /admin/coupons/{id} - Cập nhật thông tin mã giảm giá
+     */
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<CouponResponse>> updateCoupon(
             @PathVariable Long id,
@@ -78,7 +83,9 @@ public class AdminCouponController {
         return ResponseEntity.ok(ApiResponse.success("Cập nhật thông tin mã giảm giá thành công", response));
     }
 
-    @Operation(summary = "Thay đổi trạng thái mã giảm giá (ACTIVE, INACTIVE, DRAFT, EXPIRED)")
+    /**
+     * PATCH /admin/coupons/{id}/status - Thay đổi trạng thái mã giảm giá
+     */
     @PatchMapping("/{id}/status")
     public ResponseEntity<ApiResponse<CouponResponse>> updateCouponStatus(
             @PathVariable Long id,
@@ -90,7 +97,9 @@ public class AdminCouponController {
         return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái mã giảm giá thành công", response));
     }
 
-    @Operation(summary = "Xóa mã giảm giá")
+    /**
+     * DELETE /admin/coupons/{id} - Xóa mã giảm giá
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteCoupon(
             @PathVariable Long id,
@@ -101,4 +110,3 @@ public class AdminCouponController {
         return ResponseEntity.ok(ApiResponse.success("Xóa mã giảm giá thành công", null));
     }
 }
-

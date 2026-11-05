@@ -29,6 +29,7 @@ import { productApi } from '../services/productApi';
 import { wishlistApi } from '../services/wishlistApi';
 import { couponApi } from '../services/couponApi';
 import { parseProductSpecs } from '../utils/productSpecs';
+import { ProductReviewsSection } from '../components/ProductReviews/ProductReviewsSection';
 import './ProductDetailPage.css';
 
 export const ProductDetailPage = () => {
@@ -1022,6 +1023,9 @@ export const ProductDetailPage = () => {
           </div>
         )}
       </section>
+
+      {/* 5.5. ĐÁNH GIÁ SẢN PHẨM & PHẢN HỒI NGƯỜI BÁN (CELLPHONES STYLE) */}
+      <ProductReviewsSection product={product} />
 
       {/* 6. Sản phẩm tương tự */}
       <section style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '1px solid #e4e4e7' }}>

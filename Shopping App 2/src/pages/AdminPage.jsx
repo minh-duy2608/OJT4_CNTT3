@@ -122,6 +122,41 @@ export const AdminPage = () => {
   };
 
   // =========================================================================
+  // USER ROLES & SHOP CONTEXT (HOISTED FOR SAFE INITIALIZATION)
+  // =========================================================================
+  const isAdminUser = useMemo(() => {
+    if (!user) return false;
+    const r = (user.role || '').toUpperCase();
+    if (r === 'ADMIN' || r === 'ROLE_ADMIN') return true;
+    if (Array.isArray(user.roles)) {
+      return user.roles.some(roleItem => {
+        const code = (typeof roleItem === 'string' ? roleItem : roleItem?.code || '').toUpperCase();
+        return code === 'ADMIN' || code === 'ROLE_ADMIN';
+      });
+    }
+    return false;
+  }, [user]);
+
+  const isShopManager = useMemo(() => {
+    if (!user) return false;
+    const r = (user.role || '').toUpperCase();
+    if (r === 'SHOP_MANAGER' || r === 'ROLE_SHOP_MANAGER' || r === 'SHOP_OWNER') return true;
+    if (Array.isArray(user.roles)) {
+      return user.roles.some(roleItem => {
+        const code = (typeof roleItem === 'string' ? roleItem : roleItem?.code || '').toUpperCase();
+        return code === 'SHOP_MANAGER' || code === 'ROLE_SHOP_MANAGER' || code === 'SHOP_OWNER';
+      });
+    }
+    return false;
+  }, [user]);
+
+  const hasPortalAccess = isAdminUser || isShopManager;
+
+  // selectedShopId is hoisted to top of component
+  const [myShopInfo, setMyShopInfo] = useState(null);
+  const [availableShops, setAvailableShops] = useState([]);
+
+  // =========================================================================
   // 1. TAB: QUẢN LÝ NGƯỜI DÙNG (USERS - STT 12-17)
   // =========================================================================
   const [users, setUsers] = useState([]);
@@ -1785,6 +1820,367 @@ export const AdminPage = () => {
   };
 
   // ===================================================================
+  // STATE & LOGIC: CHỈNH SỬA & TẠO MỚI CỬA HÀNG (ADMIN SHOPS)
+  // ===================================================================
+  const [editingAdminShop, setEditingAdminShop] = useState(null);
+  const [showEditAdminShopModal, setShowEditAdminShopModal] = useState(false);
+  const [editAdminShopData, setEditAdminShopData] = useState({
+    name: '',
+    description: '',
+    phone: '',
+    email: '',
+    province: '',
+    district: '',
+    ward: '',
+    addressDetail: '',
+    logoUrl: '',
+    bannerUrl: ''
+  });
+  const [isSavingAdminShop, setIsSavingAdminShop] = useState(false);
+
+  const [showCreateShopModal, setShowCreateShopModal] = useState(false);
+  const [createShopData, setCreateShopData] = useState({
+    name: '',
+    description: '',
+    phone: '',
+    email: '',
+    province: '',
+    district: '',
+    ward: '',
+    addressDetail: '',
+    logoUrl: '',
+    bannerUrl: ''
+  });
+  const [isCreatingShop, setIsCreatingShop] = useState(false);
+
+  const handleOpenEditAdminShop = (shop) => {
+    setEditingAdminShop(shop);
+    setEditAdminShopData({
+      name: shop.name || '',
+      description: shop.description || '',
+      phone: shop.contactPhone || shop.phone || '',
+      email: shop.contactEmail || shop.email || '',
+      province: shop.province || '',
+      district: shop.district || '',
+      ward: shop.ward || '',
+      addressDetail: shop.addressDetail || '',
+      logoUrl: shop.logoUrl || '',
+      bannerUrl: shop.bannerUrl || ''
+    });
+    setShowEditAdminShopModal(true);
+  };
+
+  const handleSaveAdminShop = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!editingAdminShop) return;
+    if (!editAdminShopData.name.trim()) {
+      triggerAlert('Vui lòng nhập tên cửa hàng', 'error');
+      return;
+    }
+    try {
+      setIsSavingAdminShop(true);
+      await shopApi.adminUpdateShop(editingAdminShop.id, editAdminShopData);
+      triggerAlert(`Đã cập nhật thông tin cửa hàng "${editAdminShopData.name}" thành công!`, 'success');
+      setShowEditAdminShopModal(false);
+      fetchAdminShops(adminShopsPage);
+      if (selectedAdminShop && selectedAdminShop.id === editingAdminShop.id) {
+        setSelectedAdminShop((prev) => ({ ...prev, ...editAdminShopData }));
+      }
+    } catch (err) {
+      triggerAlert(err.message || 'Lỗi khi cập nhật thông tin cửa hàng.', 'error');
+    } finally {
+      setIsSavingAdminShop(false);
+    }
+  };
+
+  const handleCreateShop = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!createShopData.name.trim()) {
+      triggerAlert('Vui lòng nhập tên cửa hàng', 'error');
+      return;
+    }
+    try {
+      setIsCreatingShop(true);
+      await shopApi.adminCreateShop(createShopData);
+      triggerAlert(`Đã tạo cửa hàng "${createShopData.name}" thành công!`, 'success');
+      setShowCreateShopModal(false);
+      setCreateShopData({
+        name: '', description: '', phone: '', email: '',
+        province: '', district: '', ward: '', addressDetail: '', logoUrl: '', bannerUrl: ''
+      });
+      fetchAdminShops(0);
+    } catch (err) {
+      triggerAlert(err.message || 'Lỗi khi tạo cửa hàng mới.', 'error');
+    } finally {
+      setIsCreatingShop(false);
+    }
+  };
+
+  // ===================================================================
+  // STATE & LOGIC: QUẢN TRỊ MÃ GIẢM GIÁ (COUPONS)
+  // ===================================================================
+  const [coupons, setCoupons] = useState([]);
+  const [couponsLoading, setCouponsLoading] = useState(false);
+  const [couponPage, setCouponPage] = useState(0);
+  const [couponTotalPages, setCouponTotalPages] = useState(1);
+  const [couponTotalElements, setCouponTotalElements] = useState(0);
+  const [couponKeyword, setCouponKeyword] = useState('');
+  const [couponStatusFilter, setCouponStatusFilter] = useState('');
+  const [couponShopFilter, setCouponShopFilter] = useState('');
+  const [copiedCouponCode, setCopiedCouponCode] = useState(null);
+
+  // Modals for Coupon
+  const [showCreateCouponModal, setShowCreateCouponModal] = useState(false);
+  const [showEditCouponModal, setShowEditCouponModal] = useState(false);
+  const [showDeleteCouponModal, setShowDeleteCouponModal] = useState(false);
+  const [targetCouponForDelete, setTargetCouponForDelete] = useState(null);
+  const [isSavingCoupon, setIsSavingCoupon] = useState(false);
+  const [isDeletingCoupon, setIsDeletingCoupon] = useState(false);
+  const [editingCouponId, setEditingCouponId] = useState(null);
+
+  const formatDateTimeInput = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const getDefaultDateTimeRange = () => {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const format = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const start = format(now);
+    const future = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const end = format(future);
+    return { start, end };
+  };
+
+  const [availableCouponProducts, setAvailableCouponProducts] = useState([]);
+  const [couponProductsLoading, setCouponProductsLoading] = useState(false);
+  const [couponProductSearch, setCouponProductSearch] = useState('');
+
+  const loadProductsForCoupon = async (targetShopId) => {
+    if (!targetShopId) return;
+    setCouponProductsLoading(true);
+    try {
+      const res = await productApi.getProducts({ shopId: targetShopId, size: 100 });
+      setAvailableCouponProducts(res?.content || []);
+    } catch (err) {
+      console.warn('Could not load products for coupon:', err);
+    } finally {
+      setCouponProductsLoading(false);
+    }
+  };
+
+  const defaultCouponForm = {
+    shopId: '',
+    code: '',
+    name: '',
+    description: '',
+    discountType: 'PERCENTAGE',
+    discountValue: '',
+    maxDiscountAmount: '',
+    minOrderAmount: '',
+    usageLimit: '',
+    perUserLimit: '',
+    startAt: '',
+    endAt: '',
+    status: 'ACTIVE',
+    applyScope: 'ALL',
+    productIds: []
+  };
+
+  const [couponFormData, setCouponFormData] = useState(defaultCouponForm);
+
+  const fetchCoupons = useCallback(async (page = 0) => {
+    setCouponsLoading(true);
+    try {
+      const effectiveShop = !isAdminUser
+        ? (myShopInfo?.id || selectedShopId)
+        : (couponShopFilter ? Number(couponShopFilter) : undefined);
+      const res = await couponApi.getAdminCoupons({
+        shopId: effectiveShop,
+        status: couponStatusFilter || undefined,
+        keyword: couponKeyword.trim() || undefined,
+        page,
+        size: 10
+      });
+      if (res) {
+        setCoupons(res.content || []);
+        setCouponPage(res.page !== undefined ? res.page : (res.pageNumber || 0));
+        setCouponTotalPages(res.totalPages || 1);
+        setCouponTotalElements(res.totalElements || 0);
+      }
+    } catch (err) {
+      console.error('Failed to load admin coupons:', err);
+      triggerAlert(err.message || 'Không thể tải danh sách mã giảm giá.', 'error');
+    } finally {
+      setCouponsLoading(false);
+    }
+  }, [couponShopFilter, couponStatusFilter, couponKeyword, isAdminUser, myShopInfo?.id, selectedShopId]);
+
+  const handleOpenCreateCoupon = () => {
+    const { start, end } = getDefaultDateTimeRange();
+    const effectiveShopId = !isAdminUser
+      ? (myShopInfo?.id || selectedShopId || (availableShops[0]?.id) || '1')
+      : (adminShops.length > 0 ? String(adminShops[0].id) : (selectedShopId || myShopInfo?.id || '1'));
+    setCouponFormData({
+      ...defaultCouponForm,
+      shopId: effectiveShopId ? String(effectiveShopId) : '',
+      startAt: start,
+      endAt: end,
+      applyScope: 'ALL',
+      productIds: []
+    });
+    setCouponProductSearch('');
+    if (effectiveShopId) {
+      loadProductsForCoupon(Number(effectiveShopId));
+    }
+    setShowCreateCouponModal(true);
+  };
+
+  const handleOpenEditCoupon = (c) => {
+    setEditingCouponId(c.id);
+    const hasSpecificProducts = Array.isArray(c.productIds) && c.productIds.length > 0;
+    const targetShop = String(c.shopId || '');
+    setCouponFormData({
+      shopId: targetShop,
+      code: c.code || '',
+      name: c.name || '',
+      description: c.description || '',
+      discountType: c.discountType || 'PERCENTAGE',
+      discountValue: c.discountValue !== null && c.discountValue !== undefined ? String(c.discountValue) : '',
+      maxDiscountAmount: c.maxDiscountAmount !== null && c.maxDiscountAmount !== undefined ? String(c.maxDiscountAmount) : '',
+      minOrderAmount: c.minOrderAmount !== null && c.minOrderAmount !== undefined ? String(c.minOrderAmount) : '',
+      usageLimit: c.usageLimit !== null && c.usageLimit !== undefined ? String(c.usageLimit) : '',
+      perUserLimit: c.perUserLimit !== null && c.perUserLimit !== undefined ? String(c.perUserLimit) : '',
+      startAt: formatDateTimeInput(c.startAt),
+      endAt: formatDateTimeInput(c.endAt),
+      status: c.status || 'ACTIVE',
+      applyScope: hasSpecificProducts ? 'SPECIFIC' : 'ALL',
+      productIds: c.productIds || []
+    });
+    setCouponProductSearch('');
+    if (targetShop) {
+      loadProductsForCoupon(Number(targetShop));
+    }
+    setShowEditCouponModal(true);
+  };
+
+  const handleSaveCoupon = async (isEdit = false) => {
+    if (!couponFormData.code.trim()) {
+      triggerAlert('Vui lòng nhập mã giảm giá', 'error');
+      return;
+    }
+    if (!couponFormData.name.trim()) {
+      triggerAlert('Vui lòng nhập tên chương trình giảm giá', 'error');
+      return;
+    }
+    const valNum = Number(couponFormData.discountValue);
+    if (!couponFormData.discountValue || isNaN(valNum) || valNum <= 0) {
+      triggerAlert('Giá trị giảm giá phải là số lớn hơn 0', 'error');
+      return;
+    }
+    if (couponFormData.discountType === 'PERCENTAGE' && valNum > 100) {
+      triggerAlert('Phần trăm giảm giá không được vượt quá 100%', 'error');
+      return;
+    }
+    if (!couponFormData.startAt || !couponFormData.endAt) {
+      triggerAlert('Vui lòng chọn thời gian bắt đầu và kết thúc', 'error');
+      return;
+    }
+    if (new Date(couponFormData.endAt) <= new Date(couponFormData.startAt)) {
+      triggerAlert('Thời gian kết thúc phải sau thời gian bắt đầu', 'error');
+      return;
+    }
+
+    const targetShopId = !isAdminUser
+      ? Number(myShopInfo?.id || selectedShopId)
+      : (Number(couponFormData.shopId) || selectedShopId || (adminShops[0]?.id));
+    if (!targetShopId && isAdminUser) {
+      triggerAlert('Vui lòng chọn cửa hàng áp dụng mã giảm giá', 'error');
+      return;
+    }
+
+    if (couponFormData.applyScope === 'SPECIFIC') {
+      if (!couponFormData.productIds || couponFormData.productIds.length === 0) {
+        triggerAlert('Vui lòng chọn ít nhất một sản phẩm trong danh sách để áp dụng mã giảm giá', 'error');
+        return;
+      }
+    }
+
+    try {
+      setIsSavingCoupon(true);
+      const payload = {
+        shopId: targetShopId,
+        code: couponFormData.code.trim().toUpperCase(),
+        name: couponFormData.name.trim(),
+        description: couponFormData.description ? couponFormData.description.trim() : null,
+        discountType: couponFormData.discountType,
+        discountValue: valNum,
+        maxDiscountAmount: couponFormData.maxDiscountAmount ? Number(couponFormData.maxDiscountAmount) : null,
+        minOrderAmount: couponFormData.minOrderAmount ? Number(couponFormData.minOrderAmount) : 0,
+        usageLimit: couponFormData.usageLimit ? parseInt(couponFormData.usageLimit, 10) : null,
+        perUserLimit: couponFormData.perUserLimit ? parseInt(couponFormData.perUserLimit, 10) : null,
+        startAt: couponFormData.startAt.length === 16 ? `${couponFormData.startAt}:00` : couponFormData.startAt,
+        endAt: couponFormData.endAt.length === 16 ? `${couponFormData.endAt}:00` : couponFormData.endAt,
+        status: couponFormData.status || 'ACTIVE',
+        productIds: couponFormData.applyScope === 'SPECIFIC' ? couponFormData.productIds : []
+      };
+
+      if (isEdit && editingCouponId) {
+        await couponApi.updateCoupon(editingCouponId, payload);
+        triggerAlert(`Đã cập nhật mã giảm giá "${payload.code}" thành công!`, 'success');
+        setShowEditCouponModal(false);
+      } else {
+        await couponApi.createCoupon(payload);
+        triggerAlert(`Đã tạo mã giảm giá "${payload.code}" thành công!`, 'success');
+        setShowCreateCouponModal(false);
+      }
+      fetchCoupons(couponPage);
+    } catch (err) {
+      triggerAlert(err.message || 'Lỗi khi lưu mã giảm giá.', 'error');
+    } finally {
+      setIsSavingCoupon(false);
+    }
+  };
+
+  const handleToggleCouponStatus = async (coupon) => {
+    const nextStatus = coupon.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    try {
+      await couponApi.updateCouponStatus(coupon.id, nextStatus);
+      triggerAlert(`Đã chuyển trạng thái mã "${coupon.code}" sang ${nextStatus}!`, 'success');
+      fetchCoupons(couponPage);
+    } catch (err) {
+      triggerAlert(err.message || 'Lỗi khi đổi trạng thái mã giảm giá.', 'error');
+    }
+  };
+
+  const handleDeleteCoupon = async () => {
+    if (!targetCouponForDelete) return;
+    try {
+      setIsDeletingCoupon(true);
+      await couponApi.deleteCoupon(targetCouponForDelete.id);
+      triggerAlert(`Đã xóa / vô hiệu hóa mã giảm giá "${targetCouponForDelete.code}" thành công!`, 'success');
+      setShowDeleteCouponModal(false);
+      fetchCoupons(couponPage);
+    } catch (err) {
+      triggerAlert(err.message || 'Lỗi khi xóa mã giảm giá.', 'error');
+    } finally {
+      setIsDeletingCoupon(false);
+    }
+  };
+
+  const handleCopyCouponCode = (code) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCouponCode(code);
+    setTimeout(() => {
+      setCopiedCouponCode(null);
+    }, 2000);
+  };
+
+  // ===================================================================
   // STATE & LOGIC: QUẢN LÝ TỒN KHO CỬA HÀNG (INVENTORY - STT 70-73)
   // ===================================================================
   const [inventoryList, setInventoryList] = useState([]);
@@ -1863,39 +2259,7 @@ export const AdminPage = () => {
     }
   };
 
-  // Check admin role permission
-  const isAdminUser = useMemo(() => {
-    if (!user) return false;
-    const r = (user.role || '').toUpperCase();
-    if (r === 'ADMIN' || r === 'ROLE_ADMIN') return true;
-    if (Array.isArray(user.roles)) {
-      return user.roles.some(roleItem => {
-        const code = (typeof roleItem === 'string' ? roleItem : roleItem?.code || '').toUpperCase();
-        return code === 'ADMIN' || code === 'ROLE_ADMIN';
-      });
-    }
-    return false;
-  }, [user]);
-
-  // Check shop manager role permission
-  const isShopManager = useMemo(() => {
-    if (!user) return false;
-    const r = (user.role || '').toUpperCase();
-    if (r === 'SHOP_MANAGER' || r === 'ROLE_SHOP_MANAGER' || r === 'SHOP_OWNER') return true;
-    if (Array.isArray(user.roles)) {
-      return user.roles.some(roleItem => {
-        const code = (typeof roleItem === 'string' ? roleItem : roleItem?.code || '').toUpperCase();
-        return code === 'SHOP_MANAGER' || code === 'ROLE_SHOP_MANAGER' || code === 'SHOP_OWNER';
-      });
-    }
-    return false;
-  }, [user]);
-
-  const hasPortalAccess = isAdminUser || isShopManager;
-
-  // Shop info for shop manager / admin
-  const [myShopInfo, setMyShopInfo] = useState(null);
-  const [availableShops, setAvailableShops] = useState([]);
+  // Note: isAdminUser, isShopManager, hasPortalAccess, myShopInfo are hoisted to top of component
 
   // =========================================================================
   // REVENUE & ANALYTICS STATE (ADMIN ONLY)
@@ -2232,6 +2596,16 @@ export const AdminPage = () => {
               <div className="admin-metric-info">
                 <div className="admin-metric-label">Quyền hạn Shop</div>
                 <div className="admin-metric-val">{myPermissions.length || 15} quyền được cấp</div>
+              </div>
+            </div>
+
+            <div className="admin-metric-card" onClick={() => setActiveTab('coupons')} style={{ cursor: 'pointer' }}>
+              <div className="admin-metric-icon-wrap" style={{ background: '#fdf2f8', color: '#db2777' }}>
+                <Ticket size={22} />
+              </div>
+              <div className="admin-metric-info">
+                <div className="admin-metric-label">Mã Giảm Giá Cửa Hàng</div>
+                <div className="admin-metric-val">{couponTotalElements || coupons.length} mã ưu đãi</div>
               </div>
             </div>
           </div>
@@ -4040,10 +4414,18 @@ export const AdminPage = () => {
                 </button>
               </div>
 
-              <div className="admin-toolbar-right">
+              <div className="admin-toolbar-right" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                 <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
                   Tổng cộng: <strong>{adminShopsTotalElements}</strong> cửa hàng
                 </span>
+                <button
+                  type="button"
+                  className="admin-btn-action-primary"
+                  onClick={() => setShowCreateShopModal(true)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
+                >
+                  <Plus size={16} /> Thêm Cửa Hàng
+                </button>
               </div>
             </div>
 
@@ -4142,6 +4524,17 @@ export const AdminPage = () => {
                               </button>
 
                               {/* Duyệt shop nếu đang PENDING */}
+                              {/* Chỉnh sửa thông tin shop */}
+                              <button
+                                type="button"
+                                className="admin-action-btn edit"
+                                onClick={() => handleOpenEditAdminShop(s)}
+                                title="Chỉnh sửa thông tin cửa hàng"
+                                style={{ color: '#0284c7', backgroundColor: '#e0f2fe' }}
+                              >
+                                <Edit size={15} />
+                              </button>
+
                               {s.status === 'PENDING' && (
                                 <>
                                   <button
@@ -4261,18 +4654,24 @@ export const AdminPage = () => {
                 </div>
 
                 {/* Lọc theo Cửa hàng */}
-                <select
-                  className="admin-select-filter"
-                  value={couponShopFilter}
-                  onChange={(e) => setCouponShopFilter(e.target.value)}
-                >
-                  <option value="">Tất cả Cửa hàng</option>
-                  {adminShops.map((sh) => (
-                    <option key={sh.id} value={sh.id}>
-                      {sh.name} (#{sh.id})
-                    </option>
-                  ))}
-                </select>
+                {isAdminUser ? (
+                  <select
+                    className="admin-select-filter"
+                    value={couponShopFilter}
+                    onChange={(e) => setCouponShopFilter(e.target.value)}
+                  >
+                    <option value="">Tất cả Cửa hàng</option>
+                    {adminShops.map((sh) => (
+                      <option key={sh.id} value={sh.id}>
+                        {sh.name} (#{sh.id})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.85rem', backgroundColor: '#eff6ff', color: '#1e40af', borderRadius: '6px', fontSize: '0.825rem', fontWeight: 500 }}>
+                    <Store size={14} /> Cửa hàng: <strong>{myShopInfo?.name || (selectedShopId ? `Shop #${selectedShopId}` : 'Cửa hàng của tôi')}</strong>
+                  </div>
+                )}
 
                 {/* Lọc theo trạng thái */}
                 <select
@@ -4413,6 +4812,17 @@ export const AdminPage = () => {
                                 Tối đa <strong>{c.perUserLimit}</strong> lần/khách
                               </div>
                             )}
+                            <div style={{ marginTop: '4px' }}>
+                              {(!c.productIds || c.productIds.length === 0) ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.7rem', padding: '2px 6px', backgroundColor: '#ecfdf5', color: '#059669', borderRadius: '4px', fontWeight: 600 }}>
+                                  ✓ Tất cả SP
+                                </span>
+                              ) : (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.7rem', padding: '2px 6px', backgroundColor: '#eff6ff', color: '#2563eb', borderRadius: '4px', fontWeight: 600 }} title={`Áp dụng cho ID: ${c.productIds.join(', ')}`}>
+                                  🏷️ {c.productIds.length} SP chỉ định
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ fontSize: '0.8125rem' }}>
                             <div>
@@ -4769,7 +5179,141 @@ export const AdminPage = () => {
                 </div>
               </div>
 
-              <div style={{ marginBottom: '1rem' }}>
+                          {/* PHẠM VI ÁP DỤNG: TẤT CẢ HOẶC CHỈ ĐỊNH TỪNG SẢN PHẨM */}
+            <div style={{ marginBottom: '1.25rem', padding: '0.85rem', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#1e293b', marginBottom: '8px' }}>
+                Phạm vi áp dụng mã giảm giá *:
+              </label>
+              <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}>
+                  <input
+                    type="radio"
+                    name="applyScope"
+                    value="ALL"
+                    checked={couponFormData.applyScope === 'ALL'}
+                    onChange={() => setCouponFormData({ ...couponFormData, applyScope: 'ALL' })}
+                  />
+                  <span>Áp dụng cho <strong>Tất cả sản phẩm</strong> của cửa hàng</span>
+                </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}>
+                  <input
+                    type="radio"
+                    name="applyScope"
+                    value="SPECIFIC"
+                    checked={couponFormData.applyScope === 'SPECIFIC'}
+                    onChange={() => setCouponFormData({ ...couponFormData, applyScope: 'SPECIFIC' })}
+                  />
+                  <span>Chỉ áp dụng cho <strong>Sản phẩm được chọn</strong></span>
+                </label>
+              </div>
+
+              {couponFormData.applyScope === 'SPECIFIC' && (
+                <div style={{ marginTop: '0.75rem', backgroundColor: '#ffffff', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative', flex: 1, minWidth: '160px' }}>
+                      <input
+                        type="text"
+                        placeholder="Tìm sản phẩm của shop..."
+                        className="admin-form-input"
+                        style={{ width: '100%', fontSize: '0.8rem', padding: '0.35rem 0.6rem' }}
+                        value={couponProductSearch}
+                        onChange={(e) => setCouponProductSearch(e.target.value)}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className="admin-btn-action-secondary"
+                        style={{ fontSize: '0.75rem', padding: '0.35rem 0.6rem', whiteSpace: 'nowrap' }}
+                        onClick={() => {
+                          const allIds = availableCouponProducts.map(p => p.id);
+                          const isAllSelected = allIds.length > 0 && allIds.every(id => couponFormData.productIds.includes(id));
+                          setCouponFormData({
+                            ...couponFormData,
+                            productIds: isAllSelected ? [] : allIds
+                          });
+                        }}
+                      >
+                        {availableCouponProducts.length > 0 && availableCouponProducts.every(p => couponFormData.productIds.includes(p.id))
+                          ? 'Bỏ chọn tất cả'
+                          : 'Chọn tất cả'}
+                      </button>
+                      <span style={{ fontSize: '0.75rem', color: '#64748b', whiteSpace: 'nowrap' }}>
+                        Đã chọn: <strong style={{ color: '#2563eb' }}>{couponFormData.productIds.length}</strong> sản phẩm
+                      </span>
+                    </div>
+                  </div>
+
+                  {couponProductsLoading ? (
+                    <div style={{ textAlign: 'center', padding: '1.5rem', color: '#64748b', fontSize: '0.8rem' }}>
+                      <RefreshCw size={16} className="animate-spin" style={{ margin: '0 auto 0.25rem' }} />
+                      Đang tải danh sách sản phẩm...
+                    </div>
+                  ) : availableCouponProducts.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '1.25rem', color: '#64748b', fontSize: '0.8rem' }}>
+                      Cửa hàng chưa có sản phẩm nào. Vui lòng đăng sản phẩm trước khi tạo mã theo sản phẩm.
+                    </div>
+                  ) : (
+                    <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #f1f5f9', borderRadius: '4px' }}>
+                      {availableCouponProducts
+                        .filter(p => !couponProductSearch.trim() || p.name?.toLowerCase().includes(couponProductSearch.toLowerCase().trim()))
+                        .map(p => {
+                          const isSelected = couponFormData.productIds.includes(p.id);
+                          return (
+                            <div
+                              key={p.id}
+                              onClick={() => {
+                                const newIds = isSelected
+                                  ? couponFormData.productIds.filter(id => id !== p.id)
+                                  : [...couponFormData.productIds, p.id];
+                                setCouponFormData({ ...couponFormData, productIds: newIds });
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.6rem',
+                                padding: '0.45rem 0.6rem',
+                                borderBottom: '1px solid #f8fafc',
+                                cursor: 'pointer',
+                                backgroundColor: isSelected ? '#eff6ff' : 'transparent',
+                                transition: 'background-color 0.15s'
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {}}
+                                style={{ cursor: 'pointer' }}
+                              />
+                              {p.thumbnailUrl ? (
+                                <img
+                                  src={p.thumbnailUrl}
+                                  alt={p.name}
+                                  style={{ width: '28px', height: '28px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #e2e8f0' }}
+                                />
+                              ) : (
+                                <div style={{ width: '28px', height: '28px', backgroundColor: '#f1f5f9', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <Package size={14} color="#94a3b8" />
+                                </div>
+                              )}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '0.8rem', fontWeight: 500, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {p.name}
+                                </div>
+                                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                                  Mã: #{p.id} {p.brandName ? `• ${p.brandName}` : ''}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+<div style={{ marginBottom: '1rem' }}>
                 <strong style={{ display: 'block', color: '#0f172a', marginBottom: '0.4rem' }}>Tập vai trò hệ thống:</strong>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                   {(selectedUserDetail.roles || []).map((r) => (
@@ -7084,20 +7628,29 @@ export const AdminPage = () => {
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
                   Cửa hàng áp dụng *:
                 </label>
-                <select
-                  className="admin-form-input"
-                  style={{ width: '100%' }}
-                  value={couponFormData.shopId}
-                  onChange={(e) => setCouponFormData({ ...couponFormData, shopId: e.target.value })}
-                  required
-                >
-                  <option value="">-- Chọn cửa hàng --</option>
-                  {adminShops.map((sh) => (
-                    <option key={sh.id} value={sh.id}>
-                      {sh.name} (#{sh.id})
-                    </option>
-                  ))}
-                </select>
+                {isAdminUser ? (
+                  <select
+                    className="admin-form-input"
+                    style={{ width: '100%' }}
+                    value={couponFormData.shopId}
+                    onChange={(e) => setCouponFormData({ ...couponFormData, shopId: e.target.value })}
+                    required
+                  >
+                    {adminShops.map((sh) => (
+                      <option key={sh.id} value={sh.id}>
+                        {sh.name} (#{sh.id})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    className="admin-form-input"
+                    style={{ width: '100%', backgroundColor: '#f1f5f9', cursor: 'not-allowed', color: '#1e293b', fontWeight: 600 }}
+                    value={`${myShopInfo?.name || 'Cửa hàng của tôi'} (#${myShopInfo?.id || selectedShopId || ''})`}
+                    disabled
+                  />
+                )}
               </div>
 
               <div>
@@ -7338,7 +7891,141 @@ export const AdminPage = () => {
               </div>
             </div>
 
-            <div style={{ marginBottom: '1rem' }}>
+                        {/* PHẠM VI ÁP DỤNG: TẤT CẢ HOẶC CHỈ ĐỊNH TỪNG SẢN PHẨM */}
+            <div style={{ marginBottom: '1.25rem', padding: '0.85rem', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#1e293b', marginBottom: '8px' }}>
+                Phạm vi áp dụng mã giảm giá *:
+              </label>
+              <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}>
+                  <input
+                    type="radio"
+                    name="applyScope"
+                    value="ALL"
+                    checked={couponFormData.applyScope === 'ALL'}
+                    onChange={() => setCouponFormData({ ...couponFormData, applyScope: 'ALL' })}
+                  />
+                  <span>Áp dụng cho <strong>Tất cả sản phẩm</strong> của cửa hàng</span>
+                </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}>
+                  <input
+                    type="radio"
+                    name="applyScope"
+                    value="SPECIFIC"
+                    checked={couponFormData.applyScope === 'SPECIFIC'}
+                    onChange={() => setCouponFormData({ ...couponFormData, applyScope: 'SPECIFIC' })}
+                  />
+                  <span>Chỉ áp dụng cho <strong>Sản phẩm được chọn</strong></span>
+                </label>
+              </div>
+
+              {couponFormData.applyScope === 'SPECIFIC' && (
+                <div style={{ marginTop: '0.75rem', backgroundColor: '#ffffff', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative', flex: 1, minWidth: '160px' }}>
+                      <input
+                        type="text"
+                        placeholder="Tìm sản phẩm của shop..."
+                        className="admin-form-input"
+                        style={{ width: '100%', fontSize: '0.8rem', padding: '0.35rem 0.6rem' }}
+                        value={couponProductSearch}
+                        onChange={(e) => setCouponProductSearch(e.target.value)}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className="admin-btn-action-secondary"
+                        style={{ fontSize: '0.75rem', padding: '0.35rem 0.6rem', whiteSpace: 'nowrap' }}
+                        onClick={() => {
+                          const allIds = availableCouponProducts.map(p => p.id);
+                          const isAllSelected = allIds.length > 0 && allIds.every(id => couponFormData.productIds.includes(id));
+                          setCouponFormData({
+                            ...couponFormData,
+                            productIds: isAllSelected ? [] : allIds
+                          });
+                        }}
+                      >
+                        {availableCouponProducts.length > 0 && availableCouponProducts.every(p => couponFormData.productIds.includes(p.id))
+                          ? 'Bỏ chọn tất cả'
+                          : 'Chọn tất cả'}
+                      </button>
+                      <span style={{ fontSize: '0.75rem', color: '#64748b', whiteSpace: 'nowrap' }}>
+                        Đã chọn: <strong style={{ color: '#2563eb' }}>{couponFormData.productIds.length}</strong> sản phẩm
+                      </span>
+                    </div>
+                  </div>
+
+                  {couponProductsLoading ? (
+                    <div style={{ textAlign: 'center', padding: '1.5rem', color: '#64748b', fontSize: '0.8rem' }}>
+                      <RefreshCw size={16} className="animate-spin" style={{ margin: '0 auto 0.25rem' }} />
+                      Đang tải danh sách sản phẩm...
+                    </div>
+                  ) : availableCouponProducts.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '1.25rem', color: '#64748b', fontSize: '0.8rem' }}>
+                      Cửa hàng chưa có sản phẩm nào. Vui lòng đăng sản phẩm trước khi tạo mã theo sản phẩm.
+                    </div>
+                  ) : (
+                    <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #f1f5f9', borderRadius: '4px' }}>
+                      {availableCouponProducts
+                        .filter(p => !couponProductSearch.trim() || p.name?.toLowerCase().includes(couponProductSearch.toLowerCase().trim()))
+                        .map(p => {
+                          const isSelected = couponFormData.productIds.includes(p.id);
+                          return (
+                            <div
+                              key={p.id}
+                              onClick={() => {
+                                const newIds = isSelected
+                                  ? couponFormData.productIds.filter(id => id !== p.id)
+                                  : [...couponFormData.productIds, p.id];
+                                setCouponFormData({ ...couponFormData, productIds: newIds });
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.6rem',
+                                padding: '0.45rem 0.6rem',
+                                borderBottom: '1px solid #f8fafc',
+                                cursor: 'pointer',
+                                backgroundColor: isSelected ? '#eff6ff' : 'transparent',
+                                transition: 'background-color 0.15s'
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {}}
+                                style={{ cursor: 'pointer' }}
+                              />
+                              {p.thumbnailUrl ? (
+                                <img
+                                  src={p.thumbnailUrl}
+                                  alt={p.name}
+                                  style={{ width: '28px', height: '28px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #e2e8f0' }}
+                                />
+                              ) : (
+                                <div style={{ width: '28px', height: '28px', backgroundColor: '#f1f5f9', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <Package size={14} color="#94a3b8" />
+                                </div>
+                              )}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '0.8rem', fontWeight: 500, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {p.name}
+                                </div>
+                                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                                  Mã: #{p.id} {p.brandName ? `• ${p.brandName}` : ''}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+<div style={{ marginBottom: '1rem' }}>
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
                 Tên chương trình ưu đãi *:
               </label>

@@ -286,9 +286,12 @@ public class CouponServiceImpl implements CouponService {
 
         Long effectiveShopId = shopId;
         if (!isAdmin) {
-            Shop userShop = shopRepository.findFirstByOwnerIdOrderByIdDesc(user.getId())
-                    .orElseThrow(() -> new ForbiddenException("Bạn chưa sở hữu cửa hàng nào để quản lý mã giảm giá"));
-            effectiveShopId = userShop.getId();
+            Optional<Shop> userShop = shopRepository.findFirstByOwnerIdOrderByIdDesc(user.getId());
+            if (userShop.isPresent()) {
+                effectiveShopId = userShop.get().getId();
+            } else if (shopId != null) {
+                effectiveShopId = shopId;
+            }
         }
 
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size), Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -504,20 +507,56 @@ public class CouponServiceImpl implements CouponService {
     }
 
     private boolean isUserAdmin(User user) {
-        if (user == null || user.getRoles() == null) return false;
-        return user.getRoles().stream()
-                .anyMatch(r -> "ROLE_ADMIN".equalsIgnoreCase(r.getName()) || "ADMIN".equalsIgnoreCase(r.getName()));
+        if (user == null) return false;
+        if (user.getRole() == Role.ROLE_ADMIN || user.getRole() == Role.ADMIN) return true;
+        if (user.getRoles() != null) {
+            return user.getRoles().stream()
+                    .anyMatch(r -> "ROLE_ADMIN".equalsIgnoreCase(r.getCode()) || "ADMIN".equalsIgnoreCase(r.getCode()));
+        }
+        return false;
+    }
+
+    private boolean isUserShopManager(User user) {
+        if (user == null) return false;
+        if (user.getRole() == Role.ROLE_SHOP_MANAGER || user.getRole() == Role.SHOP_MANAGER || user.getRole() == Role.SHOP_OWNER) return true;
+        if (user.getRoles() != null) {
+            return user.getRoles().stream()
+                    .anyMatch(r -> "ROLE_SHOP_MANAGER".equalsIgnoreCase(r.getCode())
+                            || "SHOP_MANAGER".equalsIgnoreCase(r.getCode())
+                            || "ROLE_SHOP_OWNER".equalsIgnoreCase(r.getCode())
+                            || "SHOP_OWNER".equalsIgnoreCase(r.getCode()));
+        }
+        return false;
     }
 
     private Shop validateShopAccess(Long shopId, User user) {
+        boolean isAdmin = isUserAdmin(user);
         if (shopId == null) {
+            Optional<Shop> ownedShop = shopRepository.findFirstByOwnerIdOrderByIdDesc(user.getId());
+            if (ownedShop.isPresent()) {
+                return ownedShop.get();
+            }
+            if (isAdmin) {
+                List<Shop> allShops = shopRepository.findAll();
+                if (!allShops.isEmpty()) {
+                    return allShops.get(0);
+                }
+            }
             throw new BadRequestException("ID cửa hàng không được để trống");
         }
+
         Shop shop = shopRepository.findById(shopId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
-        boolean isAdmin = isUserAdmin(user);
+
         boolean isOwner = Objects.equals(shop.getOwnerId(), user.getId());
         if (!isAdmin && !isOwner) {
+            Optional<Shop> ownedShop = shopRepository.findFirstByOwnerIdOrderByIdDesc(user.getId());
+            if (ownedShop.isPresent() && Objects.equals(ownedShop.get().getId(), shop.getId())) {
+                return shop;
+            }
+            if (isUserShopManager(user)) {
+                return shop;
+            }
             throw new ForbiddenException("Bạn không có quyền quản lý mã giảm giá của cửa hàng này");
         }
         return shop;
