@@ -23,7 +23,7 @@
 .contact-title {
   font-size: 2.25rem;
   font-weight: 800;
-  color: #000000;
+  color: inherit; /* SỬA: Để tự động đổi theo theme */
   margin-bottom: 0.75rem;
 }
 
@@ -48,7 +48,7 @@
 }
 
 .contact-info-card {
-  background: #000000;
+  background: #111827; /* SỬA: Nền đen nhám xám sang trọng */
   color: #ffffff;
   padding: 2.5rem 2rem;
   border-radius: 20px;
@@ -104,7 +104,7 @@
 }
 
 .contact-form-card {
-  background: #ffffff;
+  background: inherit;
   border: 1px solid #e5e7eb;
   padding: 2.5rem 2rem;
   border-radius: 20px;
@@ -124,7 +124,7 @@
   display: block;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #374151;
+  color: inherit;
   margin-bottom: 0.4rem;
 }
 
@@ -137,12 +137,14 @@
   font-size: 0.9rem;
   font-family: inherit;
   box-sizing: border-box;
+  background: transparent;
+  color: inherit;
 }
 
 .contact-form-group input:focus,
 .contact-form-group textarea:focus {
   outline: none;
-  border-color: #000000;
+  border-color: #3b82f6;
 }
 
 .contact-form-row {
@@ -184,3 +186,26 @@
   max-width: 400px;
 }
 
+/* ---------------- CSS DARK MODE CHUẨN ---------------- */
+[data-theme='dark'] .contact-title,
+.dark .contact-title {
+  color: #ffffff;
+}
+
+[data-theme='dark'] .contact-desc,
+.dark .contact-desc {
+  color: #9ca3af;
+}
+
+[data-theme='dark'] .contact-form-card,
+.dark .contact-form-card {
+  border-color: #374151;
+}
+
+[data-theme='dark'] .contact-form-group input,
+[data-theme='dark'] .contact-form-group textarea,
+.dark .contact-form-group input,
+.dark .contact-form-group textarea {
+  border-color: #4b5563;
+  color: #ffffff;
+}
