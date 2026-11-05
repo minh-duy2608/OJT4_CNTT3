@@ -26,7 +26,7 @@ import java.util.List;
 @RestController
 @RequestMapping({"/shops/{shopId}/inventory", "/api/v1/shops/{shopId}/inventory"})
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN', 'ROLE_ADMIN', 'SHOP_MANAGER', 'ROLE_SHOP_MANAGER', 'SHOP_OWNER')")
+@PreAuthorize("hasAnyRole('ADMIN', 'SHOP_MANAGER', 'SHOP_OWNER')")
 public class ShopInventoryController {
 
     private final InventoryService inventoryService;

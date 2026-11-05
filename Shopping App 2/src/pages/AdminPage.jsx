@@ -2096,8 +2096,8 @@ export const AdminPage = () => {
     }
 
     const targetShopId = !isAdminUser
-      ? Number(myShopInfo?.id || selectedShopId)
-      : (Number(couponFormData.shopId) || selectedShopId || (adminShops[0]?.id));
+      ? (myShopInfo?.id ? Number(myShopInfo.id) : (selectedShopId ? Number(selectedShopId) : null))
+      : (couponFormData.shopId ? Number(couponFormData.shopId) : (selectedShopId ? Number(selectedShopId) : (adminShops[0]?.id ? Number(adminShops[0].id) : null)));
     if (!targetShopId && isAdminUser) {
       triggerAlert('Vui lòng chọn cửa hàng áp dụng mã giảm giá', 'error');
       return;

@@ -20,7 +20,7 @@ import java.security.Principal;
 @RestController
 @RequestMapping({"/admin/coupons", "/api/v1/admin/coupons"})
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN', 'ROLE_ADMIN', 'SHOP_MANAGER', 'ROLE_SHOP_MANAGER', 'SHOP_OWNER', 'ROLE_SHOP_OWNER')")
+@PreAuthorize("hasAnyRole('ADMIN', 'SHOP_MANAGER', 'SHOP_OWNER')")
 public class AdminCouponController {
 
     private final CouponService couponService;
