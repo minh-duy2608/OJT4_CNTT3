@@ -2301,12 +2301,13 @@ export const AdminPage = () => {
     if (isAuthenticated && hasPortalAccess) {
       shopApi.getMyShop()
         .then((res) => {
-          if (res?.data) {
-            setMyShopInfo(res.data);
+          const shop = (res && res.id) ? res : (res?.data || null);
+          if (shop && shop.id) {
+            setMyShopInfo(shop);
             if (isShopManager && !isAdminUser) {
-              setSelectedShopId(String(res.data.id));
+              setSelectedShopId(String(shop.id));
             } else if (isAdminUser) {
-              setSelectedShopId(prev => prev || String(res.data.id));
+              setSelectedShopId(prev => prev || String(shop.id));
             }
           } else if (isAdminUser) {
             setSelectedShopId(prev => prev || '1');
@@ -2585,7 +2586,7 @@ export const AdminPage = () => {
               </div>
               <div className="admin-metric-info">
                 <div className="admin-metric-label">Tồn kho Kho hàng</div>
-                <div className="admin-metric-val">{inventoryTotalElements || inventoryItems.length} mặt hàng</div>
+                <div className="admin-metric-val">{inventoryTotalElements || inventoryList.length} mặt hàng</div>
               </div>
             </div>
 

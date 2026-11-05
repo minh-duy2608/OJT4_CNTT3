@@ -39,7 +39,14 @@ async function request(endpoint, options = {}, isRetry = false) {
     }
 
     if (!response.ok) {
-      const error = new Error(data?.message || 'Lỗi xử lý mã giảm giá');
+      let errorMessage = data?.message || data?.error || ('Lỗi xử lý mã giảm giá (' + response.status + ')');
+      if (data?.data && typeof data.data === 'object' && !Array.isArray(data.data)) {
+        const fieldErrors = Object.values(data.data).join(', ');
+        if (fieldErrors) {
+          errorMessage = errorMessage + ': ' + fieldErrors;
+        }
+      }
+      const error = new Error(errorMessage);
       error.status = response.status;
       error.data = data;
       throw error;
