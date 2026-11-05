@@ -2586,7 +2586,7 @@ export const AdminPage = () => {
               </div>
               <div className="admin-metric-info">
                 <div className="admin-metric-label">Tồn kho Kho hàng</div>
-                <div className="admin-metric-val">{inventoryTotalElements || inventoryItems.length} mặt hàng</div>
+                <div className="admin-metric-val">{inventoryTotalElements || inventoryList.length} mặt hàng</div>
               </div>
             </div>
 
