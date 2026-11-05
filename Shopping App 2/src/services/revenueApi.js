@@ -60,7 +60,8 @@ export const revenueApi = {
     if (params.shopId) query.append('shopId', params.shopId);
     if (params.timeRange) query.append('timeRange', params.timeRange);
     const qs = query.toString();
-    const res = await request(`/admin/revenue${qs ? `?${qs}` : ''}`, { method: 'GET' });
+    const res = await request(`/api/v1/admin/revenue${qs ? `?${qs}` : ''}`, { method: 'GET' });
     return res?.data;
   }
 };
+
