@@ -250,69 +250,63 @@
   border-color: #000000;
 }
 
-/* Tabs Navigation: New Arrival | Bestseller | Featured Products (Figma Exact) */
-.products-tab-header {
-  display: flex;
-  align-items: center;
-  gap: 2.25rem;
-  margin-bottom: 2rem;
-  border-bottom: 1px solid #f0f0f0;
-  padding-bottom: 0.25rem;
-  margin-top: 10px;
-  position: relative;
-  z-index: 1;
+.products-breadcrumb {
+  margin: 0 0 1.25rem;
+  color: #8b8b95;
+  font-size: 0.8125rem;
 }
 
-.products-tab-btn {
+.products-breadcrumb ol {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.products-breadcrumb li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.products-breadcrumb-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0;
+  border: 0;
   background: none;
-  border: none;
-  font-size: 1.15rem;
-  font-weight: 500;
-  color: #8c8c8c;
+  color: #777782;
+  font: inherit;
+  text-decoration: none;
   cursor: pointer;
-  padding: 0 0 0.85rem;
-  position: relative;
-  transition: color 0.2s ease;
-  white-space: nowrap;
+  transition: color 0.18s ease;
 }
 
-.products-tab-btn:hover {
-  color: #000000;
+.products-breadcrumb-link:hover {
+  color: #18181b;
 }
 
-.products-tab-btn.is-active {
-  color: #000000;
+.products-breadcrumb-link:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid #a1a1aa;
+  outline-offset: 3px;
+}
+
+.products-breadcrumb-separator {
+  color: #c4c4cc;
+}
+
+.products-breadcrumb-current {
+  overflow: hidden;
+  color: #3f3f46;
   font-weight: 600;
-}
-
-.products-tab-btn.is-active::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  width: 100%;
-  height: 2.5px;
-  background-color: #000000;
-  border-radius: 2px;
-}
-
-/* Result info status when searching from header */
-.products-results-info {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 2rem;
-  font-size: 0.9rem;
-  color: #71717a;
-  background-color: #f8fafc;
-  padding: 0.75rem 1.25rem;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-}
-
-.search-query-tag {
-  color: #000000;
-  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 4-Column Product Grid (Figma Design) */
@@ -407,9 +401,6 @@
   .products-card-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
-  }
-  .products-tab-header {
-    gap: 1.25rem;
   }
 }
 

@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { 
-  X, 
   ChevronLeft, 
   ChevronRight, 
+  House,
   PackageSearch, 
   Smartphone, 
   Laptop, 
@@ -50,8 +50,8 @@ export const ProductsPage = () => {
   const searchKeyword = searchParams.get('search') || '';
   const brandParam = searchParams.get('brandId') || searchParams.get('brand') || '';
 
-  // Trạng thái Tab & Phân trang
-  const [activeTab, setActiveTab] = useState('new');
+  // Trạng thái sắp xếp mặc định & phân trang
+  const [activeTab] = useState('new');
   const [currentPage, setCurrentPage] = useState(1);
   const sectionRef = useRef(null);
 
@@ -218,16 +218,21 @@ export const ProductsPage = () => {
     setCurrentPage(1);
   };
 
-  // Chuyển Tab danh mục sản phẩm (New Arrival / Bestseller / Featured Products)
-  const handleTabChange = (tabKey) => {
-    setActiveTab(tabKey);
-    setCurrentPage(1);
-  };
-
   // Determine current active product list
   const currentProducts = apiProducts || [];
   const totalItems = apiTotalElements;
   const totalPages = Math.max(1, apiTotalPages);
+  const selectedBrand = categoryBrands.find(
+    (brand) =>
+      String(brand.id) === String(brandParam) ||
+      brand.slug?.toLowerCase() === brandParam.toLowerCase() ||
+      brand.name?.toLowerCase() === brandParam.toLowerCase()
+  );
+  const activeSearchLabel = searchKeyword.trim();
+  const activeBreadcrumbLabel =
+    activeSearchLabel ||
+    selectedBrand?.displayName ||
+    (currentCategoryDef ? currentCategoryDef.name : 'Tất cả sản phẩm');
 
   // Đổi trang & cuộn mượt về đầu danh sách sản phẩm
   const handlePageChange = (newPage) => {
@@ -399,62 +404,75 @@ export const ProductsPage = () => {
         })}
       </div>
 
-      {/* 2. TABS CHỌN CHUẨN FIGMA: New Arrival | Bestseller | Featured Products */}
-      <div className="products-tab-header">
-        <button
-          type="button"
-          className={`products-tab-btn ${activeTab === 'new' ? 'is-active' : ''}`}
-          onClick={() => handleTabChange('new')}
-        >
-          New Arrival
-        </button>
-        <button
-          type="button"
-          className={`products-tab-btn ${activeTab === 'bestseller' ? 'is-active' : ''}`}
-          onClick={() => handleTabChange('bestseller')}
-        >
-          Bestseller
-        </button>
-        <button
-          type="button"
-          className={`products-tab-btn ${activeTab === 'featured' ? 'is-active' : ''}`}
-          onClick={() => handleTabChange('featured')}
-        >
-          Featured Products
-        </button>
-      </div>
+      <nav className="products-breadcrumb" aria-label="Điều hướng breadcrumb">
+        <ol>
+          <li>
+            <Link to="/" className="products-breadcrumb-link">
+              <House size={14} aria-hidden="true" />
+              <span>Trang chủ</span>
+            </Link>
+          </li>
+          {currentCategoryDef && (
+            <li>
+              <span className="products-breadcrumb-separator" aria-hidden="true">/</span>
+              {brandParam || activeSearchLabel ? (
+                <button
+                  type="button"
+                  className="products-breadcrumb-link"
+                  onClick={() => handleSelectCategory(currentCategoryDef.key)}
+                >
+                  {currentCategoryDef.name}
+                </button>
+              ) : (
+                <span className="products-breadcrumb-current" aria-current="page">
+                  {currentCategoryDef.name}
+                </span>
+              )}
+            </li>
+          )}
+          {brandParam && (
+            <li>
+              <span className="products-breadcrumb-separator" aria-hidden="true">/</span>
+              {activeSearchLabel ? (
+                <button
+                  type="button"
+                  className="products-breadcrumb-link"
+                  onClick={() => {
+                    const newParams = new URLSearchParams(searchParams);
+                    newParams.delete('search');
+                    setSearchParams(newParams, { replace: true });
+                    setCurrentPage(1);
+                  }}
+                >
+                  {selectedBrand?.displayName || brandParam}
+                </button>
+              ) : (
+                <span className="products-breadcrumb-current" aria-current="page">
+                  {selectedBrand?.displayName || brandParam}
+                </span>
+              )}
+            </li>
+          )}
+          {activeSearchLabel && (
+            <li>
+              <span className="products-breadcrumb-separator" aria-hidden="true">/</span>
+              <span className="products-breadcrumb-current" aria-current="page">
+                {activeSearchLabel}
+              </span>
+            </li>
+          )}
+          {!currentCategoryDef && !brandParam && !activeSearchLabel && (
+            <li>
+              <span className="products-breadcrumb-separator" aria-hidden="true">/</span>
+              <span className="products-breadcrumb-current" aria-current="page">
+                {activeBreadcrumbLabel}
+              </span>
+            </li>
+          )}
+        </ol>
+      </nav>
 
-      {/* 4. DÒNG THÔNG BÁO KẾT QUẢ TÌM KIẾM (CHỈ HIỆN KHI CÓ TỪ KHÓA TỪ HEADER HOẶC BỘ LỌC) */}
-      {(searchKeyword.trim() || brandParam || categoryParam) && (
-        <div className="products-results-info">
-          <div>
-            {currentCategoryDef ? <>Danh mục <strong className="search-query-tag">{currentCategoryDef.fullName}</strong>. </> : null}
-            {brandParam ? <>Thương hiệu <strong className="search-query-tag">{categoryBrands.find(b => String(b.id) === String(brandParam) || b.slug === brandParam)?.displayName || brandParam}</strong>. </> : null}
-            {searchKeyword.trim() ? <>Từ khóa <strong className="search-query-tag">"{searchKeyword.trim()}"</strong>. </> : null}
-            Tìm thấy <strong>{totalItems}</strong> sản phẩm
-          </div>
-          <button
-            type="button"
-            onClick={handleClearSearch}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#ef4444',
-              cursor: 'pointer',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              textDecoration: 'underline'
-            }}
-          >
-            <X size={15} /> Xóa bộ lọc
-          </button>
-        </div>
-      )}
-
-      {/* 5. LƯỚI SẢN PHẨM (CARD GRID) */}
+      {/* Lưới sản phẩm */}
       {isLoading ? (
         <div className="products-card-grid" aria-label="Đang tải danh sách sản phẩm...">
           {Array.from({ length: 8 }).map((_, idx) => (
