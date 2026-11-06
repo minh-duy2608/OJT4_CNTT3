@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -35,6 +36,8 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class CouponServiceImpl implements CouponService {
+
+    private static final ZoneId ZONE_VN = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final CouponRepository couponRepository;
     private final CouponProductRepository couponProductRepository;
@@ -52,7 +55,7 @@ public class CouponServiceImpl implements CouponService {
         Shop shop = shopRepository.findById(shopId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZONE_VN);
         List<Coupon> activeCoupons = couponRepository.findActivePublicCouponsByShopId(shopId, now);
 
         return activeCoupons.stream().map(c -> {
@@ -104,7 +107,7 @@ public class CouponServiceImpl implements CouponService {
         }
 
         // 3. Kiểm tra thời hạn hiệu lực
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZONE_VN);
         if (now.isBefore(coupon.getStartAt())) {
             return ValidateCouponResponse.builder()
                     .valid(false)
