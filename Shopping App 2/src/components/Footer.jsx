@@ -45,7 +45,7 @@ const TikTokIcon = ({ size = 18 }) => (
 export const Footer = () => {
   // Cấu hình danh sách dịch vụ
   const serviceLinks = useMemo(() => [
-    { label: '⚡ Tài liệu API (Swagger UI)', isExternal: true, path: '/swagger-ui/index.html', highlight: true },
+
     { label: 'Chương trình khuyến mãi', path: '/products' },
     { label: 'Gift cards', path: '/gift-cards' },
     { label: 'Tín dụng và thanh toán', path: '/credit-payment' },
@@ -56,7 +56,7 @@ export const Footer = () => {
 
   // Cấu hình danh sách hỗ trợ khách hàng
   const supportLinks = useMemo(() => [
-    { label: '⚡ Tài liệu API (Swagger UI)', isExternal: true, path: '/swagger-ui/index.html', highlight: true },
+
     { label: 'Tìm kiếm đơn đặt hàng', path: '/orders' },
     { label: 'Điều khoản giao hàng', path: '/shipping' },
     { label: 'Trao đổi và trả hàng', path: '/returns' },

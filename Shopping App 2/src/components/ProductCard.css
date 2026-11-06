@@ -1,66 +1,75 @@
 /* ==========================================================================
-   Figma Exact Product Card Styles (White Background)
+   1. CHẾ ĐỘ SÁNG (LIGHT MODE) - MẶC ĐỊNH
    ========================================================================== */
 
 .cyber-product-card {
-  background-color: #f6f6f6; /* Nền xám nhạt #f6f6f6 chuẩn 100% theo Figma */
-  border: 1px solid transparent;
-  border-radius: 9px;
+  background-color: #ffffff; /* Nền trắng nổi bật trên trang */
+  border: 1px solid #e2e8f0; /* Viền xám sáng rõ ràng */
+  border-radius: 14px;
   cursor: pointer;
-  padding: 1.5rem 1.15rem 1.25rem;
+  padding: 1.25rem 1rem 1rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
   position: relative;
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   will-change: transform, box-shadow;
-  backface-visibility: hidden;
   text-decoration: none;
   color: inherit;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .cyber-product-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 14px 28px -4px rgba(0, 0, 0, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.06);
+  border-color: #2563eb; /* Nổi viền xanh khi hover */
+  box-shadow: 0 12px 24px -4px rgba(37, 99, 235, 0.12), 0 4px 8px -2px rgba(0, 0, 0, 0.06);
 }
 
-/* Wishlist Heart Button (Top Right) */
+/* Nút yêu thích (Wishlist) */
 .product-wishlist-btn {
   position: absolute;
-  top: 14px;
-  right: 14px;
-  background: none;
-  border: none;
+  top: 12px;
+  right: 12px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 50%;
   cursor: pointer;
-  padding: 4px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a1a1aa;
-  transition: transform 0.2s ease, color 0.2s ease;
+  color: #64748b;
+  transition: all 0.2s ease;
   z-index: 5;
 }
 
 .product-wishlist-btn:hover {
-  transform: scale(1.15);
+  transform: scale(1.1);
   color: #ef4444;
+  background: #fef2f2;
+  border-color: #fca5a5;
 }
 
 .product-wishlist-btn.is-active {
   color: #ef4444;
+  background: #fef2f2;
 }
 
-/* Image Container */
+/* Khung ảnh sản phẩm */
 .product-img-wrapper {
   width: 100%;
-  height: 175px;
+  height: 180px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0.25rem 0 1.25rem;
+  margin-bottom: 1rem;
   overflow: hidden;
-  background-color: transparent;
+  border-radius: 10px;
+  background-color: #f8fafc;
+  padding: 8px;
+  box-sizing: border-box;
 }
 
 .product-card-img {
@@ -69,16 +78,15 @@
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  background-color: transparent;
-  image-rendering: -webkit-optimize-contrast;
+  transition: transform 0.3s ease;
+  mix-blend-mode: multiply;
 }
 
 .cyber-product-card:hover .product-card-img {
-  transform: scale(1.05);
+  transform: scale(1.06);
 }
 
-/* Product Content */
+/* Thông tin sản phẩm */
 .product-info-wrapper {
   width: 100%;
   display: flex;
@@ -90,11 +98,11 @@
 }
 
 .product-card-title {
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: #000000;
+  font-size: 0.925rem;
+  font-weight: 600;
+  color: #0f172a; /* Chữ đen/xám đậm sắc nét ở nền sáng */
   line-height: 1.4;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
   text-align: center;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -107,34 +115,32 @@
 .product-title-link {
   color: inherit;
   text-decoration: none;
-  transition: color 0.15s ease;
 }
 
-.product-title-link:hover,
-.product-card-title:hover {
+.cyber-product-card:hover .product-card-title {
   color: #2563eb;
 }
 
 .product-card-price {
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   font-weight: 700;
-  color: #000000;
-  letter-spacing: -0.02em;
+  color: #2563eb; /* Giá màu xanh dương nổi bật */
+  letter-spacing: -0.01em;
   margin: 0.25rem 0 0.85rem;
 }
 
-/* Action Button: "Xem chi tiết & Mua" */
+/* Nút Mua hàng ở Chế độ Sáng */
 .product-buy-btn {
   width: 100%;
-  background-color: #000000;
-  color: #ffffff;
-  border: none;
-  padding: 0.65rem 1rem;
+  background: #f1f5f9;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  padding: 0.6rem 1rem;
   font-size: 0.8125rem;
   font-weight: 600;
   border-radius: 8px;
   cursor: pointer;
-  transition: transform 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease, filter 0.25s ease;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -142,13 +148,69 @@
   white-space: nowrap;
 }
 
-.product-buy-btn:hover {
-  background-color: #27272a;
-  transform: translateY(-2px);
-  filter: brightness(1.08);
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+.cyber-product-card:hover .product-buy-btn {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
 }
 
-.product-buy-btn:active {
-  transform: translateY(0);
+
+/* ==========================================================================
+   2. CHẾ ĐỘ TỐI (DARK MODE OVERRIDES)
+   ========================================================================== */
+
+[data-theme='dark'] .cyber-product-card,
+.dark .cyber-product-card {
+  background-color: #1e293b; /* Nền xám đen nhám */
+  border-color: #334155; /* Viền tối mỏng */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme='dark'] .cyber-product-card:hover,
+.dark .cyber-product-card:hover {
+  background-color: #334155;
+  border-color: #60a5fa;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme='dark'] .product-wishlist-btn,
+.dark .product-wishlist-btn {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+}
+
+[data-theme='dark'] .product-img-wrapper,
+.dark .product-img-wrapper {
+  background-color: #ffffff; /* Giữ nền ảnh trắng để nổi sản phẩm */
+}
+
+[data-theme='dark'] .product-card-title,
+.dark .product-card-title {
+  color: #f8fafc; /* Chữ trắng sáng nổi bật trong Dark Mode */
+}
+
+[data-theme='dark'] .cyber-product-card:hover .product-card-title,
+.dark .cyber-product-card:hover .product-card-title {
+  color: #60a5fa;
+}
+
+[data-theme='dark'] .product-card-price,
+.dark .product-card-price {
+  color: #38bdf8; /* Xanh Cyan sáng */
+}
+
+[data-theme='dark'] .product-buy-btn,
+.dark .product-buy-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+[data-theme='dark'] .cyber-product-card:hover .product-buy-btn,
+.dark .cyber-product-card:hover .product-buy-btn {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
 }
