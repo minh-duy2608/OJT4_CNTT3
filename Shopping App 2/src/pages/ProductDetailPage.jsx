@@ -38,6 +38,10 @@ export const ProductDetailPage = () => {
   const { addToCart, showToast } = useCart();
   const { isAuthenticated } = useAuth();
 
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [id]);
+
   const [product, setProduct] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
