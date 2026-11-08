@@ -21,3 +21,4 @@ public class ShopMemberId implements Serializable {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 }
+

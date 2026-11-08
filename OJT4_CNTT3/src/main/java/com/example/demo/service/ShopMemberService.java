@@ -12,3 +12,4 @@ public interface ShopMemberService {
     ShopMemberResponse updateShopMember(Long shopId, Long memberId, UpdateShopMemberRequest request, String currentUsername);
     void deleteShopMember(Long shopId, Long memberId, String currentUsername);
 }
+

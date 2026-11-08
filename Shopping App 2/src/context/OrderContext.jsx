@@ -110,7 +110,7 @@ export const OrderProvider = ({ children }) => {
           shippingAddress: orderData.shippingAddress?.detailAddress 
             ? `${orderData.shippingAddress.detailAddress}${orderData.shippingAddress.ward ? `, ${orderData.shippingAddress.ward}` : ''}${orderData.shippingAddress.district ? `, ${orderData.shippingAddress.district}` : ''}${orderData.shippingAddress.city ? `, ${orderData.shippingAddress.city}` : ''}`
             : (typeof orderData.shippingAddress === 'string' ? orderData.shippingAddress : 'Địa chỉ giao hàng'),
-          shopId: orderData.shopId || 1,
+          shopId: orderData.shopId || (orderData.items && orderData.items[0]?.shopId) || null,
           items: (orderData.items || []).map(it => ({
             variantId: it.variantId || (typeof it.id === 'number' ? it.id : null),
             productId: it.productId || null,

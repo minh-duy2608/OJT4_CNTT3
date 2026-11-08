@@ -123,5 +123,36 @@ public class OrderController {
         OrderResponse response = orderService.updateOrderStatus(id, request, username);
         return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái đơn hàng thành công", response));
     }
+
+    /**
+     * Cửa hàng: Lấy danh sách đơn hàng của cửa hàng
+     */
+    @GetMapping({"/shops/{shopId}/orders", "/api/v1/shops/{shopId}/orders"})
+    public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getShopOrders(
+            @PathVariable Long shopId,
+            @RequestParam(required = false) OrderStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            Principal principal
+    ) {
+        String username = principal != null ? principal.getName() : null;
+        PageResponse<OrderResponse> response = orderService.getShopOrders(shopId, status, page, size, username);
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách đơn hàng của cửa hàng thành công", response));
+    }
+
+    /**
+     * Cửa hàng: Cập nhật trạng thái đơn hàng của cửa hàng
+     */
+    @PatchMapping({"/shops/{shopId}/orders/{id}/status", "/api/v1/shops/{shopId}/orders/{id}/status"})
+    public ResponseEntity<ApiResponse<OrderResponse>> updateShopOrderStatus(
+            @PathVariable Long shopId,
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateOrderStatusRequest request,
+            Principal principal
+    ) {
+        String username = principal != null ? principal.getName() : null;
+        OrderResponse response = orderService.updateShopOrderStatus(shopId, id, request, username);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái đơn hàng của shop thành công", response));
+    }
 }
 

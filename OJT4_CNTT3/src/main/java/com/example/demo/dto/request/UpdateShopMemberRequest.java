@@ -18,3 +18,4 @@ public class UpdateShopMemberRequest {
 
     private ShopMemberStatus status;
 }
+

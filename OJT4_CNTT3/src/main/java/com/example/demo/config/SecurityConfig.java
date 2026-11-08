@@ -116,7 +116,9 @@ public class SecurityConfig {
                         // Inventory & Shop Management Endpoints
                         .requestMatchers(
                                 "/shops/*/inventory", "/api/v1/shops/*/inventory",
-                                "/shops/*/inventory/**", "/api/v1/shops/*/inventory/**"
+                                "/shops/*/inventory/**", "/api/v1/shops/*/inventory/**",
+                                "/shops/*/orders", "/api/v1/shops/*/orders",
+                                "/shops/*/orders/**", "/api/v1/shops/*/orders/**"
                         ).hasAnyRole("ADMIN", "SHOP_MANAGER", "SHOP_OWNER")
                         // Admin Endpoints
                         .requestMatchers("/api/v1/admin/**", "/admin/**").hasAnyRole("ADMIN", "SHOP_MANAGER", "SHOP_OWNER")

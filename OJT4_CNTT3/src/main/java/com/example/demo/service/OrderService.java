@@ -25,5 +25,9 @@ public interface OrderService {
     PageResponse<OrderResponse> getAdminOrders(Long shopId, OrderStatus status, int page, int size, String currentUsername);
 
     OrderResponse updateOrderStatus(Long orderId, UpdateOrderStatusRequest request, String currentUsername);
+
+    PageResponse<OrderResponse> getShopOrders(Long shopId, OrderStatus status, int page, int size, String currentUsername);
+
+    OrderResponse updateShopOrderStatus(Long shopId, Long orderId, UpdateOrderStatusRequest request, String currentUsername);
 }
 

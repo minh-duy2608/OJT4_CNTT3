@@ -14,3 +14,4 @@ import java.util.List;
 public class UpdateCouponProductsRequest {
     private List<Long> productIds;
 }
+

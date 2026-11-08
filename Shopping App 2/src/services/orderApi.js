@@ -119,6 +119,29 @@ export const orderApi = {
       method: 'PATCH',
       body: JSON.stringify(payload)
     });
+  },
+
+  /**
+   * Cửa hàng: Lấy danh sách đơn hàng của cửa hàng
+   */
+  async getShopOrders(shopId, params = {}) {
+    const query = new URLSearchParams();
+    if (params.status && params.status !== 'all') query.append('status', params.status.toUpperCase());
+    if (params.page !== undefined) query.append('page', params.page);
+    if (params.size !== undefined) query.append('size', params.size);
+
+    const qs = query.toString();
+    return await request(`/shops/${shopId}/orders${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
+  /**
+   * Cửa hàng: Cập nhật trạng thái đơn hàng của cửa hàng
+   */
+  async updateShopOrderStatus(shopId, orderId, payload) {
+    return await request(`/shops/${shopId}/orders/${orderId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
   }
 };
 

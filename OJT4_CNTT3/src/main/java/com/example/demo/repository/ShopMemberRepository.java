@@ -30,3 +30,4 @@ public interface ShopMemberRepository extends JpaRepository<ShopMember, ShopMemb
 
     long countByIdShopIdAndStatus(Long shopId, ShopMemberStatus status);
 }
+

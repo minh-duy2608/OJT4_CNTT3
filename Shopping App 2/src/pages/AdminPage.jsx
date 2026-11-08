@@ -1419,12 +1419,26 @@ export const AdminPage = () => {
   const fetchAdminOrders = useCallback(async (page = 0) => {
     setAdminOrdersLoading(true);
     try {
-      const res = await orderApi.getAdminOrders({
-        page,
-        size: 10,
-        status: orderStatusFilter !== 'all' ? orderStatusFilter : undefined,
-        shopId: orderShopFilter || undefined
-      });
+      const targetShopId = !isAdminUser
+        ? (myShopInfo?.id || (selectedShopId ? Number(selectedShopId) : undefined))
+        : (orderShopFilter ? Number(orderShopFilter) : undefined);
+
+      let res;
+      if (!isAdminUser && targetShopId) {
+        res = await orderApi.getShopOrders(targetShopId, {
+          page,
+          size: 10,
+          status: orderStatusFilter !== 'all' ? orderStatusFilter : undefined
+        });
+      } else {
+        res = await orderApi.getAdminOrders({
+          page,
+          size: 10,
+          status: orderStatusFilter !== 'all' ? orderStatusFilter : undefined,
+          shopId: targetShopId
+        });
+      }
+
       if (res) {
         setAdminOrders(res.content || []);
         setOrderPage(res.pageNumber || 0);
@@ -1437,19 +1451,27 @@ export const AdminPage = () => {
     } finally {
       setAdminOrdersLoading(false);
     }
-  }, [orderStatusFilter, orderShopFilter]);
+  }, [orderStatusFilter, orderShopFilter, isAdminUser, myShopInfo?.id, selectedShopId]);
 
   const handleUpdateOrderStatus = async () => {
     if (!statusChangeTarget) return;
     setStatusChangeLoading(true);
     try {
       const { order, newStatus, newPaymentStatus } = statusChangeTarget;
-      await orderApi.updateOrderStatus(order.id, {
+      const targetShopId = order.shopId || myShopInfo?.id || selectedShopId;
+      const payload = {
         status: newStatus,
         paymentStatus: newPaymentStatus,
-        cancelReason: newStatus === 'CANCELLED' ? (cancelReasonInput || 'Hủy bởi Quản trị viên') : undefined
-      });
-      triggerAlert(`Đã cập nhật đơn hàng #${order.id} sang trạng thái "${newStatus}".`, 'success');
+        cancellationReason: newStatus === 'CANCELLED' ? (cancelReasonInput || 'Hủy bởi Cửa hàng') : undefined
+      };
+
+      if (!isAdminUser && targetShopId) {
+        await orderApi.updateShopOrderStatus(targetShopId, order.id, payload);
+      } else {
+        await orderApi.updateOrderStatus(order.id, payload);
+      }
+
+      triggerAlert(`Đã cập nhật đơn hàng #${order.orderCode || order.id} sang trạng thái "${newStatus}".`, 'success');
       setStatusChangeTarget(null);
       setCancelReasonInput('');
       fetchAdminOrders(orderPage);

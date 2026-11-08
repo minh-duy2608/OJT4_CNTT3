@@ -43,6 +43,7 @@ public class OrderServiceImpl implements OrderService {
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
     private final InventoryRepository inventoryRepository;
+    private final ShopMemberRepository shopMemberRepository;
 
     @Override
     @Transactional
@@ -86,15 +87,39 @@ public class OrderServiceImpl implements OrderService {
             shippingAddress = "Địa chỉ nhận hàng mặc định";
         }
 
-        // 2. Xác định shopId và kiểm tra trạng thái hoạt động của Shop
-        Long targetShopId = request.getShopId();
-        if (targetShopId == null) {
-            targetShopId = shopRepository.findAll().stream().findFirst().map(Shop::getId).orElse(1L);
+        // 2. Xác định chính xác shopId từ các sản phẩm được mua
+        Long resolvedShopId = request.getShopId();
+
+        if (request.getItems() != null && !request.getItems().isEmpty()) {
+            for (CreateOrderItemRequest itemReq : request.getItems()) {
+                Product prod = null;
+                if (itemReq.getVariantId() != null) {
+                    ProductVariant v = productVariantRepository.findById(itemReq.getVariantId()).orElse(null);
+                    if (v != null) {
+                        prod = v.getProduct();
+                    }
+                }
+                if (prod == null && itemReq.getProductId() != null) {
+                    prod = productRepository.findById(itemReq.getProductId()).orElse(null);
+                }
+
+                if (prod != null && prod.getShopId() != null) {
+                    if (resolvedShopId == null) {
+                        resolvedShopId = prod.getShopId();
+                    } else if (!resolvedShopId.equals(prod.getShopId())) {
+                        throw new BadRequestException("Đơn hàng chỉ được chứa các sản phẩm thuộc cùng một cửa hàng. Sản phẩm '" + prod.getName() + "' thuộc cửa hàng #" + prod.getShopId() + ", khác với cửa hàng #" + resolvedShopId);
+                    }
+                }
+            }
         }
 
-        final Long resolvedShopId = targetShopId;
-        Shop shop = shopRepository.findById(resolvedShopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + resolvedShopId));
+        if (resolvedShopId == null) {
+            resolvedShopId = shopRepository.findAll().stream().findFirst().map(Shop::getId).orElse(1L);
+        }
+
+        final Long finalShopId = resolvedShopId;
+        Shop shop = shopRepository.findById(finalShopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + finalShopId));
         if (shop.getStatus() != ShopStatus.ACTIVE) {
             throw new BadRequestException("Cửa hàng '" + shop.getName() + "' hiện đang tạm ngừng hoạt động (" + shop.getStatus() + "). Không thể tạo đơn hàng mới.");
         }
@@ -105,7 +130,8 @@ public class OrderServiceImpl implements OrderService {
         Order order = Order.builder()
                 .orderCode(orderCode)
                 .userId(user.getId())
-                .shopId(targetShopId)
+                .shopId(shop.getId())
+                .shop(shop)
                 .addressId(addressId)
                 .recipientName(recipientName)
                 .recipientPhone(recipientPhone)
@@ -129,11 +155,6 @@ public class OrderServiceImpl implements OrderService {
             Product product = null;
             if (variant != null) {
                 product = variant.getProduct();
-                if (order.getShopId() == null || Objects.equals(order.getShopId(), 1L)) {
-                    if (product != null && product.getShopId() != null) {
-                        order.setShopId(product.getShopId());
-                    }
-                }
             } else if (itemReq.getProductId() != null) {
                 product = productRepository.findById(itemReq.getProductId()).orElse(null);
                 if (product != null && product.getVariants() != null && !product.getVariants().isEmpty()) {
@@ -260,9 +281,12 @@ public class OrderServiceImpl implements OrderService {
         if (currentUsername != null && !currentUsername.isBlank()) {
             User user = userRepository.findByUsername(currentUsername).orElse(null);
             if (user != null) {
-                boolean isOwner = Objects.equals(order.getUserId(), user.getId());
-                boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN;
-                if (!isOwner && !isAdmin) {
+                boolean isBuyer = Objects.equals(order.getUserId(), user.getId());
+                boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN ||
+                        (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
+                                "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
+                boolean isShopManager = isUserShopManagerForOrder(user, order);
+                if (!isBuyer && !isAdmin && !isShopManager) {
                     throw new ForbiddenException("Bạn không có quyền truy cập đơn hàng này");
                 }
             }
@@ -280,12 +304,12 @@ public class OrderServiceImpl implements OrderService {
         if (currentUsername != null && !currentUsername.isBlank()) {
             User user = userRepository.findByUsername(currentUsername).orElse(null);
             if (user != null) {
-                boolean isOwner = Objects.equals(order.getUserId(), user.getId());
+                boolean isBuyer = Objects.equals(order.getUserId(), user.getId());
                 boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN ||
                         (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
                                 "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
-                boolean isShopOwner = Objects.equals(order.getShopId(), user.getId());
-                if (!isOwner && !isAdmin && !isShopOwner) {
+                boolean isShopManager = isUserShopManagerForOrder(user, order);
+                if (!isBuyer && !isAdmin && !isShopManager) {
                     throw new ForbiddenException("Bạn không có quyền theo dõi đơn hàng này");
                 }
             }
@@ -458,11 +482,18 @@ public class OrderServiceImpl implements OrderService {
                 (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
                         "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
 
+        // Lấy danh sách ID các shop mà user có quyền quản lý (chủ shop hoặc thành viên active)
+        List<Long> manageableShopIds = new ArrayList<>();
+        shopRepository.findByOwnerId(user.getId()).forEach(s -> manageableShopIds.add(s.getId()));
+        shopMemberRepository.findByIdUserIdAndStatus(user.getId(), ShopMemberStatus.ACTIVE)
+                .forEach(m -> {
+                    if (!manageableShopIds.contains(m.getId().getShopId())) {
+                        manageableShopIds.add(m.getId().getShopId());
+                    }
+                });
+
         if (!isAdmin) {
-            Long userShopId = shopRepository.findFirstByOwnerIdOrderByIdDesc(user.getId())
-                    .map(Shop::getId)
-                    .orElse(null);
-            if (userShopId == null) {
+            if (manageableShopIds.isEmpty()) {
                 return PageResponse.<OrderResponse>builder()
                         .content(List.of())
                         .page(0)
@@ -473,7 +504,13 @@ public class OrderServiceImpl implements OrderService {
                         .first(true)
                         .build();
             }
-            shopId = userShopId;
+            if (shopId != null) {
+                if (!manageableShopIds.contains(shopId)) {
+                    throw new ForbiddenException("Bạn không có quyền quản lý đơn hàng của cửa hàng #" + shopId);
+                }
+            } else {
+                shopId = manageableShopIds.get(0);
+            }
         }
 
         int p = Math.max(0, page);
@@ -497,28 +534,41 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse updateOrderStatus(Long orderId, UpdateOrderStatusRequest request, String currentUsername) {
-        User user = verifyAdminOrShopAccess(currentUsername);
+        if (currentUsername == null || currentUsername.isBlank()) {
+            throw new UnauthorizedException("Yêu cầu đăng nhập");
+        }
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin tài khoản: " + currentUsername));
 
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
 
-        boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN ||
-                (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
-                        "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
+        Long orderShopId = order.getShopId();
+        if (orderShopId == null) {
+            throw new BadRequestException("Đơn hàng #" + orderId + " chưa được liên kết với cửa hàng nào");
+        }
 
-        if (!isAdmin) {
-            Long userShopId = shopRepository.findFirstByOwnerIdOrderByIdDesc(user.getId())
-                    .map(Shop::getId)
-                    .orElse(null);
-            if (userShopId == null || !userShopId.equals(order.getShopId())) {
-                throw new ForbiddenException("Bạn không có quyền quản lý đơn hàng của cửa hàng khác");
-            }
+        Shop shop = shopRepository.findById(orderShopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + orderShopId));
+
+        if (shop.getStatus() == ShopStatus.SUSPENDED) {
+            throw new ForbiddenException("Cửa hàng '" + shop.getName() + "' đang bị tạm ngừng kinh doanh (SUSPENDED). Mọi thao tác xử lý đơn hàng bị tạm khóa.");
+        }
+        if (shop.getStatus() == ShopStatus.REJECTED) {
+            throw new ForbiddenException("Cửa hàng '" + shop.getName() + "' đã bị từ chối phê duyệt (REJECTED).");
+        }
+
+        // NGHIỆP VỤ CỐT LÕI: Khi người mua hàng mua của shop nào thì CHỈ shop đó (chủ cửa hàng hoặc nhân viên active) mới có quyền chuyển trạng thái đơn hàng
+        boolean isShopManager = isUserShopManagerForOrder(user, order);
+        if (!isShopManager) {
+            throw new ForbiddenException("Bạn không có quyền chuyển trạng thái đơn hàng này. Chỉ chủ cửa hàng hoặc nhân viên của cửa hàng '" + shop.getName() + "' (Mã shop: #" + orderShopId + ") mới có quyền thao tác!");
         }
 
         OrderStatus oldStatus = order.getStatus();
         OrderStatus newStatus = request.getStatus();
 
         if (newStatus != null && newStatus != oldStatus) {
+            validateStatusTransition(oldStatus, newStatus);
             order.setStatus(newStatus);
             if (newStatus == OrderStatus.CONFIRMED && order.getConfirmedAt() == null) {
                 order.setConfirmedAt(LocalDateTime.now());
@@ -529,7 +579,7 @@ public class OrderServiceImpl implements OrderService {
                 order.setPaymentStatus(PaymentStatus.PAID);
             } else if (newStatus == OrderStatus.CANCELLED) {
                 order.setCancelledAt(LocalDateTime.now());
-                order.setCancellationReason(request.getCancellationReason());
+                order.setCancellationReason(request.getCancellationReason() != null ? request.getCancellationReason() : "Hủy bởi cửa hàng");
                 // Hoàn lại tồn kho nếu hủy từ trạng thái chưa giao
                 if (oldStatus == OrderStatus.PENDING || oldStatus == OrderStatus.CONFIRMED || oldStatus == OrderStatus.PROCESSING) {
                     if (order.getItems() != null) {
@@ -551,7 +601,83 @@ public class OrderServiceImpl implements OrderService {
         }
 
         Order saved = orderRepository.save(order);
+        log.info("Order #{} ({}) of shop #{} status updated from {} to {} by '{}'",
+                saved.getId(), saved.getOrderCode(), orderShopId, oldStatus, newStatus, currentUsername);
         return mapToResponse(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<OrderResponse> getShopOrders(Long shopId, OrderStatus status, int page, int size, String currentUsername) {
+        verifyShopOrderAccess(shopId, currentUsername);
+        int p = Math.max(0, page);
+        int s = size > 0 ? size : 10;
+        Pageable pageable = PageRequest.of(p, s, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Order> orderPage = orderRepository.findAllByFilter(shopId, status, pageable);
+        List<OrderResponse> content = orderPage.getContent().stream().map(this::mapToResponse).toList();
+        return PageResponse.<OrderResponse>builder()
+                .content(content)
+                .page(orderPage.getNumber())
+                .size(orderPage.getSize())
+                .totalElements(orderPage.getTotalElements())
+                .totalPages(orderPage.getTotalPages())
+                .last(orderPage.isLast())
+                .first(orderPage.isFirst())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse updateShopOrderStatus(Long shopId, Long orderId, UpdateOrderStatusRequest request, String currentUsername) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
+        if (!Objects.equals(order.getShopId(), shopId)) {
+            throw new BadRequestException("Đơn hàng #" + orderId + " không thuộc về cửa hàng #" + shopId);
+        }
+        return updateOrderStatus(orderId, request, currentUsername);
+    }
+
+    private Shop verifyShopOrderAccess(Long shopId, String currentUsername) {
+        if (currentUsername == null || currentUsername.isBlank()) {
+            throw new UnauthorizedException("Yêu cầu đăng nhập");
+        }
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin tài khoản: " + currentUsername));
+        Shop shop = shopRepository.findById(shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
+
+        boolean isOwner = Objects.equals(shop.getOwnerId(), user.getId());
+        boolean isMember = shopMemberRepository.existsByIdShopIdAndIdUserIdAndStatus(shopId, user.getId(), ShopMemberStatus.ACTIVE);
+        if (!isOwner && !isMember) {
+            throw new ForbiddenException("Bạn không có quyền quản lý đơn hàng của cửa hàng #" + shopId);
+        }
+        return shop;
+    }
+
+    private boolean isUserShopManagerForOrder(User user, Order order) {
+        if (user == null || order == null || order.getShopId() == null) {
+            return false;
+        }
+        Long orderShopId = order.getShopId();
+        boolean isOwner = shopRepository.findById(orderShopId)
+                .map(s -> Objects.equals(s.getOwnerId(), user.getId()))
+                .orElse(false);
+        if (isOwner) {
+            return true;
+        }
+        return shopMemberRepository.existsByIdShopIdAndIdUserIdAndStatus(orderShopId, user.getId(), ShopMemberStatus.ACTIVE);
+    }
+
+    private void validateStatusTransition(OrderStatus oldStatus, OrderStatus newStatus) {
+        if (oldStatus == newStatus) {
+            return;
+        }
+        if (oldStatus == OrderStatus.CANCELLED) {
+            throw new BadRequestException("Đơn hàng đã ở trạng thái ĐÃ HỦY (CANCELLED), không thể thay đổi trạng thái!");
+        }
+        if (oldStatus == OrderStatus.DELIVERED && newStatus != OrderStatus.RETURNED) {
+            throw new BadRequestException("Đơn hàng đã GIAO THÀNH CÔNG (DELIVERED), không thể chuyển ngược lại trạng thái " + newStatus + "!");
+        }
     }
 
     private User verifyAdminOrShopAccess(String currentUsername) {

@@ -4,3 +4,4 @@ public enum ShopMemberStatus {
     ACTIVE,
     INACTIVE
 }
+

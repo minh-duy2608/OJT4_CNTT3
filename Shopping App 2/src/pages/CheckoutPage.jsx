@@ -255,12 +255,15 @@ export const CheckoutPage = () => {
     setIsSubmitting(true);
 
     try {
+      const detectedShopId = itemsToCheckout[0]?.shopId || null;
       const orderPayload = {
+        shopId: detectedShopId,
         shippingAddress: selectedAddr,
         items: itemsToCheckout.map((item) => ({
           id: item.id,
           variantId: item.variantId || (typeof item.id === 'number' ? item.id : null),
           productId: item.productId || (typeof item.id === 'string' ? parseInt(item.id.split('-')[0], 10) : item.id),
+          shopId: item.shopId || null,
           name: item.name,
           price: item.price,
           quantity: item.quantity,

@@ -179,3 +179,4 @@ public class ShopMemberServiceImpl implements ShopMemberService {
         log.info("User {} deleted member #{} from shop #{}", currentUsername, memberId, shopId);
     }
 }
+

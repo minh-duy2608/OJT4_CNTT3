@@ -23,3 +23,4 @@ public class ShopManageResponse {
     private long lowStockCount;
     private String currentUserRoleInShop;
 }
+
