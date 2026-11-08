@@ -4,6 +4,7 @@ import com.example.demo.dto.request.AdminUpdateShopStatusRequest;
 import com.example.demo.dto.request.RegisterShopRequest;
 import com.example.demo.dto.response.PageResponse;
 import com.example.demo.dto.response.ShopDetailResponse;
+import com.example.demo.dto.response.ShopManageResponse;
 import com.example.demo.entity.ShopStatus;
 
 import java.util.List;
@@ -13,6 +14,10 @@ public interface ShopService {
     ShopDetailResponse registerShop(RegisterShopRequest request, String currentUsername);
 
     ShopDetailResponse getMyShop(String currentUsername);
+
+    List<ShopDetailResponse> getMyShops(String currentUsername);
+
+    ShopManageResponse getShopManageInfo(Long shopId, String currentUsername);
 
     List<ShopDetailResponse> getAllActiveShops();
 

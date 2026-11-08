@@ -83,6 +83,13 @@ export const orderApi = {
   },
 
   /**
+   * STT 102: Theo dõi trạng thái đơn hàng (Tracking)
+   */
+  async getOrderTracking(id) {
+    return await request(`/orders/${id}/tracking`, { method: 'GET' });
+  },
+
+  /**
    * Hủy đơn hàng
    */
   async cancelOrder(id, reason = '') {

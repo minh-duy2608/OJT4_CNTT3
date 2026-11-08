@@ -134,5 +134,73 @@ export const couponApi = {
     return await request(`/api/v1/admin/coupons/${couponId}`, {
       method: 'DELETE'
     });
+  },
+
+  /**
+   * STT 91: GET /shops/{shopId}/coupons/manage - Danh sách mã giảm giá trong phạm vi quản lý của cửa hàng
+   */
+  async getShopManageCoupons(shopId, { status, keyword, page = 0, size = 10 } = {}) {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (keyword) params.append('keyword', keyword);
+    params.append('page', page);
+    params.append('size', size);
+    return await request(`/shops/${shopId}/coupons/manage?${params.toString()}`, { method: 'GET' });
+  },
+
+  /**
+   * STT 92: POST /shops/{shopId}/coupons - Tạo mã giảm giá của cửa hàng
+   */
+  async createShopCoupon(shopId, payload) {
+    return await request(`/shops/${shopId}/coupons`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  /**
+   * STT 93: GET /shops/{shopId}/coupons/{couponId} - Chi tiết mã giảm giá trong phạm vi quản lý
+   */
+  async getShopCouponById(shopId, couponId) {
+    return await request(`/shops/${shopId}/coupons/${couponId}`, { method: 'GET' });
+  },
+
+  /**
+   * STT 94: PATCH /shops/{shopId}/coupons/{couponId} - Cập nhật thông tin mã giảm giá
+   */
+  async updateShopCoupon(shopId, couponId, payload) {
+    return await request(`/shops/${shopId}/coupons/${couponId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  /**
+   * STT 95: PATCH /shops/{shopId}/coupons/{couponId}/status - Thay đổi trạng thái mã giảm giá
+   */
+  async updateShopCouponStatus(shopId, couponId, status) {
+    return await request(`/shops/${shopId}/coupons/${couponId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status })
+    });
+  },
+
+  /**
+   * STT 96: DELETE /shops/{shopId}/coupons/{couponId} - Xóa hoặc vô hiệu hóa mã giảm giá
+   */
+  async deleteShopCoupon(shopId, couponId) {
+    return await request(`/shops/${shopId}/coupons/${couponId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  /**
+   * STT 97: PUT /shops/{shopId}/coupons/{couponId}/products - Cập nhật phạm vi áp dụng sản phẩm cho coupon
+   */
+  async updateShopCouponProducts(shopId, couponId, productIds) {
+    return await request(`/shops/${shopId}/coupons/${couponId}/products`, {
+      method: 'PUT',
+      body: JSON.stringify({ productIds })
+    });
   }
 };

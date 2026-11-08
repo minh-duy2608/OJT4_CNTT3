@@ -6,6 +6,7 @@ import com.example.demo.dto.request.CreateOrderRequest;
 import com.example.demo.dto.request.UpdateOrderStatusRequest;
 import com.example.demo.dto.response.ApiResponse;
 import com.example.demo.dto.response.OrderResponse;
+import com.example.demo.dto.response.OrderTrackingResponse;
 import com.example.demo.dto.response.PageResponse;
 import com.example.demo.entity.OrderStatus;
 import com.example.demo.service.OrderService;
@@ -64,6 +65,19 @@ public class OrderController {
         String username = principal != null ? principal.getName() : null;
         OrderResponse response = orderService.getOrderDetail(id, username);
         return ResponseEntity.ok(ApiResponse.success("Lấy thông tin chi tiết đơn hàng thành công", response));
+    }
+
+    /**
+     * STT 102: GET /orders/{orderId}/tracking - Theo dõi trạng thái đơn hàng (CLIENT)
+     */
+    @GetMapping({"/orders/{id}/tracking", "/api/v1/orders/{id}/tracking"})
+    public ResponseEntity<ApiResponse<OrderTrackingResponse>> getOrderTracking(
+            @PathVariable Long id,
+            Principal principal
+    ) {
+        String username = principal != null ? principal.getName() : null;
+        OrderTrackingResponse response = orderService.getOrderTracking(id, username);
+        return ResponseEntity.ok(ApiResponse.success("Lấy thông tin theo dõi hành trình đơn hàng thành công", response));
     }
 
     /**
