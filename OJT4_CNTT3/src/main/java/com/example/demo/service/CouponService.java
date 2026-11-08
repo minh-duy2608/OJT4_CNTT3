@@ -51,4 +51,9 @@ public interface CouponService {
      * Quản trị: Xóa mã giảm giá
      */
     void deleteCoupon(Long id, String currentUsername);
+
+    /**
+     * STT 97: PUT /shops/{shopId}/coupons/{couponId}/products - Cập nhật danh sách sản phẩm áp dụng (Quyền quản lý coupon)
+     */
+    CouponResponse updateCouponProducts(Long shopId, Long couponId, List<Long> productIds, String currentUsername);
 }

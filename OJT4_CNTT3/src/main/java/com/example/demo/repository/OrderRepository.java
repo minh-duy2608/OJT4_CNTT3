@@ -26,6 +26,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     long countByUserId(Long userId);
 
+    long countByShopId(Long shopId);
+
+    long countByShopIdAndStatus(Long shopId, OrderStatus status);
+
+    java.util.List<Order> findByShopId(Long shopId);
+
     @Query("SELECT o FROM Order o WHERE (:shopId IS NULL OR o.shopId = :shopId) AND (:status IS NULL OR o.status = :status)")
     Page<Order> findAllByFilter(@Param("shopId") Long shopId, @Param("status") OrderStatus status, Pageable pageable);
 }

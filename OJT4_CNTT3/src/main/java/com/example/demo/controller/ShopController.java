@@ -2,15 +2,22 @@ package com.example.demo.controller;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import com.example.demo.dto.request.AddShopMemberRequest;
 import com.example.demo.dto.request.RegisterShopRequest;
+import com.example.demo.dto.request.UpdateShopMemberRequest;
 import com.example.demo.dto.response.ApiResponse;
 import com.example.demo.dto.response.ShopDetailResponse;
+import com.example.demo.dto.response.ShopManageResponse;
+import com.example.demo.dto.response.ShopMemberResponse;
+import com.example.demo.service.ShopMemberService;
 import com.example.demo.service.ShopService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,6 +35,7 @@ import java.util.List;
 public class ShopController {
 
     private final ShopService shopService;
+    private final ShopMemberService shopMemberService;
 
     /**
      * Đăng ký mở Cửa hàng mới (Khách hàng trở thành SHOP_MANAGER)
@@ -57,6 +65,29 @@ public class ShopController {
         } else {
             return ResponseEntity.ok(ApiResponse.success("Bạn chưa đăng ký cửa hàng nào", null));
         }
+    }
+
+    /**
+     * STT 60: GET /shops/my - Danh sách cửa hàng người dùng quản lý (Authenticated)
+     */
+    @GetMapping({"/my", "/my-shops"})
+    public ResponseEntity<ApiResponse<List<ShopDetailResponse>>> getMyShops(Principal principal) {
+        String username = principal != null ? principal.getName() : null;
+        List<ShopDetailResponse> response = shopService.getMyShops(username);
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách cửa hàng quản lý thành công", response));
+    }
+
+    /**
+     * STT 61: GET /shops/{shopId}/manage - Thông tin quản lý cửa hàng (Shop permission)
+     */
+    @GetMapping("/{shopId}/manage")
+    public ResponseEntity<ApiResponse<ShopManageResponse>> getShopManageInfo(
+            @PathVariable Long shopId,
+            Principal principal
+    ) {
+        String username = principal != null ? principal.getName() : null;
+        ShopManageResponse response = shopService.getShopManageInfo(shopId, username);
+        return ResponseEntity.ok(ApiResponse.success("Lấy thông tin quản lý cửa hàng thành công", response));
     }
 
     /**
@@ -96,6 +127,63 @@ public class ShopController {
         String username = principal != null ? principal.getName() : null;
         ShopDetailResponse response = shopService.updateShop(shopId, request, username);
         return ResponseEntity.ok(ApiResponse.success("Cập nhật thông tin cửa hàng thành công", response));
+    }
+
+    /**
+     * STT 63: GET /shops/{shopId}/members - Danh sách thành viên (Shop permission)
+     */
+    @GetMapping("/{shopId}/members")
+    public ResponseEntity<ApiResponse<List<ShopMemberResponse>>> getShopMembers(
+            @PathVariable Long shopId,
+            Principal principal
+    ) {
+        String username = principal != null ? principal.getName() : null;
+        List<ShopMemberResponse> response = shopMemberService.getShopMembers(shopId, username);
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách thành viên cửa hàng thành công", response));
+    }
+
+    /**
+     * STT 64: POST /shops/{shopId}/members - Thêm thành viên (Quyền quản lý thành viên)
+     */
+    @PostMapping("/{shopId}/members")
+    public ResponseEntity<ApiResponse<ShopMemberResponse>> addShopMember(
+            @PathVariable Long shopId,
+            @Valid @RequestBody AddShopMemberRequest request,
+            Principal principal
+    ) {
+        String username = principal != null ? principal.getName() : null;
+        ShopMemberResponse response = shopMemberService.addShopMember(shopId, request, username);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Thêm thành viên vào cửa hàng thành công", response));
+    }
+
+    /**
+     * STT 65: PATCH /shops/{shopId}/members/{memberId} - Thay đổi vai trò hoặc trạng thái thành viên (Quyền quản lý thành viên)
+     */
+    @PatchMapping("/{shopId}/members/{memberId}")
+    public ResponseEntity<ApiResponse<ShopMemberResponse>> updateShopMember(
+            @PathVariable Long shopId,
+            @PathVariable Long memberId,
+            @Valid @RequestBody UpdateShopMemberRequest request,
+            Principal principal
+    ) {
+        String username = principal != null ? principal.getName() : null;
+        ShopMemberResponse response = shopMemberService.updateShopMember(shopId, memberId, request, username);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật thông tin thành viên thành công", response));
+    }
+
+    /**
+     * STT 66: DELETE /shops/{shopId}/members/{memberId} - Xóa thành viên khỏi cửa hàng (Quyền quản lý thành viên)
+     */
+    @DeleteMapping("/{shopId}/members/{memberId}")
+    public ResponseEntity<ApiResponse<Void>> deleteShopMember(
+            @PathVariable Long shopId,
+            @PathVariable Long memberId,
+            Principal principal
+    ) {
+        String username = principal != null ? principal.getName() : null;
+        shopMemberService.deleteShopMember(shopId, memberId, username);
+        return ResponseEntity.ok(ApiResponse.success("Xóa thành viên khỏi cửa hàng thành công", null));
     }
 }
 

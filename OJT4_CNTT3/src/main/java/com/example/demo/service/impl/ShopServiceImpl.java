@@ -4,18 +4,13 @@ import com.example.demo.dto.request.AdminUpdateShopStatusRequest;
 import com.example.demo.dto.request.RegisterShopRequest;
 import com.example.demo.dto.response.PageResponse;
 import com.example.demo.dto.response.ShopDetailResponse;
-import com.example.demo.entity.Role;
-import com.example.demo.entity.RoleEntity;
-import com.example.demo.entity.Shop;
-import com.example.demo.entity.ShopStatus;
-import com.example.demo.entity.User;
+import com.example.demo.dto.response.ShopManageResponse;
+import com.example.demo.entity.*;
 import com.example.demo.exception.BadRequestException;
 import com.example.demo.exception.ForbiddenException;
 import com.example.demo.exception.ResourceNotFoundException;
 import com.example.demo.exception.UnauthorizedException;
-import com.example.demo.repository.RoleRepository;
-import com.example.demo.repository.ShopRepository;
-import com.example.demo.repository.UserRepository;
+import com.example.demo.repository.*;
 import com.example.demo.service.ShopService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,8 +21,10 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -41,6 +38,10 @@ public class ShopServiceImpl implements ShopService {
     private final ShopRepository shopRepository;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final ShopMemberRepository shopMemberRepository;
+    private final ProductRepository productRepository;
+    private final OrderRepository orderRepository;
+    private final InventoryRepository inventoryRepository;
 
     @Override
     @Transactional
@@ -116,6 +117,88 @@ public class ShopServiceImpl implements ShopService {
         }
 
         return null;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ShopDetailResponse> getMyShops(String currentUsername) {
+        User user = getCurrentUser(currentUsername);
+        boolean isAdmin = isUserAdmin(user);
+
+        // Lấy các shop do user sở hữu
+        List<Shop> ownedShops = shopRepository.findByOwnerId(user.getId());
+        List<ShopDetailResponse> result = new ArrayList<>(ownedShops.stream()
+                .map(s -> ShopDetailResponse.fromEntity(s, true, isAdmin))
+                .toList());
+
+        // Lấy thêm các shop mà user là thành viên active
+        List<ShopMember> memberships = shopMemberRepository.findByIdUserIdAndStatus(user.getId(), ShopMemberStatus.ACTIVE);
+        for (ShopMember m : memberships) {
+            if (ownedShops.stream().noneMatch(s -> s.getId().equals(m.getId().getShopId()))) {
+                Shop shop = shopRepository.findById(m.getId().getShopId()).orElse(null);
+                if (shop != null) {
+                    result.add(ShopDetailResponse.fromEntity(shop, true, isAdmin));
+                }
+            }
+        }
+
+        // Nếu là ADMIN và chưa có shop nào, fallback cho phép quản lý shop đầu tiên
+        if (isAdmin && result.isEmpty()) {
+            List<Shop> allShops = shopRepository.findAll();
+            if (!allShops.isEmpty()) {
+                result.add(ShopDetailResponse.fromEntity(allShops.get(0), true, true));
+            }
+        }
+
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ShopManageResponse getShopManageInfo(Long shopId, String currentUsername) {
+        User user = getCurrentUser(currentUsername);
+        boolean isAdmin = isUserAdmin(user);
+
+        Shop shop = shopRepository.findById(shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
+
+        boolean isOwner = Objects.equals(shop.getOwnerId(), user.getId());
+        Optional<ShopMember> membership = shopMemberRepository.findByIdShopIdAndIdUserId(shopId, user.getId());
+
+        if (!isAdmin && !isOwner && (membership.isEmpty() || membership.get().getStatus() != ShopMemberStatus.ACTIVE)) {
+            throw new ForbiddenException("Bạn không có quyền quản lý cửa hàng này");
+        }
+
+        String roleInShop = isOwner ? "OWNER" : (isAdmin ? "ADMIN" : (membership.map(m -> m.getRole() != null ? m.getRole().getCode() : "STAFF").orElse("MEMBER")));
+
+        long totalProducts = productRepository.countByShopId(shopId);
+        long activeProducts = productRepository.countByShopIdAndStatus(shopId, ProductStatus.ACTIVE);
+        long totalOrders = orderRepository.countByShopId(shopId);
+        long pendingOrders = orderRepository.countByShopIdAndStatus(shopId, OrderStatus.PENDING);
+        long completedOrders = orderRepository.countByShopIdAndStatus(shopId, OrderStatus.DELIVERED);
+
+        List<Order> shopOrders = orderRepository.findByShopId(shopId);
+        BigDecimal totalRevenue = shopOrders.stream()
+                .filter(o -> o.getStatus() == OrderStatus.DELIVERED || o.getPaymentStatus() == PaymentStatus.PAID)
+                .map(Order::getTotalAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        long totalMembers = shopMemberRepository.countByIdShopIdAndStatus(shopId, ShopMemberStatus.ACTIVE);
+        long lowStockCount = inventoryRepository.findLowStockByShopId(shopId, 10).size();
+
+        return ShopManageResponse.builder()
+                .shop(ShopDetailResponse.fromEntity(shop, true, isAdmin))
+                .totalProducts(totalProducts)
+                .activeProducts(activeProducts)
+                .totalOrders(totalOrders)
+                .pendingOrders(pendingOrders)
+                .completedOrders(completedOrders)
+                .totalRevenue(totalRevenue)
+                .totalMembers(totalMembers)
+                .lowStockCount(lowStockCount)
+                .currentUserRoleInShop(roleInShop)
+                .build();
     }
 
     @Override

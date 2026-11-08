@@ -38,6 +38,10 @@ export const ProductDetailPage = () => {
   const { addToCart, showToast } = useCart();
   const { isAuthenticated } = useAuth();
 
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [id]);
+
   const [product, setProduct] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -711,7 +715,7 @@ export const ProductDetailPage = () => {
               {product.brand || 'Cyber Official Store'}
             </span>
             {product.shop && (
-              <span style={{ fontSize: '0.8rem', color: '#71717a', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted, #94a3b8)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                 <Store size={13} /> {product.shop}
               </span>
             )}
@@ -719,17 +723,14 @@ export const ProductDetailPage = () => {
 
           <h1 className="detail-product-title">{product.name}</h1>
 
-          {/* Đánh giá & Tình trạng kho */}
+          {/* Đánh giá sản phẩm */}
           <div className="detail-rating-row">
             <div className="stars-group">
               {[...Array(5)].map((_, i) => (
                 <Star key={i} size={16} fill="#f59e0b" color="#f59e0b" />
-              ))}
+            ))}
             </div>
             <span className="reviews-count">(142 đánh giá của khách hàng)</span>
-            <span className="stock-status-badge">
-              <Check size={12} strokeWidth={3} /> {stockQuantity > 0 ? `Còn hàng (${stockQuantity} sản phẩm)` : 'Tạm hết hàng'}
-            </span>
           </div>
 
           {/* Hộp Giá Tiền Tương Ứng (Tự động cập nhật theo Phiên bản & Màu sắc) */}
@@ -793,7 +794,7 @@ export const ProductDetailPage = () => {
           <div className={`detail-variant-group ${attemptedAction && !selectedStorage ? 'is-unselected' : ''}`}>
             <span className="variant-label">
               1. Phiên bản / Dung lượng: {selectedStorage ? (
-                <strong style={{ color: '#000000' }}>{selectedStorage}</strong>
+                <strong>{selectedStorage}</strong>
               ) : (
                 <span className="selection-required-hint">⚠️ (Vui lòng chọn)</span>
               )}
@@ -822,7 +823,7 @@ export const ProductDetailPage = () => {
           <div className={`detail-variant-group ${attemptedAction && !selectedColor ? 'is-unselected' : ''}`}>
             <span className="variant-label">
               2. Màu sắc: {selectedColor ? (
-                <strong style={{ color: '#000000' }}>{selectedColor}</strong>
+                <strong>{selectedColor}</strong>
               ) : (
                 <span className="selection-required-hint">⚠️ (Vui lòng chọn)</span>
               )}
@@ -1029,7 +1030,7 @@ export const ProductDetailPage = () => {
 
       {/* 6. Sản phẩm tương tự */}
       <section style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '1px solid #e4e4e7' }}>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#000000', marginBottom: '2rem' }}>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-color, #ffffff)', marginBottom: '2rem' }}>
           Sản phẩm tương tự bạn có thể thích
         </h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1.5rem' }}>

@@ -100,7 +100,11 @@ export const ProductReviewsSection = ({ product }) => {
     }
     try {
       const res = await productReviewApi.getMyReview(productId);
-      setMyReview(res);
+      if (res && res.id) {
+        setMyReview(res);
+      } else {
+        setMyReview(null);
+      }
     } catch (err) {
       setMyReview(null);
     }
@@ -122,7 +126,7 @@ export const ProductReviewsSection = ({ product }) => {
     }
 
     // Nếu đã đánh giá rồi: cho phép mở modal chỉnh sửa bài viết của mình
-    if (myReview) {
+    if (myReview && myReview.id) {
       setModalRating(myReview.rating || 5);
       setModalTitle(myReview.title || '');
       setModalContent(myReview.content || '');
@@ -233,6 +237,7 @@ export const ProductReviewsSection = ({ product }) => {
   const ratingCounts = summaryData?.ratingCounts || { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
   const reviewsList = summaryData?.reviews || [];
   const hasPurchased = Boolean(summaryData?.hasPurchased);
+  const hasReviewed = Boolean(myReview && myReview.id);
 
   return (
     <section className="cellphone-reviews-container" id="product-reviews-section">
@@ -296,7 +301,7 @@ export const ProductReviewsSection = ({ product }) => {
         {/* Cột phải: Lời kêu gọi & Nút Viết đánh giá */}
         <div className="review-cta-box">
           <div className="review-cta-text">
-            {myReview ? (
+            {hasReviewed ? (
               'Bạn đã gửi đánh giá cho sản phẩm này.'
             ) : hasPurchased ? (
               'Bạn đã mua sản phẩm này! Hãy chia sẻ cảm nhận thực tế nhé.'
@@ -305,7 +310,7 @@ export const ProductReviewsSection = ({ product }) => {
             )}
           </div>
 
-          {myReview ? (
+          {hasReviewed ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
               <div className="btn-my-review-badge">
                 <CheckCircle2 size={14} /> Đã đánh giá ({myReview.rating}★)
@@ -331,7 +336,7 @@ export const ProductReviewsSection = ({ product }) => {
             </button>
           )}
 
-          {!myReview && !hasPurchased && isAuthenticated && (
+          {!hasReviewed && !hasPurchased && isAuthenticated && (
             <span style={{ fontSize: '0.725rem', color: '#64748b', textAlign: 'center' }}>
               (Yêu cầu đã mua hàng thành công)
             </span>

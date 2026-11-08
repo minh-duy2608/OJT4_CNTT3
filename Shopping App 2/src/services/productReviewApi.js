@@ -46,6 +46,10 @@ async function request(endpoint = '', options = {}, isRetry = false) {
       throw error;
     }
 
+    if (data && typeof data === 'object' && ('success' in data || 'code' in data)) {
+      return data.data !== undefined ? data.data : null;
+    }
+
     return data?.data !== undefined ? data.data : data;
   } catch (err) {
     throw err;

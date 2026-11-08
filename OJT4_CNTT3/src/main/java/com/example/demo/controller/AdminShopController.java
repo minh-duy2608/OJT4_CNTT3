@@ -30,7 +30,7 @@ import java.security.Principal;
 @RestController
 @RequestMapping({"/admin/shops", "/api/v1/admin/shops"})
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN', 'ROLE_ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN')")
 public class AdminShopController {
 
     private final ShopService shopService;

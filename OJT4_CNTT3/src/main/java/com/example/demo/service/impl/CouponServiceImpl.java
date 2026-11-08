@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -35,6 +36,8 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class CouponServiceImpl implements CouponService {
+
+    private static final ZoneId ZONE_VN = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final CouponRepository couponRepository;
     private final CouponProductRepository couponProductRepository;
@@ -52,7 +55,7 @@ public class CouponServiceImpl implements CouponService {
         Shop shop = shopRepository.findById(shopId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZONE_VN);
         List<Coupon> activeCoupons = couponRepository.findActivePublicCouponsByShopId(shopId, now);
 
         return activeCoupons.stream().map(c -> {
@@ -104,7 +107,7 @@ public class CouponServiceImpl implements CouponService {
         }
 
         // 3. Kiểm tra thời hạn hiệu lực
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZONE_VN);
         if (now.isBefore(coupon.getStartAt())) {
             return ValidateCouponResponse.builder()
                     .valid(false)
@@ -373,6 +376,13 @@ public class CouponServiceImpl implements CouponService {
 
         List<Long> productIds = request.getProductIds();
         if (productIds != null && !productIds.isEmpty()) {
+            for (Long pid : productIds) {
+                Product p = productRepository.findById(pid)
+                        .orElseThrow(() -> new BadRequestException("Không tìm thấy sản phẩm #" + pid));
+                if (!Objects.equals(p.getShopId(), shop.getId())) {
+                    throw new BadRequestException("Sản phẩm #" + pid + " không thuộc cửa hàng #" + shop.getId());
+                }
+            }
             List<CouponProduct> productMappings = productIds.stream()
                     .map(pid -> CouponProduct.builder()
                             .id(CouponProductId.builder()
@@ -427,6 +437,15 @@ public class CouponServiceImpl implements CouponService {
         // Cập nhật danh sách sản phẩm giới hạn nếu có
         List<Long> productIds = request.getProductIds();
         if (productIds != null) {
+            if (!productIds.isEmpty()) {
+                for (Long pid : productIds) {
+                    Product p = productRepository.findById(pid)
+                            .orElseThrow(() -> new BadRequestException("Không tìm thấy sản phẩm #" + pid));
+                    if (!Objects.equals(p.getShopId(), shop.getId())) {
+                        throw new BadRequestException("Sản phẩm #" + pid + " không thuộc cửa hàng #" + shop.getId());
+                    }
+                }
+            }
             List<CouponProduct> existing = couponProductRepository.findByIdCouponId(saved.getId());
             couponProductRepository.deleteAll(existing);
 
@@ -492,6 +511,48 @@ public class CouponServiceImpl implements CouponService {
             couponRepository.delete(coupon);
             log.info("User {} permanently deleted coupon #{}", user.getUsername(), id);
         }
+    }
+
+    @Override
+    @Transactional
+    public CouponResponse updateCouponProducts(Long shopId, Long couponId, List<Long> productIds, String currentUsername) {
+        User user = getCurrentUser(currentUsername);
+        Coupon coupon = couponRepository.findById(couponId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mã giảm giá #" + couponId));
+
+        if (!Objects.equals(coupon.getShopId(), shopId)) {
+            throw new BadRequestException("Mã giảm giá #" + couponId + " không thuộc cửa hàng #" + shopId);
+        }
+
+        Shop shop = validateShopAccess(coupon.getShopId(), user);
+
+        if (productIds != null && !productIds.isEmpty()) {
+            for (Long pid : productIds) {
+                Product p = productRepository.findById(pid)
+                        .orElseThrow(() -> new BadRequestException("Không tìm thấy sản phẩm #" + pid));
+                if (!Objects.equals(p.getShopId(), shop.getId())) {
+                    throw new BadRequestException("Sản phẩm #" + pid + " không thuộc cửa hàng #" + shop.getId());
+                }
+            }
+        }
+
+        List<CouponProduct> existing = couponProductRepository.findByIdCouponId(coupon.getId());
+        couponProductRepository.deleteAll(existing);
+
+        if (productIds != null && !productIds.isEmpty()) {
+            List<CouponProduct> productMappings = productIds.stream()
+                    .map(pid -> CouponProduct.builder()
+                            .id(CouponProductId.builder()
+                                    .couponId(coupon.getId())
+                                    .productId(pid)
+                                    .build())
+                            .build())
+                    .toList();
+            couponProductRepository.saveAll(productMappings);
+        }
+
+        log.info("User {} updated products scope for coupon #{} in shop #{}", user.getUsername(), couponId, shopId);
+        return CouponResponse.fromEntity(coupon, shop.getName(), productIds == null || productIds.isEmpty(), productIds);
     }
 
     // =========================================================================

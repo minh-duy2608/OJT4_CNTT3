@@ -140,5 +140,55 @@ export const shopApi = {
       method: 'POST',
       body: JSON.stringify(payload)
     });
+  },
+
+  /**
+   * STT 60: GET /shops/my - Danh sách cửa hàng người dùng quản lý
+   */
+  async getMyShops() {
+    return await request('/shops/my', { method: 'GET' });
+  },
+
+  /**
+   * STT 61: GET /shops/{shopId}/manage - Thông tin quản lý cửa hàng (metrics, doanh thu, đơn, sp)
+   */
+  async getShopManage(shopId) {
+    return await request(`/shops/${shopId}/manage`, { method: 'GET' });
+  },
+
+  /**
+   * STT 63: GET /shops/{shopId}/members - Danh sách thành viên của shop
+   */
+  async getShopMembers(shopId) {
+    return await request(`/shops/${shopId}/members`, { method: 'GET' });
+  },
+
+  /**
+   * STT 64: POST /shops/{shopId}/members - Thêm thành viên vào shop
+   */
+  async addShopMember(shopId, payload) {
+    return await request(`/shops/${shopId}/members`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  /**
+   * STT 65: PATCH /shops/{shopId}/members/{memberId} - Cập nhật vai trò/trạng thái thành viên
+   */
+  async updateShopMember(shopId, memberId, payload) {
+    return await request(`/shops/${shopId}/members/${memberId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  /**
+   * STT 66: DELETE /shops/{shopId}/members/{memberId} - Xóa thành viên khỏi shop
+   */
+  async deleteShopMember(shopId, memberId) {
+    return await request(`/shops/${shopId}/members/${memberId}`, {
+      method: 'DELETE'
+    });
   }
 };

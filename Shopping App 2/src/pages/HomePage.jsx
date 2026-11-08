@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import { HeroBanner } from '../components/HeroBanner';
 import { ProductsPage } from './ProductsPage';
 import { DiscountProducts } from '../components/DiscountProducts';
-import { SummerSaleBanner } from '../components/SummerSaleBanner';
 
 export const HomePage = () => {
   const [searchParams] = useSearchParams();
@@ -18,14 +17,12 @@ export const HomePage = () => {
       {/* 1. Hero Banner 1: Trình chiếu sản phẩm Best Sale (Figma: Banner) */}
       {!hasActiveFilter && <HeroBanner />}
 
-      {/* 2. Danh sách sản phẩm chính với 3 Tabs Figma (Figma: Products) */}
+      {/* 2. Danh sách sản phẩm chính */}
       <ProductsPage />
 
       {/* 3. Danh mục sản phẩm giảm giá (Figma: Discount Products) */}
       {!hasActiveFilter && <DiscountProducts />}
 
-      {/* 4. Banner 2: Ưu đãi mùa hè (Figma: Banner 2) */}
-      {!hasActiveFilter && <SummerSaleBanner />}
     </div>
   );
 };
