@@ -26,3 +26,8 @@ Shopping App 2/.vite/
 Shopping App 2/npm-debug.log*
 Shopping App 2/yarn-debug.log*
 Shopping App 2/yarn-error.log*
+
+# Trello and local export files
+*.csv
+trello_tasks.csv
+
