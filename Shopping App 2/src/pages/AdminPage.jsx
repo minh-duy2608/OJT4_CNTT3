@@ -50,7 +50,9 @@ import {
   Ticket,
   Tag,
   Percent,
-  Copy
+  Copy,
+  ToggleLeft,
+  ToggleRight
 } from 'lucide-react';
 import { revenueApi } from '../services/revenueApi';
 import { couponApi } from '../services/couponApi';
@@ -5571,13 +5573,21 @@ export const AdminPage = () => {
                             </span>
                           </td>
                           <td style={{ textAlign: 'center' }}>
-                            <div style={{ display: 'inline-flex', gap: '6px' }}>
+                            <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', justifyContent: 'center' }}>
                               {/* Sửa mã */}
                               <button
                                 type="button"
-                                className="admin-action-btn edit"
+                                className="admin-icon-btn primary"
                                 onClick={() => handleOpenEditCoupon(c)}
                                 title="Chỉnh sửa mã giảm giá"
+                                style={{
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '6px',
+                                  color: '#2563eb',
+                                  backgroundColor: '#eff6ff',
+                                  border: '1px solid #bfdbfe'
+                                }}
                               >
                                 <Edit size={15} />
                               </button>
@@ -5585,26 +5595,38 @@ export const AdminPage = () => {
                               {/* Bật / Tắt trạng thái */}
                               <button
                                 type="button"
-                                className="admin-action-btn"
+                                className="admin-icon-btn"
                                 onClick={() => handleToggleCouponStatus(c)}
-                                title={c.status === 'ACTIVE' ? 'Tạm dừng mã giảm giá' : 'Kích hoạt mã giảm giá'}
+                                title={c.status === 'ACTIVE' ? 'Đang hoạt động (Nhấn để tạm dừng)' : 'Đang tạm dừng (Nhấn để kích hoạt)'}
                                 style={{
-                                  color: c.status === 'ACTIVE' ? '#ea580c' : '#16a34a',
-                                  backgroundColor: c.status === 'ACTIVE' ? '#fff7ed' : '#f0fdf4'
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '6px',
+                                  color: c.status === 'ACTIVE' ? '#16a34a' : '#64748b',
+                                  backgroundColor: c.status === 'ACTIVE' ? '#f0fdf4' : '#f1f5f9',
+                                  border: `1px solid ${c.status === 'ACTIVE' ? '#bbf7d0' : '#cbd5e1'}`
                                 }}
                               >
-                                {c.status === 'ACTIVE' ? <Lock size={15} /> : <Unlock size={15} />}
+                                {c.status === 'ACTIVE' ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
                               </button>
 
                               {/* Xóa mã */}
                               <button
                                 type="button"
-                                className="admin-action-btn delete"
+                                className="admin-icon-btn danger"
                                 onClick={() => {
                                   setTargetCouponForDelete(c);
                                   setShowDeleteCouponModal(true);
                                 }}
                                 title="Xóa mã giảm giá"
+                                style={{
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '6px',
+                                  color: '#dc2626',
+                                  backgroundColor: '#fef2f2',
+                                  border: '1px solid #fecaca'
+                                }}
                               >
                                 <Trash2 size={15} />
                               </button>
