@@ -153,6 +153,10 @@ export const AdminPage = () => {
   const hasPortalAccess = isAdminUser || isShopManager;
 
   // selectedShopId is hoisted to top of component
+  const [selectedShopId, setSelectedShopId] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('shopId') || '';
+  });
   const [myShopInfo, setMyShopInfo] = useState(null);
   const [availableShops, setAvailableShops] = useState([]);
 
@@ -1494,10 +1498,6 @@ export const AdminPage = () => {
   // =========================================================================
   // 8. TAB: KÊNH CỬA HÀNG (SHOP PRODUCTS - STT 45-56)
   // =========================================================================
-  const [selectedShopId, setSelectedShopId] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('shopId') || '';
-  });
   const [shopProducts, setShopProducts] = useState([]);
   const [shopProductsLoading, setShopProductsLoading] = useState(false);
   const [shopProdPage, setShopProdPage] = useState(0);
