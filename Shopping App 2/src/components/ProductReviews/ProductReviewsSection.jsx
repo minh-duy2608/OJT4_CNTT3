@@ -376,7 +376,10 @@ export const ProductReviewsSection = ({ product }) => {
       ) : reviewsList.length > 0 ? (
         <div className="review-list">
           {reviewsList.map((review) => {
-            const isOwner = review.isMyReview || (user && review.userId === user.id);
+            const isOwner = Boolean(
+              review.isMyReview || 
+              (user?.id && review.userId && String(review.userId) === String(user.id))
+            );
             const userInitial = (review.userName || 'K').charAt(0).toUpperCase();
 
             return (
@@ -418,7 +421,14 @@ export const ProductReviewsSection = ({ product }) => {
                       <button 
                         type="button" 
                         className="review-action-btn"
-                        onClick={handleOpenModal}
+                        onClick={() => {
+                          setModalRating(review.rating || 5);
+                          setModalTitle(review.title || '');
+                          setModalContent(review.content || '');
+                          setFormError('');
+                          setMyReview(review);
+                          setIsModalOpen(true);
+                        }}
                         title="Chỉnh sửa đánh giá"
                       >
                         <Edit3 size={13} /> Sửa
@@ -563,7 +573,7 @@ export const ProductReviewsSection = ({ product }) => {
           <div className="review-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="review-modal-header">
               <h3 className="review-modal-title">
-                {myReview ? 'Chỉnh sửa bài đánh giá' : 'Đánh giá sản phẩm'}
+                {hasReviewed ? 'Chỉnh sửa bài đánh giá' : 'Đánh giá sản phẩm'}
               </h3>
               <button 
                 type="button" 
@@ -673,7 +683,7 @@ export const ProductReviewsSection = ({ product }) => {
                   className="btn-modal-submit"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? 'Đang gửi...' : (myReview ? 'Lưu thay đổi' : 'Gửi đánh giá')}
+                  {isSubmitting ? 'Đang gửi...' : (hasReviewed ? 'Lưu thay đổi' : 'Gửi đánh giá')}
                 </button>
               </div>
             </form>
