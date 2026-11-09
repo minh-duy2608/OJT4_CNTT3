@@ -11,7 +11,6 @@ import {
   Loader2,
   Eye,
   EyeOff,
-  CloudUpload,
   ShieldCheck,
   Check,
   MapPin,
@@ -193,14 +192,10 @@ export const ProfilePage = () => {
       const result = await uploadToCloudinary(file);
       await updateProfile({ avatar: result.url, avatarUrl: result.url });
 
-      if (result.isCloudinary) {
-        showAlert('Ảnh đại diện đã được lưu trữ trên Cloudinary và cập nhật tài khoản!', 'success');
-      } else {
-        showAlert(result.warning || 'Ảnh đại diện đã được cập nhật!', 'success');
-      }
+      showAlert('Ảnh đại diện đã được cập nhật thành công!', 'success');
     } catch (error) {
       console.error(error);
-      showAlert(error.message || 'Không thể tải ảnh lên Cloudinary.', 'error');
+      showAlert(error.message || 'Không thể tải ảnh đại diện lên. Vui lòng thử lại!', 'error');
     } finally {
       setIsUploadingAvatar(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -505,10 +500,6 @@ export const ProfilePage = () => {
   if (!user) return null;
 
   const passwordStrength = getPasswordStrength(newPassword);
-  const isCloudinaryConfigured = Boolean(
-    import.meta.env.VITE_CLOUDINARY_CLOUD_NAME &&
-    import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
-  );
 
   return (
     <div className="container profile-page-wrapper">
@@ -552,7 +543,7 @@ export const ProfilePage = () => {
             {isUploadingAvatar && (
               <div className="avatar-loading-overlay">
                 <Loader2 size={24} className="animate-spin" />
-                <span>Cloudinary...</span>
+                <span>Đang tải ảnh...</span>
               </div>
             )}
           </div>
@@ -571,7 +562,7 @@ export const ProfilePage = () => {
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploadingAvatar}
           >
-            {isUploadingAvatar ? 'Đang gửi lên Cloudinary...' : 'Thay đổi ảnh đại diện'}
+            {isUploadingAvatar ? 'Đang cập nhật ảnh...' : 'Thay đổi ảnh đại diện'}
           </button>
 
           <h2 className="profile-card-name">{user.name}</h2>
@@ -660,23 +651,6 @@ export const ProfilePage = () => {
               </button>
             </div>
           )}
-
-          {/* Trạng thái Cloudinary */}
-          <div className="cloudinary-status-card">
-            <div className="cloudinary-badge-title">
-              <CloudUpload size={16} color={isCloudinaryConfigured ? '#10b981' : '#f59e0b'} />
-              <span>Dịch vụ lưu trữ Cloudinary</span>
-            </div>
-            {isCloudinaryConfigured ? (
-              <p style={{ color: '#059669', margin: 0 }}>
-                ✓ Đã kết nối Cloudinary: <strong>{import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}</strong>
-              </p>
-            ) : (
-              <p style={{ color: '#d97706', margin: 0 }}>
-                Chưa điền <code>.env</code>. Ảnh đại diện đang lưu tạm thời cục bộ.
-              </p>
-            )}
-          </div>
 
           {/* Shortcut đến trang Đơn hàng */}
           <div style={{ marginTop: '1.25rem', width: '100%' }}>

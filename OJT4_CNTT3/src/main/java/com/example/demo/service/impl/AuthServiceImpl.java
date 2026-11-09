@@ -81,6 +81,16 @@ public class AuthServiceImpl implements AuthService {
             throw new ConflictException("Email already registered");
         }
 
+        if (request.getPhone() != null && !request.getPhone().isBlank()) {
+            String cleanPhone = request.getPhone().trim().replaceAll("[\\s.-]", "");
+            if (!cleanPhone.startsWith("0")) {
+                throw new BadRequestException("Số điện thoại phải bắt đầu bằng số 0");
+            }
+            if (!cleanPhone.matches("^0\\d{9}$")) {
+                throw new BadRequestException("Số điện thoại phải bắt đầu bằng số 0 và gồm đúng 10 chữ số");
+            }
+        }
+
         User user = User.builder()
                 .username(request.getUsername().trim())
                 .email(request.getEmail().trim().toLowerCase())
@@ -257,7 +267,18 @@ public class AuthServiceImpl implements AuthService {
             user.setFullName(request.getFullName().trim());
         }
         if (request.getPhone() != null) {
-            user.setPhone(request.getPhone().trim());
+            if (!request.getPhone().isBlank()) {
+                String cleanPhone = request.getPhone().trim().replaceAll("[\\s.-]", "");
+                if (!cleanPhone.startsWith("0")) {
+                    throw new BadRequestException("Số điện thoại phải bắt đầu bằng số 0");
+                }
+                if (!cleanPhone.matches("^0\\d{9}$")) {
+                    throw new BadRequestException("Số điện thoại phải bắt đầu bằng số 0 và gồm đúng 10 chữ số");
+                }
+                user.setPhone(cleanPhone);
+            } else {
+                user.setPhone(null);
+            }
         }
         if (request.getAvatarUrl() != null) {
             user.setAvatarUrl(request.getAvatarUrl().trim());

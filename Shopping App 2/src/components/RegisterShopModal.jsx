@@ -85,6 +85,15 @@ export const RegisterShopModal = ({
       setError('Vui lòng nhập số điện thoại liên hệ cửa hàng');
       return;
     }
+    const cleanPhone = formData.phone.trim().replace(/[\s-.]/g, '');
+    if (!cleanPhone.startsWith('0')) {
+      setError('Số điện thoại liên hệ cửa hàng phải bắt đầu bằng số 0');
+      return;
+    }
+    if (!/^\d+$/.test(cleanPhone) || cleanPhone.length !== 10) {
+      setError(`Số điện thoại phải gồm đúng 10 chữ số (hiện có ${cleanPhone.length} số)`);
+      return;
+    }
 
     setIsSubmitting(true);
     setError(null);
@@ -104,7 +113,11 @@ export const RegisterShopModal = ({
 
       // Cập nhật lại phiên đăng nhập để nhận vai trò SHOP_MANAGER
       await refreshUser();
-      setSuccessShop(res);
+
+      // Tự động đóng modal đăng ký thành công
+      if (typeof onClose === 'function') {
+        onClose();
+      }
 
       if (typeof onSuccess === 'function') {
         onSuccess(res);

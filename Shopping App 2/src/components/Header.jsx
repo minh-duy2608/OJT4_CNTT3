@@ -552,6 +552,7 @@ export const Header = () => {
         isOpen={isRegisterShopModalOpen}
         onClose={() => setIsRegisterShopModalOpen(false)}
         onSuccess={(createdShop) => {
+          setIsRegisterShopModalOpen(false);
           setMyShop(createdShop);
           if (refreshUser) refreshUser();
           navigate('/admin?tab=shops');

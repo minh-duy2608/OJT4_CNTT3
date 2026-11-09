@@ -39,14 +39,14 @@ export const validatePhone = (phone) => {
     return 'Số điện thoại không được để trống.';
   }
   const cleanPhone = phone.replace(/[\s-.]/g, '');
+  if (!cleanPhone.startsWith('0')) {
+    return 'Số điện thoại phải bắt đầu bằng số 0.';
+  }
   if (!/^\d+$/.test(cleanPhone)) {
     return 'Số điện thoại chỉ được chứa các chữ số.';
   }
   if (cleanPhone.length !== 10) {
     return `Số điện thoại phải gồm đúng 10 chữ số (hiện có ${cleanPhone.length} số).`;
-  }
-  if (!cleanPhone.startsWith('0')) {
-    return 'Số điện thoại phải bắt đầu bằng số 0.';
   }
   return null;
 };

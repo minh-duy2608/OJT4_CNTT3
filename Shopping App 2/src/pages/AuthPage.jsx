@@ -154,9 +154,11 @@ export const AuthPage = () => {
     } else if (touched.password && password.length < 6) {
       errs.password = 'Mật khẩu phải có ít nhất 6 ký tự.';
     }
-    if (isRegister && touched.phone && phone) {
-      const pErr = validatePhone(phone);
-      if (pErr) errs.phone = pErr;
+    if (isRegister && (touched.phone || phone)) {
+      if (phone && phone.trim()) {
+        const pErr = validatePhone(phone);
+        if (pErr) errs.phone = pErr;
+      }
     }
     setErrors(errs);
   }, [name, email, password, phone, isRegister, touched]);
@@ -170,12 +172,14 @@ export const AuthPage = () => {
     const nameErr = isRegister ? validateName(name) : null;
     const emailErr = validateEmail(email);
     const pwdErr = !password ? 'Vui lòng nhập mật khẩu.' : (password.length < 6 ? 'Mật khẩu phải có ít nhất 6 ký tự.' : null);
+    const phoneErr = (isRegister && phone && phone.trim()) ? validatePhone(phone) : null;
 
-    if (nameErr || emailErr || pwdErr) {
+    if (nameErr || emailErr || pwdErr || phoneErr) {
       setErrors({
         ...(nameErr && { name: nameErr }),
         ...(emailErr && { email: emailErr }),
-        ...(pwdErr && { password: pwdErr })
+        ...(pwdErr && { password: pwdErr }),
+        ...(phoneErr && { phone: phoneErr })
       });
       return;
     }
@@ -445,11 +449,21 @@ export const AuthPage = () => {
                       id="phone-input"
                       type="tel"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      onChange={(e) => {
+                        setPhone(e.target.value);
+                        setTouched((prev) => ({ ...prev, phone: true }));
+                      }}
+                      onBlur={() => setTouched((prev) => ({ ...prev, phone: true }))}
                       placeholder="0912345678"
-                      className="form-input"
+                      className={`form-input ${touched.phone ? (errors.phone ? 'is-invalid' : (phone.trim() ? 'is-valid' : '')) : ''}`}
                     />
                   </div>
+                  {touched.phone && errors.phone && (
+                    <span className="form-error-msg">
+                      <AlertCircle size={14} />
+                      {errors.phone}
+                    </span>
+                  )}
                 </div>
               </>
             )}
