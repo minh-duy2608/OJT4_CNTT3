@@ -16,5 +16,9 @@ public class CreateReturnRequest {
     private String reason;
 
     private String description;
+
+    private String evidenceUrls;
+
+    private String returnMethod;
 }
 

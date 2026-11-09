@@ -47,6 +47,13 @@ public class OrderReturn {
     @Column(name = "refund_amount", precision = 15, scale = 2)
     private BigDecimal refundAmount;
 
+    @Column(name = "evidence_urls", columnDefinition = "TEXT")
+    private String evidenceUrls;
+
+    @Column(name = "return_method", length = 50)
+    @Builder.Default
+    private String returnMethod = "POST_OFFICE";
+
     @Column(name = "processed_by")
     private Long processedBy;
 

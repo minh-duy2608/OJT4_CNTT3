@@ -55,6 +55,7 @@ public class OrderResponse {
     private List<OrderTrackingResponse.TrackingTimelineEvent> timeline;
 
     // Quyền thao tác của khách hàng
+    private Boolean buyerConfirmedDelivery;
     private Boolean canConfirmDelivery;
     private Boolean canCancel;
     private Boolean canReturn;

@@ -171,6 +171,22 @@ export const CheckoutPage = () => {
           if (c.shopId && detectedShopId && Number(c.shopId) !== Number(detectedShopId)) {
             return false;
           }
+
+          // Nghiệp vụ cốt lõi: Khi chọn mã giảm giá chỉ render ra những mã áp dụng cho sản phẩm trong đơn
+          const isSpecific = c.applicableToAllProducts === false || (Array.isArray(c.productIds) && c.productIds.length > 0);
+          if (isSpecific) {
+            const currentProductIds = itemsToCheckout.map((it) => {
+              const rawId = it.productId || it.product?.id || (typeof it.id === 'string' && it.id.includes('-') ? it.id.split('-')[0] : it.id);
+              return Number(rawId);
+            }).filter(Boolean);
+
+            const applicableProductIds = Array.isArray(c.productIds) ? c.productIds.map(Number) : [];
+            const hasMatchingProduct = currentProductIds.some((pid) => applicableProductIds.includes(pid));
+            if (!hasMatchingProduct) {
+              return false;
+            }
+          }
+
           return true;
         });
 

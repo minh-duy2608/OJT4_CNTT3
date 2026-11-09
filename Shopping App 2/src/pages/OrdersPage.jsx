@@ -14,13 +14,16 @@ import {
   FileText,
   RotateCcw,
   Eye,
-  Star
+  Star,
+  HelpCircle
 } from 'lucide-react';
 import { useOrders, ORDER_STATUSES } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { formatVND } from '../data/products';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { OrderDetailModal } from '../components/OrderDetailModal';
+import { OrderReviewModal } from '../components/OrderReviewModal';
+import { OrderReturnModal } from '../components/OrderReturnModal';
 import './OrdersPage.css';
 
 export const OrdersPage = () => {
@@ -32,6 +35,9 @@ export const OrdersPage = () => {
   const [orderToCancel, setOrderToCancel] = useState(null);
   const [orderToConfirmDelivery, setOrderToConfirmDelivery] = useState(null);
   const [selectedOrderForDetail, setSelectedOrderForDetail] = useState(null);
+  const [orderToReview, setOrderToReview] = useState(null);
+  const [orderToReturn, setOrderToReturn] = useState(null);
+  const [orderNotReceived, setOrderNotReceived] = useState(null);
 
   // Redirect nếu chưa đăng nhập
   useEffect(() => {
@@ -303,29 +309,116 @@ export const OrdersPage = () => {
 
                   {/* Khu vực thao tác & mô phỏng trạng thái cho người dùng */}
                   <div className="order-actions-wrap">
-                    {/* Nút Khách xác nhận đã nhận hàng */}
-                    {(order.canConfirmDelivery || order.status === 'delivering' || order.status === 'shipped' || order.rawStatus === 'SHIPPED') && (
-                      <button
-                        type="button"
-                        style={{
-                          background: '#059669',
-                          color: '#fff',
-                          border: 'none',
-                          borderRadius: '8px',
-                          padding: '0.45rem 0.9rem',
-                          fontSize: '0.85rem',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px'
-                        }}
-                        onClick={() => setOrderToConfirmDelivery(order)}
-                        title="Xác nhận bạn đã nhận được hàng và hài lòng với sản phẩm"
-                      >
-                        <CheckCircle2 size={15} /> Đã nhận được hàng
-                      </button>
-                    )}
+                    {/* 1. ĐƠN ĐANG GIAO HOẶC ĐÃ GIAO NHƯNG KHÁCH CHƯA BẤM "ĐÃ NHẬN ĐƯỢC HÀNG" */}
+                    {(!order.buyerConfirmedDelivery && (order.canConfirmDelivery || order.status === 'delivering' || order.status === 'shipped' || order.rawStatus === 'SHIPPED' || order.status === 'delivered' || order.rawStatus === 'DELIVERED')) ? (
+                      <>
+                        <button
+                          type="button"
+                          style={{
+                            background: '#059669',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '8px',
+                            padding: '0.48rem 0.95rem',
+                            fontSize: '0.85rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            boxShadow: '0 2px 4px rgba(5, 150, 105, 0.2)'
+                          }}
+                          onClick={() => setOrderToConfirmDelivery(order)}
+                          title="Xác nhận bạn đã nhận được hàng và hài lòng với sản phẩm"
+                        >
+                          <CheckCircle2 size={16} /> Đã nhận được hàng
+                        </button>
+
+                        <button
+                          type="button"
+                          style={{
+                            background: '#ffffff',
+                            color: '#b45309',
+                            border: '1px solid #fcd34d',
+                            borderRadius: '8px',
+                            padding: '0.48rem 0.9rem',
+                            fontSize: '0.825rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px'
+                          }}
+                          onClick={() => setOrderNotReceived(order)}
+                          title="Báo cáo bạn chưa nhận được kiện hàng hoặc nhân viên giao nhầm"
+                        >
+                          <HelpCircle size={15} /> Bạn chưa nhận được hàng?
+                        </button>
+                      </>
+                    ) : (order.buyerConfirmedDelivery || order.status === 'delivered' || order.rawStatus === 'DELIVERED') ? (
+                      /* 2. SAU KHI ĐÃ BẤM XÁC NHẬN NHẬN HÀNG: CHUYỂN THÀNH ĐÁNH GIÁ SẢN PHẨM & HOÀN HÀNG TRẢ TIỀN */
+                      <>
+                        <button
+                          type="button"
+                          style={{
+                            background: '#f59e0b',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '8px',
+                            padding: '0.48rem 0.95rem',
+                            fontSize: '0.85rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                          onClick={() => setOrderToReview(order)}
+                          title="Đánh giá chất lượng sản phẩm và dịch vụ của shop"
+                        >
+                          <Star size={15} fill="#fff" /> Đánh giá sản phẩm
+                        </button>
+
+                        {/* Nút Hoàn hàng trả tiền hoặc hiển thị trạng thái hoàn tiền */}
+                        {order.returnRequest ? (
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '0.45rem 0.85rem',
+                            borderRadius: '8px',
+                            backgroundColor: '#fef2f2',
+                            color: '#b91c1c',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            border: '1px solid #fecaca'
+                          }}>
+                            <RotateCcw size={14} /> Hoàn tiền: {order.returnRequest.status}
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            style={{
+                              background: '#ffffff',
+                              color: '#dc2626',
+                              border: '1px solid #fca5a5',
+                              borderRadius: '8px',
+                              padding: '0.48rem 0.95rem',
+                              fontSize: '0.85rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}
+                            onClick={() => setOrderToReturn(order)}
+                            title="Yêu cầu trả hàng hoàn tiền nếu sản phẩm bị lỗi hoặc sai mô tả"
+                          >
+                            <RotateCcw size={15} /> Hoàn hàng trả tiền
+                          </button>
+                        )}
+                      </>
+                    ) : null}
 
                     {/* Nút xem chi tiết đơn hàng */}
                     <button
@@ -336,30 +429,6 @@ export const OrdersPage = () => {
                     >
                       <Eye size={15} /> Chi tiết đơn hàng
                     </button>
-
-                    {/* Nút Đánh giá đơn hàng (Chỉ hiển thị khi đơn hàng ĐÃ GIAO THÀNH CÔNG) */}
-                    {(order.status === 'delivered' || order.status === 'DELIVERED' || order.rawStatus === 'DELIVERED') && (
-                      <button
-                        type="button"
-                        style={{
-                          background: '#f59e0b',
-                          color: '#fff',
-                          border: 'none',
-                          borderRadius: '8px',
-                          padding: '0.45rem 0.9rem',
-                          fontSize: '0.85rem',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px'
-                        }}
-                        onClick={() => setSelectedOrderForDetail(order)}
-                        title="Đánh giá chất lượng sản phẩm và phản hồi dịch vụ cho cửa hàng"
-                      >
-                        <Star size={15} fill="#fff" /> Đánh giá đơn hàng
-                      </button>
-                    )}
 
                     {/* Nút hủy đơn (Chỉ hiện khi đơn ở bước "Chờ xác nhận") */}
                     {order.status === 'pending' && (
@@ -389,7 +458,128 @@ export const OrdersPage = () => {
           setOrderToConfirmDelivery(ord);
         }}
         onOrderUpdated={fetchOrdersFromApi}
+        onOpenReviewModal={(ord) => setOrderToReview(ord)}
+        onOpenReturnModal={(ord) => setOrderToReturn(ord)}
       />
+
+      {/* MODAL: ĐÁNH GIÁ ĐƠN HÀNG VÀ CỬA HÀNG (TÁCH BIỆT) */}
+      <OrderReviewModal
+        isOpen={Boolean(orderToReview)}
+        onClose={() => setOrderToReview(null)}
+        order={orderToReview}
+        onSuccess={() => {
+          fetchOrdersFromApi();
+        }}
+      />
+
+      {/* MODAL: YÊU CẦU HOÀN HÀNG & TRẢ TIỀN (TÁCH BIỆT) */}
+      <OrderReturnModal
+        isOpen={Boolean(orderToReturn)}
+        onClose={() => setOrderToReturn(null)}
+        order={orderToReturn}
+        onSuccess={() => {
+          fetchOrdersFromApi();
+        }}
+      />
+
+      {/* MODAL: BẠN CHƯA NHẬN ĐƯỢC HÀNG? */}
+      {orderNotReceived && (
+        <div 
+          className="order-not-received-modal-backdrop"
+          onClick={() => setOrderNotReceived(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem'
+          }}
+        >
+          <div 
+            className="order-not-received-modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '480px',
+              width: '100%',
+              padding: '1.5rem',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <HelpCircle size={22} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>
+                  Bạn chưa nhận được kiện hàng này?
+                </h3>
+                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                  Đơn hàng #{orderNotReceived.id} • {orderNotReceived.shopName || 'Shop đối tác'}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ fontSize: '0.875rem', color: '#334155', lineHeight: 1.6, backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              <p style={{ margin: '0 0 8px 0', fontWeight: 600, color: '#0f172a' }}>
+                Xin đừng lo lắng, quyền lợi của bạn luôn được bảo vệ:
+              </p>
+              <ul style={{ margin: 0, paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <li>Nhân viên giao vận có thể đang trên đường tới giao trong ít phút tới.</li>
+                <li>Bạn vui lòng kiểm tra mục <strong>"Chi tiết đơn hàng"</strong> để xem mã vận đơn và lộ trình vận chuyển.</li>
+                <li>Nếu quá hạn dự kiến vẫn chưa nhận được, hệ thống Cyber cam kết sẽ can thiệp và hoàn tiền 100% cho bạn.</li>
+              </ul>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '1.25rem' }}>
+              <button
+                type="button"
+                onClick={() => setOrderNotReceived(null)}
+                style={{
+                  padding: '0.55rem 1rem',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#475569',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const target = orderNotReceived;
+                  setOrderNotReceived(null);
+                  setSelectedOrderForDetail(target);
+                }}
+                style={{
+                  padding: '0.55rem 1.2rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: '#2563eb',
+                  color: '#ffffff',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Eye size={15} /> Xem chi tiết vận chuyển
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: XÁC NHẬN NHẬN HÀNG */}
       <ConfirmModal

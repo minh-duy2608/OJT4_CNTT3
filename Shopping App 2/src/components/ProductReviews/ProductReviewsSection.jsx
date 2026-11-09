@@ -26,7 +26,7 @@ const SENTIMENT_LABELS = {
   5: 'Rất hài lòng'
 };
 
-export const ProductReviewsSection = ({ product }) => {
+export const ProductReviewsSection = ({ product, onSummaryLoaded }) => {
   const { user, isAuthenticated } = useAuth();
   const productId = product?.id;
 
@@ -85,6 +85,12 @@ export const ProductReviewsSection = ({ product }) => {
         size: 50
       });
       setSummaryData(data);
+      if (onSummaryLoaded && data) {
+        onSummaryLoaded({
+          averageRating: data.averageRating || 0,
+          totalReviews: data.totalReviews || 0
+        });
+      }
     } catch (err) {
       console.warn('Lỗi tải đánh giá sản phẩm:', err);
     } finally {

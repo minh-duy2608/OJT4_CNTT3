@@ -25,6 +25,8 @@ public class ReturnResponse {
     private String description;
     private ReturnStatus status;
     private BigDecimal refundAmount;
+    private String evidenceUrls;
+    private String returnMethod;
     private Long processedBy;
     private String processorName;
     private LocalDateTime processedAt;

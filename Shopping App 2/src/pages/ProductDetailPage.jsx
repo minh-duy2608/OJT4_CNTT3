@@ -28,6 +28,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { productApi } from '../services/productApi';
 import { wishlistApi } from '../services/wishlistApi';
 import { couponApi } from '../services/couponApi';
+import { productReviewApi } from '../services/productReviewApi';
 import { parseProductSpecs } from '../utils/productSpecs';
 import { ProductReviewsSection } from '../components/ProductReviews/ProductReviewsSection';
 import './ProductDetailPage.css';
@@ -52,6 +53,7 @@ export const ProductDetailPage = () => {
   const [shopCoupons, setShopCoupons] = useState([]);
   const [savedCouponIds, setSavedCouponIds] = useState(new Set());
   const [copiedCouponCode, setCopiedCouponCode] = useState(null);
+  const [reviewSummary, setReviewSummary] = useState({ averageRating: 0, totalReviews: 0 });
 
   // Model box yêu cầu đăng nhập
   const [showAuthRequiredModal, setShowAuthRequiredModal] = useState(false);
@@ -331,6 +333,18 @@ export const ProductDetailPage = () => {
                   .catch(() => {});
               }
             });
+
+          // Tải tóm tắt đánh giá thật từ API
+          productReviewApi.getReviews(data.id, { page: 1, size: 1 })
+            .then((revData) => {
+              if (isMounted && revData) {
+                setReviewSummary({
+                  averageRating: revData.averageRating || 0,
+                  totalReviews: revData.totalReviews || 0
+                });
+              }
+            })
+            .catch(() => {});
 
           // Tải sản phẩm liên quan cùng danh mục từ Backend API
           if (data.categoryId) {
@@ -772,14 +786,39 @@ export const ProductDetailPage = () => {
 
           <h1 className="detail-product-title">{product.name}</h1>
 
-          {/* Đánh giá sản phẩm */}
-          <div className="detail-rating-row">
-            <div className="stars-group">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} size={16} fill="#f59e0b" color="#f59e0b" />
-            ))}
+          {/* Đánh giá sản phẩm thực tế từ API */}
+          <div 
+            className="detail-rating-row"
+            onClick={() => {
+              const el = document.getElementById('product-reviews-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            title="Nhấn để xem chi tiết nhận xét & đánh giá"
+          >
+            <div className="stars-group" style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+              {[1, 2, 3, 4, 5].map((star) => {
+                const fillScore = reviewSummary.totalReviews > 0 ? reviewSummary.averageRating : 5;
+                const isFilled = star <= Math.round(fillScore);
+                return (
+                  <Star 
+                    key={star} 
+                    size={16} 
+                    fill={isFilled ? "#f59e0b" : "none"} 
+                    color={isFilled ? "#f59e0b" : "#cbd5e1"} 
+                  />
+                );
+              })}
             </div>
-            <span className="reviews-count">(142 đánh giá của khách hàng)</span>
+            <span className="reviews-count" style={{ color: '#64748b', fontSize: '0.875rem' }}>
+              {reviewSummary.totalReviews > 0 ? (
+                <>
+                  <strong style={{ color: '#0f172a' }}>{reviewSummary.averageRating.toFixed(1)}</strong>/5 ({reviewSummary.totalReviews} đánh giá từ khách hàng)
+                </>
+              ) : (
+                '(Chưa có đánh giá nào)'
+              )}
+            </span>
           </div>
 
           {/* Hộp Giá Tiền Tương Ứng (Tự động cập nhật theo Phiên bản & Màu sắc) */}
@@ -1154,7 +1193,7 @@ export const ProductDetailPage = () => {
       </section>
 
       {/* 5.5. ĐÁNH GIÁ SẢN PHẨM & PHẢN HỒI NGƯỜI BÁN (CELLPHONES STYLE) */}
-      <ProductReviewsSection product={product} />
+      <ProductReviewsSection product={product} onSummaryLoaded={setReviewSummary} />
 
       {/* 6. Sản phẩm tương tự */}
       <section style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '1px solid #e4e4e7' }}>

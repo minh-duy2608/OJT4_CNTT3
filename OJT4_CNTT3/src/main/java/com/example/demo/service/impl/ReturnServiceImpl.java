@@ -70,6 +70,8 @@ public class ReturnServiceImpl implements ReturnService {
                 .requestedBy(user.getId())
                 .reason(request.getReason())
                 .description(request.getDescription())
+                .evidenceUrls(request.getEvidenceUrls())
+                .returnMethod(request.getReturnMethod() != null ? request.getReturnMethod() : "POST_OFFICE")
                 .status(ReturnStatus.REQUESTED)
                 .refundAmount(order.getTotalAmount())
                 .build();
@@ -234,9 +236,10 @@ public class ReturnServiceImpl implements ReturnService {
             ret.setRefundAmount(request.getRefundAmount());
         }
 
-        // Nếu hoàn tiền thành công -> cập nhật trạng thái đơn hàng sang RETURNED
-        if (request.getStatus() == ReturnStatus.REFUNDED) {
+        // Nếu shop nhận được hàng (RECEIVED) hoặc xác nhận hoàn tiền (REFUNDED) -> Hoàn tiền về người dùng và chuyển đơn hàng sang RETURNED
+        if (request.getStatus() == ReturnStatus.RECEIVED || request.getStatus() == ReturnStatus.REFUNDED) {
             order.setStatus(OrderStatus.RETURNED);
+            order.setPaymentStatus(PaymentStatus.REFUNDED);
             orderRepository.save(order);
         }
 
@@ -340,6 +343,8 @@ public class ReturnServiceImpl implements ReturnService {
                 .requesterName(requesterName)
                 .reason(r.getReason())
                 .description(r.getDescription())
+                .evidenceUrls(r.getEvidenceUrls())
+                .returnMethod(r.getReturnMethod())
                 .status(r.getStatus())
                 .refundAmount(r.getRefundAmount())
                 .processedBy(r.getProcessedBy())

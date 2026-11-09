@@ -325,20 +325,23 @@ public class OrderServiceImpl implements OrderService {
             throw new ForbiddenException("Bạn không có quyền xác nhận đơn hàng của người khác!");
         }
 
-        // 2. Chống xác nhận lặp (đã DELIVERED trước đó)
-        if (order.getStatus() == OrderStatus.DELIVERED) {
-            throw new BadRequestException("Đơn hàng này đã được xác nhận giao thành công trước đó (vào lúc " + order.getDeliveredAt() + ")!");
+        // 2. Chống xác nhận lặp (đã xác nhận trước đó)
+        if (Boolean.TRUE.equals(order.getBuyerConfirmedDelivery())) {
+            throw new BadRequestException("Bạn đã xác nhận nhận hàng cho đơn này trước đó (vào lúc " + order.getDeliveredAt() + ")!");
         }
 
-        // 3. Chỉ xác nhận khi đơn đang ở trạng thái SHIPPING / SHIPPED
-        if (order.getStatus() != OrderStatus.SHIPPED) {
-            throw new BadRequestException("Chỉ có thể xác nhận nhận hàng khi đơn hàng đang ở trạng thái đang giao (SHIPPED). Trạng thái hiện tại: " + order.getStatus());
+        // 3. Cho phép xác nhận khi đơn đang ở trạng thái SHIPPED hoặc DELIVERED (chưa bấm xác nhận)
+        if (order.getStatus() != OrderStatus.SHIPPED && order.getStatus() != OrderStatus.DELIVERED) {
+            throw new BadRequestException("Chỉ có thể xác nhận nhận hàng khi đơn hàng đang ở trạng thái đang giao hoặc đã giao. Trạng thái hiện tại: " + order.getStatus());
         }
 
-        // 4. Chuyển DELIVERED, ghi deliveredAt, cập nhật paymentStatus
+        // 4. Chuyển DELIVERED, ghi buyerConfirmedDelivery, deliveredAt, cập nhật paymentStatus
         LocalDateTime now = LocalDateTime.now();
+        order.setBuyerConfirmedDelivery(true);
         order.setStatus(OrderStatus.DELIVERED);
-        order.setDeliveredAt(now);
+        if (order.getDeliveredAt() == null) {
+            order.setDeliveredAt(now);
+        }
         order.setPaymentStatus(PaymentStatus.PAID);
         order.setUpdatedAt(now);
 
@@ -992,20 +995,25 @@ public class OrderServiceImpl implements OrderService {
         }
 
         // 4. Các cờ điều kiện thao tác
-        boolean canConfirmDelivery = order.getStatus() == OrderStatus.SHIPPED;
+        boolean isDelivered = order.getStatus() == OrderStatus.DELIVERED;
+        boolean buyerConfirmed = Boolean.TRUE.equals(order.getBuyerConfirmedDelivery());
+
+        // Nếu đơn hàng đang SHIPPED hoặc DELIVERED nhưng khách chưa bấm nút xác nhận nhận hàng:
+        boolean canConfirmDelivery = !buyerConfirmed && (order.getStatus() == OrderStatus.SHIPPED || isDelivered);
         boolean canCancel = order.getStatus() == OrderStatus.PENDING || order.getStatus() == OrderStatus.CONFIRMED;
 
         boolean isWithinReturnWindow = order.getDeliveredAt() == null ||
-                order.getDeliveredAt().isAfter(LocalDateTime.now().minusDays(3));
+                order.getDeliveredAt().isAfter(LocalDateTime.now().minusDays(7));
         boolean noActiveReturn = latestReturn == null ||
                 latestReturn.getStatus() == ReturnStatus.REJECTED ||
                 latestReturn.getStatus() == ReturnStatus.CANCELLED;
-        boolean canReturn = order.getStatus() == OrderStatus.DELIVERED && isWithinReturnWindow && noActiveReturn;
 
-        boolean canReview = order.getStatus() == OrderStatus.DELIVERED;
+        // Chỉ khi khách đã bấm xác nhận nhận hàng (buyerConfirmed) mới được phép Đánh giá hoặc Yêu cầu hoàn hàng
+        boolean canReturn = buyerConfirmed && isDelivered && isWithinReturnWindow && noActiveReturn;
+        boolean canReview = buyerConfirmed && isDelivered;
         String reviewConditionMessage = canReview
-                ? "Đơn hàng đã được giao thành công. Quý khách có thể viết đánh giá & nhận xét chất lượng sản phẩm."
-                : "Chỉ đơn hàng đã giao thành công (DELIVERED) mới đủ điều kiện đánh giá sản phẩm.";
+                ? "Đơn hàng đã được giao và xác nhận thành công. Quý khách có thể viết đánh giá & nhận xét chất lượng sản phẩm."
+                : "Chỉ đơn hàng đã giao và được khách hàng xác nhận nhận hàng mới đủ điều kiện đánh giá hoặc đổi trả.";
 
         return OrderResponse.builder()
                 .id(order.getId())
@@ -1036,6 +1044,7 @@ public class OrderServiceImpl implements OrderService {
                 .updatedAt(order.getUpdatedAt())
                 .items(itemResponses)
                 .timeline(timeline)
+                .buyerConfirmedDelivery(buyerConfirmed)
                 .canConfirmDelivery(canConfirmDelivery)
                 .canCancel(canCancel)
                 .canReturn(canReturn)

@@ -95,6 +95,10 @@ public class Order {
     @Column(name = "delivered_at")
     private LocalDateTime deliveredAt;
 
+    @Column(name = "buyer_confirmed_delivery")
+    @Builder.Default
+    private Boolean buyerConfirmedDelivery = false;
+
     @Column(name = "cancelled_at")
     private LocalDateTime cancelledAt;
 
