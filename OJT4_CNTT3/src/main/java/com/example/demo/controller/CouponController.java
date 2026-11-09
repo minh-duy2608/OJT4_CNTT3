@@ -39,6 +39,20 @@ public class CouponController {
     }
 
     /**
+     * Lấy danh sách mã giảm giá công khai áp dụng cho một sản phẩm cụ thể
+     */
+    @Operation(summary = "Lấy danh sách mã giảm giá công khai áp dụng cho sản phẩm")
+    @GetMapping({"/products/{productId}/coupons", "/api/v1/products/{productId}/coupons"})
+    public ResponseEntity<ApiResponse<List<CouponResponse>>> getProductCoupons(
+            @PathVariable Long productId,
+            Principal principal
+    ) {
+        String username = principal != null ? principal.getName() : null;
+        List<CouponResponse> coupons = couponService.getProductCoupons(productId, username);
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách mã giảm giá cho sản phẩm thành công", coupons));
+    }
+
+    /**
      * Storefront: Hiển thị danh sách coupon còn hiệu lực trên storefront (có thể lọc theo shopId)
      */
     @Operation(summary = "Hiển thị coupon hợp lệ trên storefront")

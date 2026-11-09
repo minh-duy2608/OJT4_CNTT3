@@ -50,6 +50,8 @@ export const ProductDetailPage = () => {
   const [quantity, setQuantity] = useState(1);
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [shopCoupons, setShopCoupons] = useState([]);
+  const [savedCouponIds, setSavedCouponIds] = useState(new Set());
+  const [copiedCouponCode, setCopiedCouponCode] = useState(null);
 
   // Model box yêu cầu đăng nhập
   const [showAuthRequiredModal, setShowAuthRequiredModal] = useState(false);
@@ -273,18 +275,27 @@ export const ProductDetailPage = () => {
 
           const resolvedShopId = data.shopId || data.shop?.id || null;
 
+          // Kiểm tra xem sản phẩm có biến thể nào có giảm giá thực tế từ API hay không (salePrice < price)
+          const rawVariants = Array.isArray(data.variants) ? data.variants : [];
+          const variantWithSale = rawVariants.find(v => v.salePrice && Number(v.salePrice) > 0 && Number(v.salePrice) < Number(v.price));
+          const hasRealSale = Boolean(variantWithSale);
+          const realPrice = variantWithSale ? Number(variantWithSale.salePrice) : minP;
+          const realOriginalPrice = variantWithSale ? Number(variantWithSale.price) : (maxP > minP ? maxP : null);
+
           const liveProduct = {
             id: data.id,
             name: data.name,
             shortDescription: data.shortDescription || '',
             description: data.description || '',
-            price: minP,
-            formattedPrice: minP ? formatVND(minP) : 'Liên hệ',
-            formattedOriginalPrice: maxP > minP ? formatVND(maxP) : (minP ? formatVND(minP * 1.1) : ''),
+            price: realPrice,
+            originalPrice: realOriginalPrice,
+            hasRealSale,
+            formattedPrice: realPrice ? formatVND(realPrice) : 'Liên hệ',
+            formattedOriginalPrice: realOriginalPrice && realOriginalPrice > realPrice ? formatVND(realOriginalPrice) : null,
             image: primaryImg,
             primaryImageUrl: primaryImg,
             images: sortedImages,
-            variants: data.variants || [],
+            variants: rawVariants,
             category: data.categoryName || data.category?.name || 'Công nghệ',
             categoryId: data.categoryId || data.category?.id,
             brand: data.brandName || data.brand?.name || 'Cyber Official',
@@ -298,16 +309,28 @@ export const ProductDetailPage = () => {
           setProduct(liveProduct);
           setSelectedImage(primaryImg);
 
-          // Tải mã giảm giá của cửa hàng (STT 89)
-          if (resolvedShopId) {
-            couponApi.getShopCoupons(resolvedShopId)
-              .then((coupons) => {
-                if (isMounted && Array.isArray(coupons)) {
-                  setShopCoupons(coupons);
-                }
-              })
-              .catch(() => {});
-          }
+          // Tải mã giảm giá áp dụng THẬT cho sản phẩm này từ API (chỉ hiện mã thật của shop và sản phẩm này)
+          couponApi.getProductCoupons(data.id)
+            .then((coupons) => {
+              if (isMounted && Array.isArray(coupons)) {
+                setShopCoupons(coupons);
+                const savedIds = new Set(coupons.filter(c => c.isSaved).map(c => c.id));
+                setSavedCouponIds(savedIds);
+              }
+            })
+            .catch(() => {
+              if (resolvedShopId) {
+                couponApi.getShopCoupons(resolvedShopId)
+                  .then((coupons) => {
+                    if (isMounted && Array.isArray(coupons)) {
+                      setShopCoupons(coupons);
+                      const savedIds = new Set(coupons.filter(c => c.isSaved).map(c => c.id));
+                      setSavedCouponIds(savedIds);
+                    }
+                  })
+                  .catch(() => {});
+              }
+            });
 
           // Tải sản phẩm liên quan cùng danh mục từ Backend API
           if (data.categoryId) {
@@ -447,14 +470,17 @@ export const ProductDetailPage = () => {
 
   const originalPrice = useMemo(() => {
     if (!product) return null;
-    if (matchedVariant && matchedVariant.salePrice && matchedVariant.price > matchedVariant.salePrice) {
-      return Number(matchedVariant.price);
+    if (matchedVariant) {
+      if (matchedVariant.salePrice && Number(matchedVariant.price) > Number(matchedVariant.salePrice)) {
+        return Number(matchedVariant.price);
+      }
+      return null;
     }
-    if (product.formattedOriginalPrice) {
-      return Math.round(currentPrice * 1.15);
+    if (product.originalPrice && product.originalPrice > currentPrice) {
+      return Number(product.originalPrice);
     }
     return null;
-  }, [matchedVariant, product?.formattedOriginalPrice, currentPrice]);
+  }, [matchedVariant, product?.originalPrice, currentPrice]);
 
   const discountPercent = useMemo(() => {
     if (originalPrice && originalPrice > currentPrice) {
@@ -546,6 +572,29 @@ export const ProductDetailPage = () => {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2500);
     });
+  };
+
+  // Lưu mã giảm giá vào ví cá nhân
+  const handleSaveCoupon = async (c) => {
+    if (!isAuthenticated) {
+      setShowAuthRequiredModal(true);
+      return;
+    }
+    try {
+      await couponApi.saveCouponToWallet(c.id);
+      showToast(`Đã lưu mã "${c.code}" vào ví voucher của bạn!`, 'success');
+      setSavedCouponIds((prev) => new Set([...prev, c.id]));
+    } catch (err) {
+      showToast(err.message || 'Không thể lưu mã giảm giá', 'error');
+    }
+  };
+
+  // Sao chép mã coupon
+  const handleCopyCouponCode = (code) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCouponCode(code);
+    showToast(`Đã sao chép mã giảm giá "${code}"!`, 'success');
+    setTimeout(() => setCopiedCouponCode(null), 2500);
   };
 
   if (isLoading || !product) {
@@ -749,32 +798,111 @@ export const ProductDetailPage = () => {
             )}
           </div>
 
-          {/* Mã giảm giá của Cửa hàng (Coupons - STT 89) */}
+          {/* Mã giảm giá áp dụng thật từ API cho sản phẩm này */}
           {shopCoupons.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '14px 0', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#059669', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <Tag size={15} /> Voucher Shop:
-              </span>
-              {shopCoupons.map((c) => (
-                <span
-                  key={c.id}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: '4px 10px',
-                    borderRadius: '6px',
-                    backgroundColor: '#ecfdf5',
-                    border: '1px dashed #059669',
-                    color: '#065f46',
-                    fontSize: '0.8rem',
-                    fontWeight: 700
-                  }}
-                  title={c.description || `Giảm ${c.discountType === 'PERCENT' ? `${c.discountValue}%` : formatVND(c.discountValue)}`}
-                >
-                  {c.code} ({c.discountType === 'PERCENT' ? `-${c.discountValue}%` : `-${formatVND(c.discountValue)}`})
+            <div style={{
+              margin: '16px 0',
+              padding: '12px 14px',
+              borderRadius: '10px',
+              backgroundColor: '#f0fdf4',
+              border: '1px solid #bbf7d0'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#166534', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <Tag size={16} /> Mã giảm giá áp dụng cho sản phẩm ({shopCoupons.length})
                 </span>
-              ))}
+                <span style={{ fontSize: '0.75rem', color: '#15803d', fontWeight: 500 }}>
+                  Chính hãng từ {product.shop}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {shopCoupons.map((c) => {
+                  const isSaved = savedCouponIds.has(c.id);
+                  const isCopied = copiedCouponCode === c.code;
+                  const discountLabel = (c.discountType === 'PERCENT' || c.discountType === 'PERCENTAGE')
+                    ? `Giảm ${c.discountValue}%`
+                    : `Giảm ${formatVND(c.discountValue)}`;
+                  const minOrderLabel = c.minOrderAmount && Number(c.minOrderAmount) > 0
+                    ? `Đơn từ ${formatVND(c.minOrderAmount)}`
+                    : 'Mọi đơn hàng';
+
+                  return (
+                    <div
+                      key={c.id}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 10px',
+                        borderRadius: '8px',
+                        backgroundColor: '#ffffff',
+                        border: '1px dashed #16a34a',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                      }}
+                      title={c.description || `${c.name}: ${discountLabel}`}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontWeight: 800, color: '#15803d', fontSize: '0.85rem', letterSpacing: '0.04em' }}>
+                            {c.code}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#dc2626', backgroundColor: '#fef2f2', padding: '1px 5px', borderRadius: '4px' }}>
+                            {discountLabel}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                          {minOrderLabel}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '4px' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyCouponCode(c.code)}
+                          style={{
+                            border: 'none',
+                            background: '#f1f5f9',
+                            color: '#334155',
+                            padding: '4px 6px',
+                            borderRadius: '5px',
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px'
+                          }}
+                          title="Sao chép mã"
+                        >
+                          {isCopied ? <Check size={12} color="#16a34a" /> : <Copy size={12} />}
+                          {isCopied ? 'Đã chép' : 'Sao chép'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSaveCoupon(c)}
+                          style={{
+                            border: 'none',
+                            background: isSaved ? '#dcfce7' : '#16a34a',
+                            color: isSaved ? '#166534' : '#ffffff',
+                            padding: '4px 8px',
+                            borderRadius: '5px',
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px'
+                          }}
+                          title={isSaved ? 'Đã lưu trong ví' : 'Lưu vào ví voucher'}
+                        >
+                          {isSaved ? <Check size={12} /> : null}
+                          {isSaved ? 'Đã lưu' : 'Lưu mã'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 

@@ -60,6 +60,13 @@ async function request(endpoint, options = {}, isRetry = false) {
 
 export const couponApi = {
   /**
+   * GET /products/{productId}/coupons - Lấy danh sách mã giảm giá áp dụng trực tiếp cho sản phẩm
+   */
+  async getProductCoupons(productId) {
+    return await request(`/products/${productId}/coupons`, { method: 'GET' });
+  },
+
+  /**
    * STT 89: GET /shops/{shopId}/coupons - Danh sách mã giảm giá công khai của cửa hàng
    */
   async getShopCoupons(shopId) {

@@ -23,6 +23,11 @@ public interface CouponService {
     List<CouponResponse> getPublicShopCoupons(Long shopId, String currentUsername);
 
     /**
+     * Lấy danh sách mã giảm giá áp dụng trực tiếp cho một sản phẩm cụ thể
+     */
+    List<CouponResponse> getProductCoupons(Long productId, String currentUsername);
+
+    /**
      * Storefront hiển thị danh sách coupon còn hiệu lực của shop hoặc toàn sàn
      */
     List<CouponResponse> getStorefrontCoupons(Long shopId, String currentUsername);

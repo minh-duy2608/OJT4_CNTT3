@@ -13,7 +13,8 @@ import {
   AlertCircle,
   FileText,
   RotateCcw,
-  Eye
+  Eye,
+  Star
 } from 'lucide-react';
 import { useOrders, ORDER_STATUSES } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
@@ -336,21 +337,29 @@ export const OrdersPage = () => {
                       <Eye size={15} /> Chi tiết đơn hàng
                     </button>
 
-                    {/* BỘ ĐIỀU KHIỂN MÔ PHỎNG TIẾN TRÌNH 5 BƯỚC */}
-                    <div className="simulation-control-group" title="Tính năng mô phỏng để bạn kiểm tra từng trạng thái đơn hàng">
-                      <span className="simulation-label">Mô phỏng:</span>
-                      <select
-                        className="simulation-select"
-                        value={order.status}
-                        onChange={(e) => updateOrderStatus(order.id, e.target.value)}
+                    {/* Nút Đánh giá đơn hàng (Chỉ hiển thị khi đơn hàng ĐÃ GIAO THÀNH CÔNG) */}
+                    {(order.status === 'delivered' || order.status === 'DELIVERED' || order.rawStatus === 'DELIVERED') && (
+                      <button
+                        type="button"
+                        style={{
+                          background: '#f59e0b',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '0.45rem 0.9rem',
+                          fontSize: '0.85rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                        onClick={() => setSelectedOrderForDetail(order)}
+                        title="Đánh giá chất lượng sản phẩm và phản hồi dịch vụ cho cửa hàng"
                       >
-                        {ORDER_STATUSES.map((st) => (
-                          <option key={st.key} value={st.key}>
-                            {st.step}. {st.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                        <Star size={15} fill="#fff" /> Đánh giá đơn hàng
+                      </button>
+                    )}
 
                     {/* Nút hủy đơn (Chỉ hiện khi đơn ở bước "Chờ xác nhận") */}
                     {order.status === 'pending' && (

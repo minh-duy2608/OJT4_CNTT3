@@ -43,6 +43,7 @@ public class CouponServiceImpl implements CouponService {
     private final CouponProductRepository couponProductRepository;
     private final CouponUsageRepository couponUsageRepository;
     private final ShopRepository shopRepository;
+    private final ShopMemberRepository shopMemberRepository;
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
     private final CartRepository cartRepository;
@@ -72,6 +73,41 @@ public class CouponServiceImpl implements CouponService {
 
         Long finalUserId = currentUserId;
         return activeCoupons.stream().map(c -> mapToCouponResponseWithWallet(c, shop.getName(), finalUserId, now)).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CouponResponse> getProductCoupons(Long productId, String currentUsername) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId));
+
+        Long shopId = product.getShopId();
+        if (shopId == null) {
+            return List.of();
+        }
+
+        Shop shop = shopRepository.findById(shopId).orElse(null);
+        String shopName = shop != null ? shop.getName() : ("Shop #" + shopId);
+
+        LocalDateTime now = LocalDateTime.now(ZONE_VN);
+        List<Coupon> activeCoupons = couponRepository.findActivePublicCouponsByShopId(shopId, now);
+
+        Long currentUserId = null;
+        if (currentUsername != null && !currentUsername.isBlank()) {
+            currentUserId = userRepository.findByUsername(currentUsername).map(User::getId).orElse(null);
+        }
+
+        Long finalUserId = currentUserId;
+        return activeCoupons.stream()
+                .filter(c -> {
+                    long restrictionCount = couponProductRepository.countByIdCouponId(c.getId());
+                    if (restrictionCount == 0) {
+                        return true; // Mã áp dụng cho toàn bộ sản phẩm của cửa hàng này
+                    }
+                    return couponProductRepository.existsByIdCouponIdAndIdProductId(c.getId(), productId);
+                })
+                .map(c -> mapToCouponResponseWithWallet(c, shopName, finalUserId, now))
+                .toList();
     }
 
     @Override
@@ -252,7 +288,9 @@ public class CouponServiceImpl implements CouponService {
     }
 
     private CouponResponse mapToCouponResponseWithWallet(Coupon coupon, String shopName, Long currentUserId, LocalDateTime now) {
-        boolean allProducts = couponProductRepository.countByIdCouponId(coupon.getId()) == 0;
+        List<CouponProduct> restrictions = couponProductRepository.findByIdCouponId(coupon.getId());
+        boolean allProducts = restrictions.isEmpty();
+        List<Long> productIds = restrictions.stream().map(cp -> cp.getId().getProductId()).toList();
         boolean isSaved = false;
         LocalDateTime savedAt = null;
         int userUsageCount = 0;
@@ -289,7 +327,7 @@ public class CouponServiceImpl implements CouponService {
                 coupon,
                 shopName,
                 allProducts,
-                null,
+                productIds,
                 isSaved,
                 savedAt,
                 isValid,
@@ -421,9 +459,13 @@ public class CouponServiceImpl implements CouponService {
                 BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(qty));
                 orderSubtotal = orderSubtotal.add(lineTotal);
 
-                boolean isProductEligible = true;
-                if (hasProductRestriction) {
-                    isProductEligible = itemProductId != null && eligibleProductIds.contains(itemProductId);
+                // Nghiệp vụ: Mã của Shop A chỉ áp dụng cho sản phẩm thuộc Shop A (Sản phẩm cửa hàng B không thể add mã giảm shop A)
+                Product itemProduct = itemProductId != null ? productRepository.findById(itemProductId).orElse(null) : null;
+                boolean belongsToShop = itemProduct != null && Objects.equals(itemProduct.getShopId(), coupon.getShopId());
+
+                boolean isProductEligible = belongsToShop;
+                if (isProductEligible && hasProductRestriction) {
+                    isProductEligible = eligibleProductIds.contains(itemProductId);
                 }
                 if (isProductEligible) {
                     eligibleSubtotal = eligibleSubtotal.add(lineTotal);
@@ -435,13 +477,20 @@ public class CouponServiceImpl implements CouponService {
             if (cartOpt.isPresent()) {
                 List<CartItem> cartItems = cartItemRepository.findByCartId(cartOpt.get().getId());
                 for (CartItem ci : cartItems) {
-                    BigDecimal lineTotal = ci.getVariant().getPrice().multiply(BigDecimal.valueOf(ci.getQuantity()));
+                    BigDecimal unitPrice = (ci.getVariant() != null && ci.getVariant().getSalePrice() != null)
+                            ? ci.getVariant().getSalePrice()
+                            : (ci.getVariant() != null ? ci.getVariant().getPrice() : BigDecimal.ZERO);
+                    BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(ci.getQuantity()));
                     orderSubtotal = orderSubtotal.add(lineTotal);
 
-                    Long itemProductId = ci.getVariant().getProduct().getId();
-                    boolean isProductEligible = true;
-                    if (hasProductRestriction) {
-                        isProductEligible = eligibleProductIds.contains(itemProductId);
+                    Product prod = (ci.getVariant() != null && ci.getVariant().getProduct() != null)
+                            ? ci.getVariant().getProduct()
+                            : null;
+                    boolean belongsToShop = prod != null && Objects.equals(prod.getShopId(), coupon.getShopId());
+
+                    boolean isProductEligible = belongsToShop;
+                    if (isProductEligible && hasProductRestriction) {
+                        isProductEligible = eligibleProductIds.contains(prod != null ? prod.getId() : null);
                     }
                     if (isProductEligible) {
                         eligibleSubtotal = eligibleSubtotal.add(lineTotal);
@@ -451,11 +500,13 @@ public class CouponServiceImpl implements CouponService {
         }
 
         if (eligibleSubtotal.compareTo(BigDecimal.ZERO) <= 0) {
+            Shop cShop = shopRepository.findById(coupon.getShopId()).orElse(null);
+            String shopName = cShop != null ? cShop.getName() : ("Shop #" + coupon.getShopId());
             return ValidateCouponResponse.builder()
                     .valid(false)
                     .code(code)
                     .couponId(coupon.getId())
-                    .message("Mã giảm giá này không áp dụng cho bất kỳ sản phẩm nào trong đơn hàng của bạn")
+                    .message("Mã giảm giá '" + code + "' của cửa hàng '" + shopName + "' không áp dụng cho sản phẩm nào trong đơn hàng của bạn (Sản phẩm thuộc cửa hàng khác hoặc không nằm trong danh sách ưu đãi)")
                     .orderSubtotal(orderSubtotal)
                     .finalTotal(orderSubtotal)
                     .build();
@@ -614,7 +665,7 @@ public class CouponServiceImpl implements CouponService {
                 Product p = productRepository.findById(pid)
                         .orElseThrow(() -> new BadRequestException("Không tìm thấy sản phẩm #" + pid));
                 if (!Objects.equals(p.getShopId(), shop.getId())) {
-                    throw new BadRequestException("Sản phẩm #" + pid + " không thuộc cửa hàng #" + shop.getId());
+                    throw new BadRequestException("Sản phẩm #" + pid + " ('" + p.getName() + "') thuộc cửa hàng #" + p.getShopId() + ", không thể thêm vào mã giảm giá của cửa hàng '" + shop.getName() + "' (#" + shop.getId() + ")!");
                 }
             }
             List<CouponProduct> productMappings = productIds.stream()
@@ -765,7 +816,7 @@ public class CouponServiceImpl implements CouponService {
                 Product p = productRepository.findById(pid)
                         .orElseThrow(() -> new BadRequestException("Không tìm thấy sản phẩm #" + pid));
                 if (!Objects.equals(p.getShopId(), shop.getId())) {
-                    throw new BadRequestException("Sản phẩm #" + pid + " không thuộc cửa hàng #" + shop.getId());
+                    throw new BadRequestException("Sản phẩm #" + pid + " ('" + p.getName() + "') thuộc cửa hàng #" + p.getShopId() + ", không thể thêm vào mã giảm giá của cửa hàng '" + shop.getName() + "' (#" + shop.getId() + ")!");
                 }
             }
         }
@@ -844,15 +895,14 @@ public class CouponServiceImpl implements CouponService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
 
         boolean isOwner = Objects.equals(shop.getOwnerId(), user.getId());
-        if (!isAdmin && !isOwner) {
+        boolean isShopMember = shopMemberRepository.existsByIdShopIdAndIdUserIdAndStatus(shop.getId(), user.getId(), ShopMemberStatus.ACTIVE);
+
+        if (!isAdmin && !isOwner && !isShopMember) {
             Optional<Shop> ownedShop = shopRepository.findFirstByOwnerIdOrderByIdDesc(user.getId());
             if (ownedShop.isPresent() && Objects.equals(ownedShop.get().getId(), shop.getId())) {
                 return shop;
             }
-            if (isUserShopManager(user)) {
-                return shop;
-            }
-            throw new ForbiddenException("Bạn không có quyền quản lý mã giảm giá của cửa hàng này");
+            throw new ForbiddenException("Bạn không có quyền quản lý mã giảm giá của cửa hàng #" + shopId + ". Chỉ chủ cửa hàng ('" + shop.getName() + "') hoặc nhân viên được phân quyền mới có thể thao tác!");
         }
         return shop;
     }
