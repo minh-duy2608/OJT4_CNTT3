@@ -23,7 +23,7 @@ import { OrderDetailModal } from '../components/OrderDetailModal';
 import './OrdersPage.css';
 
 export const OrdersPage = () => {
-  const { orders, updateOrderStatus, cancelOrder, confirmDelivery } = useOrders();
+  const { orders, loading, updateOrderStatus, cancelOrder, confirmDelivery } = useOrders();
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -121,7 +121,15 @@ export const OrdersPage = () => {
       </div>
 
       {/* Danh sách đơn hàng */}
-      {filteredOrders.length === 0 ? (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '4rem 1.5rem', color: '#64748b' }}>
+          <div className="animate-spin" style={{ display: 'inline-block', marginBottom: '0.85rem' }}>
+            <RotateCcw size={32} color="#2563eb" />
+          </div>
+          <p style={{ fontSize: '0.95rem', fontWeight: 600, color: '#334155' }}>Đang tải danh sách đơn hàng...</p>
+          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Vui lòng đợi trong giây lát</span>
+        </div>
+      ) : filteredOrders.length === 0 ? (
         <div className="orders-empty-state">
           <div className="empty-icon-wrap">
             <Package size={36} />
