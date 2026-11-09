@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { 
   MapPin, 
@@ -20,7 +20,6 @@ import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useOrders } from '../context/OrderContext';
 import { formatVND } from '../data/products';
-import { AVAILABLE_VOUCHERS, calculateVoucherDiscount } from '../data/vouchers';
 import { validatePhone } from '../utils/validation';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { couponApi } from '../services/couponApi';
@@ -98,11 +97,104 @@ export const CheckoutPage = () => {
   const [paymentMethod, setPaymentMethod] = useState('COD');
   const [orderNotes, setOrderNotes] = useState('');
 
-  // Voucher
+  // Tự động nhận diện Shop ID từ các sản phẩm đang được thanh toán
+  const detectedShopId = useMemo(() => {
+    for (const item of itemsToCheckout) {
+      if (item.shopId) return item.shopId;
+      if (item.shop?.id) return item.shop.id;
+    }
+    return null;
+  }, [itemsToCheckout]);
+
+  // Voucher / Mã giảm giá thực tế từ hệ thống
   const [voucherCodeInput, setVoucherCodeInput] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState(null);
   const [voucherError, setVoucherError] = useState('');
   const [voucherSuccess, setVoucherSuccess] = useState('');
+  const [availableCoupons, setAvailableCoupons] = useState([]);
+  const [loadingCoupons, setLoadingCoupons] = useState(false);
+
+  // Tải danh sách mã ưu đãi có sẵn thực tế từ Backend (Shop, Storefront, Ví cá nhân)
+  useEffect(() => {
+    let isMounted = true;
+    const fetchRealCoupons = async () => {
+      setLoadingCoupons(true);
+      try {
+        const promises = [
+          couponApi.getStorefrontCoupons(detectedShopId || undefined)
+        ];
+        if (detectedShopId) {
+          promises.push(couponApi.getShopCoupons(detectedShopId));
+        }
+        if (isAuthenticated) {
+          promises.push(couponApi.getUserWalletCoupons());
+        }
+
+        const results = await Promise.allSettled(promises);
+        const allFetched = [];
+        results.forEach((res) => {
+          if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+            allFetched.push(...res.value);
+          }
+        });
+
+        // Hợp nhất và loại bỏ trùng lặp theo coupon code
+        const couponMap = new Map();
+        allFetched.forEach((c) => {
+          if (!c || !c.code) return;
+          const key = c.code.trim().toUpperCase();
+          if (!couponMap.has(key)) {
+            couponMap.set(key, c);
+          } else {
+            const existing = couponMap.get(key);
+            couponMap.set(key, { ...existing, ...c, isSaved: existing.isSaved || c.isSaved });
+          }
+        });
+
+        const now = new Date();
+        const activeRealCoupons = Array.from(couponMap.values()).filter((c) => {
+          // Phải có trạng thái ACTIVE
+          if (c.status && c.status !== 'ACTIVE') return false;
+          // Kiểm tra thời gian bắt đầu
+          if (c.startAt && new Date(c.startAt) > now) return false;
+          // Kiểm tra thời gian kết thúc
+          if (c.endAt && new Date(c.endAt) < now) return false;
+          // Kiểm tra giới hạn số lượt sử dụng chung
+          if (c.usageLimit !== null && c.usageLimit !== undefined && c.usageCount !== null && c.usageCount !== undefined && c.usageCount >= c.usageLimit) {
+            return false;
+          }
+          // Kiểm tra số lượt sử dụng của chính user này
+          if (c.perUserLimit !== null && c.perUserLimit !== undefined && c.userUsageCount !== null && c.userUsageCount !== undefined && c.userUsageCount >= c.perUserLimit) {
+            return false;
+          }
+          // Nếu coupon quy định cho 1 shop cụ thể và đơn hàng thuộc 1 shop khác
+          if (c.shopId && detectedShopId && Number(c.shopId) !== Number(detectedShopId)) {
+            return false;
+          }
+          return true;
+        });
+
+        if (isMounted) {
+          setAvailableCoupons(activeRealCoupons);
+        }
+      } catch (err) {
+        console.warn('Lỗi tải danh sách mã giảm giá có sẵn:', err);
+        if (isMounted) {
+          setAvailableCoupons([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingCoupons(false);
+        }
+      }
+    };
+
+    fetchRealCoupons();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [detectedShopId, isAuthenticated]);
 
   // Form thêm nhanh địa chỉ tại trang Checkout
   const [showQuickAddAddress, setShowQuickAddAddress] = useState(false);
@@ -123,9 +215,11 @@ export const CheckoutPage = () => {
   let finalShippingFee = baseShippingFee;
 
   if (appliedVoucher) {
-    if (appliedVoucher.type === 'percent') {
+    if (appliedVoucher.discountAmount !== undefined) {
+      discountAmount = Number(appliedVoucher.discountAmount);
+    } else if (appliedVoucher.type === 'percent' || appliedVoucher.type === 'PERCENTAGE') {
       discountAmount = Math.min((subtotalToCheckout * appliedVoucher.value) / 100, appliedVoucher.maxDiscount || Infinity);
-    } else if (appliedVoucher.type === 'fixed') {
+    } else if (appliedVoucher.type === 'fixed' || appliedVoucher.type === 'FIXED_AMOUNT') {
       discountAmount = appliedVoucher.value;
     } else if (appliedVoucher.type === 'shipping') {
       discountAmount = Math.min(finalShippingFee, appliedVoucher.value);
@@ -136,7 +230,7 @@ export const CheckoutPage = () => {
   // Tổng thanh toán cuối cùng
   const finalTotal = Math.max(0, subtotalToCheckout + finalShippingFee - (appliedVoucher?.type === 'shipping' ? 0 : discountAmount));
 
-  // Xử lý áp dụng Voucher (STT 90: POST /coupons/validate)
+  // Xử lý áp dụng Voucher thực tế qua API Backend (STT 90: POST /coupons/validate)
   const handleApplyVoucher = async (codeToApply) => {
     const code = (codeToApply || voucherCodeInput).trim().toUpperCase();
     setVoucherError('');
@@ -149,40 +243,39 @@ export const CheckoutPage = () => {
 
     try {
       const itemsPayload = itemsToCheckout.map((it) => ({
-        productId: it.productId || it.id,
-        variantId: it.variantId || null,
+        productId: it.productId || (typeof it.id === 'string' ? parseInt(it.id.split('-')[0], 10) : it.id),
+        variantId: it.variantId || (typeof it.id === 'number' ? it.id : null),
         quantity: it.quantity || 1
       }));
 
       const res = await couponApi.validateCoupon({
         code,
+        shopId: detectedShopId || undefined,
         items: itemsPayload
       });
 
       if (res && res.valid) {
+        const discountVal = Number(res.discountAmount || 0);
+        const resolvedCode = res.code || res.couponCode || code;
         setAppliedVoucher({
-          code: res.couponCode,
+          code: resolvedCode,
+          couponId: res.couponId,
           type: 'fixed',
-          value: Number(res.discountAmount || 0),
-          title: `Giảm giá mã ${res.couponCode}`
+          value: discountVal,
+          discountAmount: discountVal,
+          title: res.name ? `${res.name} (-${formatVND(discountVal)})` : `Giảm giá mã ${resolvedCode}`
         });
-        setVoucherCodeInput(res.couponCode);
-        setVoucherSuccess(res.message || `Đã áp dụng mã giảm giá ${res.couponCode}`);
+        setVoucherCodeInput(resolvedCode);
+        setVoucherSuccess(res.message || `Đã áp dụng mã giảm giá ${resolvedCode} (-${formatVND(discountVal)})`);
         return;
       } else {
-        setVoucherError(res?.message || 'Mã giảm giá không hợp lệ.');
+        setVoucherError(res?.message || 'Mã giảm giá không hợp lệ hoặc đơn hàng chưa đủ điều kiện.');
+        setAppliedVoucher(null);
         return;
       }
     } catch (err) {
-      // Fallback local voucher validator if coupon not found in server DB
-      const result = calculateVoucherDiscount(code, subtotalToCheckout, baseShippingFee);
-      if (result.valid) {
-        setAppliedVoucher(result.voucher);
-        setVoucherCodeInput(result.voucher.code);
-        setVoucherSuccess(result.message);
-      } else {
-        setVoucherError(err.message || result.message || 'Mã giảm giá không hợp lệ.');
-      }
+      setVoucherError(err.message || 'Mã giảm giá không tồn tại hoặc đã hết hạn.');
+      setAppliedVoucher(null);
     }
   };
 
@@ -731,23 +824,100 @@ export const CheckoutPage = () => {
                     </div>
                   )}
 
-                  {/* Danh sách voucher gợi ý sẵn */}
-                  <div style={{ fontSize: '0.75rem', color: '#71717a', marginBottom: '0.4rem', fontWeight: 500 }}>
-                    Mã ưu đãi có sẵn:
+                  {/* Danh sách voucher gợi ý sẵn có thực tế từ hệ thống */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
+                    <div style={{ fontSize: '0.8rem', color: '#334155', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Tag size={13} color="#2563eb" /> Mã ưu đãi có sẵn:
+                    </div>
+                    {loadingCoupons && (
+                      <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Đang tải...</span>
+                    )}
                   </div>
-                  <div className="quick-vouchers-list">
-                    {AVAILABLE_VOUCHERS.map((v) => (
-                      <button
-                        key={v.code}
-                        type="button"
-                        className="voucher-chip-btn"
-                        onClick={() => handleApplyVoucher(v.code)}
-                        title={v.description}
-                      >
-                        {v.code} ({v.type === 'percent' ? `-${v.value}%` : v.type === 'shipping' ? 'Freeship' : `-${formatVND(v.value)}`})
-                      </button>
-                    ))}
-                  </div>
+
+                  {loadingCoupons ? (
+                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic', marginBottom: '1rem' }}>
+                      Đang kiểm tra mã giảm giá thực tế...
+                    </div>
+                  ) : availableCoupons.length === 0 ? (
+                    <div style={{ 
+                      fontSize: '0.75rem', 
+                      color: '#94a3b8', 
+                      backgroundColor: '#f8fafc',
+                      border: '1px dashed #e2e8f0',
+                      borderRadius: '8px',
+                      padding: '0.65rem 0.85rem',
+                      marginBottom: '1rem',
+                      textAlign: 'center'
+                    }}>
+                      Không có mã ưu đãi nào có sẵn cho đơn hàng này.
+                    </div>
+                  ) : (
+                    <div className="quick-vouchers-list">
+                      {availableCoupons.map((c) => {
+                        const minOrder = Number(c.minOrderAmount || 0);
+                        const isEligible = subtotalToCheckout >= minOrder;
+                        const isSelected = appliedVoucher?.code === c.code;
+
+                        let discountBadge = '';
+                        if (c.discountType === 'PERCENTAGE' || c.discountType === 'percent') {
+                          discountBadge = `-${c.discountValue}%`;
+                          if (c.maxDiscountAmount) {
+                            discountBadge += ` (tối đa ${formatVND(c.maxDiscountAmount)})`;
+                          }
+                        } else {
+                          discountBadge = `-${formatVND(c.discountValue)}`;
+                        }
+
+                        return (
+                          <button
+                            key={c.id || c.code}
+                            type="button"
+                            disabled={!isEligible}
+                            className={`voucher-card-item ${isSelected ? 'is-selected' : ''} ${!isEligible ? 'is-disabled' : 'is-eligible'}`}
+                            onClick={() => {
+                              if (!isEligible) return;
+                              if (isSelected) {
+                                handleRemoveVoucher();
+                              } else {
+                                handleApplyVoucher(c.code);
+                              }
+                            }}
+                            title={!isEligible ? `Cần đơn hàng tối thiểu ${formatVND(minOrder)} để áp dụng mã này` : (c.description || c.name || `Mã ${c.code}`)}
+                          >
+                            <div className="voucher-card-info">
+                              <div className="voucher-card-header">
+                                <span className="voucher-code-text">{c.code}</span>
+                                <span className="voucher-badge-text">{discountBadge}</span>
+                                {c.shopName && (
+                                  <span className="voucher-shop-tag">{c.shopName}</span>
+                                )}
+                              </div>
+                              <div className={`voucher-min-text ${!isEligible ? 'is-not-met' : ''}`}>
+                                {minOrder > 0 ? `Đơn tối thiểu ${formatVND(minOrder)}` : 'Áp dụng cho mọi giá trị đơn'}
+                                {!isEligible && ` (Thiếu ${formatVND(minOrder - subtotalToCheckout)})`}
+                              </div>
+                            </div>
+
+                            <div className="voucher-card-action">
+                              {isSelected ? (
+                                <span className="voucher-applied-tag">
+                                  <Check size={13} /> Đã chọn
+                                </span>
+                              ) : isEligible ? (
+                                <span className="voucher-apply-tag">
+                                  Áp dụng
+                                </span>
+                              ) : (
+                                <span className="voucher-ineligible-tag">
+                                  Chưa đủ ĐK
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </>
               )}
             </div>

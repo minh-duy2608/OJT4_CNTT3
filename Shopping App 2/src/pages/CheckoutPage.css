@@ -227,29 +227,148 @@
   background-color: #27272a;
 }
 
-/* Voucher Chips List */
+/* Voucher Chips & Real Voucher Cards */
 .quick-vouchers-list {
   display: flex;
+  flex-direction: column;
   gap: 0.5rem;
-  flex-wrap: wrap;
   margin-bottom: 1.25rem;
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
-.voucher-chip-btn {
-  background-color: #f4f4f5;
-  border: 1px dashed #a1a1aa;
-  border-radius: 6px;
-  padding: 0.25rem 0.6rem;
+.voucher-card-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  transition: all 0.15s ease;
+  text-align: left;
+  width: 100%;
+}
+
+.voucher-card-item.is-eligible {
+  cursor: pointer;
+}
+
+.voucher-card-item.is-eligible:hover {
+  border-color: #2563eb;
+  background-color: #f8fafc;
+  transform: translateY(-1px);
+}
+
+.voucher-card-item.is-selected {
+  border: 1.5px solid #2563eb;
+  background-color: #eff6ff;
+  box-shadow: 0 0 0 1px #2563eb;
+}
+
+.voucher-card-item.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background-color: #f8fafc;
+  border: 1px dashed #cbd5e1;
+}
+
+.voucher-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.voucher-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.voucher-code-text {
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  color: #0f172a;
+  letter-spacing: 0.04em;
+}
+
+.voucher-card-item.is-selected .voucher-code-text {
+  color: #1d4ed8;
+}
+
+.voucher-card-item.is-disabled .voucher-code-text {
+  color: #94a3b8;
+}
+
+.voucher-badge-text {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #059669;
+  background-color: #ecfdf5;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.voucher-card-item.is-selected .voucher-badge-text {
+  color: #1d4ed8;
+  background-color: #dbeafe;
+}
+
+.voucher-shop-tag {
+  font-size: 0.68rem;
+  color: #64748b;
+  background-color: #f1f5f9;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.voucher-min-text {
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+.voucher-min-text.is-not-met {
+  color: #ef4444;
+  font-weight: 500;
+}
+
+.voucher-card-action {
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.voucher-applied-tag {
   font-size: 0.75rem;
   font-weight: 600;
-  color: #18181b;
-  cursor: pointer;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.voucher-apply-tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background-color: #f8fafc;
   transition: all 0.15s;
 }
 
-.voucher-chip-btn:hover {
-  background-color: #e4e4e7;
-  border-color: #000000;
+.voucher-card-item.is-eligible:hover .voucher-apply-tag {
+  background-color: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+.voucher-ineligible-tag {
+  font-size: 0.7rem;
+  color: #94a3b8;
 }
 
 .voucher-applied-pill {
