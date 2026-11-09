@@ -17,6 +17,7 @@ import com.example.demo.dto.response.ProductSummaryResponse;
 import com.example.demo.dto.response.ProductVariantResponse;
 import com.example.demo.entity.ProductStatus;
 import com.example.demo.service.ProductService;
+import com.example.demo.service.ShopService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -42,13 +43,14 @@ import java.security.Principal;
 public class ShopProductController {
 
     private final ProductService productService;
+    private final ShopService shopService;
 
     /**
-     * STT 44: GET /shops/{shopId}/products - Sản phẩm công khai của cửa hàng (Public)
+     * STT 44: GET /shops/{shopId}/products & GET /shops/slug/{slug}/products - Sản phẩm công khai của cửa hàng theo ID hoặc slug (Public)
      */
-    @GetMapping("/{shopId}/products")
+    @GetMapping({"/{shopIdentifier}/products", "/slug/{shopIdentifier}/products"})
     public ResponseEntity<ApiResponse<PageResponse<ProductSummaryResponse>>> getShopProducts(
-            @PathVariable Long shopId,
+            @PathVariable String shopIdentifier,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) Long brandId,
@@ -73,7 +75,7 @@ public class ShopProductController {
                 .sortDir(sortDir)
                 .build();
 
-        PageResponse<ProductSummaryResponse> response = productService.getShopProducts(shopId, criteria);
+        PageResponse<ProductSummaryResponse> response = shopService.getPublicShopProducts(shopIdentifier, criteria);
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách sản phẩm cửa hàng thành công", response));
     }
 

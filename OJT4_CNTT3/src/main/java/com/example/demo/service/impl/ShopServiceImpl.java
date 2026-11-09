@@ -1,16 +1,21 @@
 package com.example.demo.service.impl;
 
 import com.example.demo.dto.request.AdminUpdateShopStatusRequest;
+import com.example.demo.dto.request.ProductFilterCriteria;
 import com.example.demo.dto.request.RegisterShopRequest;
 import com.example.demo.dto.response.PageResponse;
+import com.example.demo.dto.response.ProductSummaryResponse;
+import com.example.demo.dto.response.PublicShopDetailResponse;
 import com.example.demo.dto.response.ShopDetailResponse;
 import com.example.demo.dto.response.ShopManageResponse;
+import com.example.demo.dto.response.ShopRevenueDashboardResponse;
 import com.example.demo.entity.*;
 import com.example.demo.exception.BadRequestException;
 import com.example.demo.exception.ForbiddenException;
 import com.example.demo.exception.ResourceNotFoundException;
 import com.example.demo.exception.UnauthorizedException;
 import com.example.demo.repository.*;
+import com.example.demo.service.ProductService;
 import com.example.demo.service.ShopService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,12 +28,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.text.Normalizer;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -42,6 +52,10 @@ public class ShopServiceImpl implements ShopService {
     private final ProductRepository productRepository;
     private final OrderRepository orderRepository;
     private final InventoryRepository inventoryRepository;
+    private final OrderReturnRepository orderReturnRepository;
+    private final CategoryRepository categoryRepository;
+    private final BrandRepository brandRepository;
+    private final ProductService productService;
 
     @Override
     @Transactional
@@ -395,6 +409,269 @@ public class ShopServiceImpl implements ShopService {
             shopRepository.addShopMember(shop.getId(), user.getId(), managerRole.getId());
         } catch (Exception e) {
             log.warn("Không thể lưu bản ghi shop_members: {}", e.getMessage());
+        }
+    }
+
+    private static final String REVENUE_RECONCILIATION_RULE =
+            "QUY TẮC TÍNH TOÁN & ĐỐI CHIẾU DOANH THU CỬA HÀNG (SHOP REVENUE RECONCILIATION RULE):\n" +
+            "1. Đơn GIAO THÀNH CÔNG (DELIVERED): Tính 100% giá trị thực tế khách hàng thanh toán vào Doanh thu thuần (netRevenue).\n" +
+            "2. Đơn TRẢ HÀNG / HOÀN TIỀN (RETURNED): Ghi nhận Doanh thu gộp (grossRevenue) và khấu trừ số tiền hoàn trả (refundAmount) tương ứng. Doanh thu thuần = Giá trị đơn - Tiền hoàn (nếu hoàn toàn phần thì doanh thu = 0đ).\n" +
+            "3. Đơn ĐÃ HỦY (CANCELLED): Loại trừ hoàn toàn khỏi Doanh thu thuần (netRevenue = 0đ). Ghi nhận vào mục Đơn hủy phục vụ đối chiếu.\n" +
+            "4. Đơn ĐANG XỬ LÝ / VẬN CHUYỂN (PENDING, CONFIRMED, PROCESSING, SHIPPED): Tính vào Doanh thu tạm tính (pendingRevenue), không ghi nhận vào Doanh thu thuần thực nhận.";
+
+    @Override
+    @Transactional(readOnly = true)
+    public ShopRevenueDashboardResponse getShopRevenueDashboard(Long shopId, String from, String to, String groupBy, String currentUsername) {
+        verifyShopAccess(shopId, currentUsername);
+
+        Shop shop = shopRepository.findById(shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
+
+        LocalDate startDate = (from != null && !from.isBlank()) ? LocalDate.parse(from) : LocalDate.now().minusDays(30);
+        LocalDate endDate = (to != null && !to.isBlank()) ? LocalDate.parse(to) : LocalDate.now();
+
+        List<Order> orders = orderRepository.findByShopId(shopId);
+
+        BigDecimal grossRevenue = BigDecimal.ZERO;
+        BigDecimal totalRefundAmount = BigDecimal.ZERO;
+        BigDecimal netRevenue = BigDecimal.ZERO;
+        BigDecimal pendingRevenue = BigDecimal.ZERO;
+        BigDecimal cancelledRevenue = BigDecimal.ZERO;
+
+        long deliveredOrders = 0;
+        long returnedOrders = 0;
+        long cancelledOrders = 0;
+        long pendingOrders = 0;
+        long totalOrdersInPeriod = 0;
+
+        DateTimeFormatter formatter = "month".equalsIgnoreCase(groupBy)
+                ? DateTimeFormatter.ofPattern("yyyy-MM")
+                : DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+        Map<String, BigDecimal> chartGrossMap = new TreeMap<>();
+        Map<String, BigDecimal> chartRefundMap = new TreeMap<>();
+        Map<String, BigDecimal> chartNetMap = new TreeMap<>();
+        Map<String, Long> chartCountMap = new TreeMap<>();
+
+        List<ShopRevenueDashboardResponse.OrderReconciliationItem> reconciliations = new ArrayList<>();
+
+        for (Order order : orders) {
+            LocalDateTime orderRefTime = order.getDeliveredAt() != null
+                    ? order.getDeliveredAt()
+                    : (order.getCreatedAt() != null ? order.getCreatedAt() : LocalDateTime.now());
+            LocalDate orderDate = orderRefTime.toLocalDate();
+
+            if (orderDate.isBefore(startDate) || orderDate.isAfter(endDate)) {
+                continue;
+            }
+
+            totalOrdersInPeriod++;
+            BigDecimal orderTotal = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
+            OrderStatus status = order.getStatus();
+
+            BigDecimal orderRefund = BigDecimal.ZERO;
+            BigDecimal orderNet = BigDecimal.ZERO;
+            String note;
+
+            if (status == OrderStatus.CANCELLED) {
+                cancelledOrders++;
+                cancelledRevenue = cancelledRevenue.add(orderTotal);
+                orderNet = BigDecimal.ZERO;
+                note = "Đơn đã hủy (CANCELLED) - Loại trừ khỏi doanh thu";
+            } else if (status == OrderStatus.DELIVERED) {
+                deliveredOrders++;
+                grossRevenue = grossRevenue.add(orderTotal);
+                orderNet = orderTotal;
+                netRevenue = netRevenue.add(orderNet);
+                note = "Giao hàng thành công (DELIVERED) - Tính 100% doanh thu thuần";
+            } else if (status == OrderStatus.RETURNED) {
+                returnedOrders++;
+                BigDecimal actualRefund = orderTotal;
+                if (orderReturnRepository != null) {
+                    try {
+                        List<OrderReturn> returns = orderReturnRepository.findByOrderIdOrderByCreatedAtDesc(order.getId());
+                        if (returns != null && !returns.isEmpty()) {
+                            OrderReturn r = returns.get(0);
+                            if (r.getRefundAmount() != null && r.getRefundAmount().compareTo(BigDecimal.ZERO) > 0) {
+                                actualRefund = r.getRefundAmount();
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.debug("Error querying returns for order #{}: {}", order.getId(), e.getMessage());
+                    }
+                }
+                orderRefund = actualRefund.min(orderTotal);
+                orderNet = orderTotal.subtract(orderRefund).max(BigDecimal.ZERO);
+
+                grossRevenue = grossRevenue.add(orderTotal);
+                totalRefundAmount = totalRefundAmount.add(orderRefund);
+                netRevenue = netRevenue.add(orderNet);
+                note = String.format("Trả hàng (RETURNED) - Khấu trừ %,.0f đ tiền hoàn, doanh thu còn lại: %,.0f đ",
+                        orderRefund.doubleValue(), orderNet.doubleValue());
+            } else {
+                pendingOrders++;
+                pendingRevenue = pendingRevenue.add(orderTotal);
+                orderNet = BigDecimal.ZERO;
+                note = String.format("Đang xử lý / Vận chuyển (%s) - Doanh thu tạm tính, chưa ghi nhận doanh thu thực nhận", status);
+            }
+
+            if (status == OrderStatus.DELIVERED || status == OrderStatus.RETURNED) {
+                String timeKey = orderDate.format(formatter);
+                chartGrossMap.put(timeKey, chartGrossMap.getOrDefault(timeKey, BigDecimal.ZERO).add(orderTotal));
+                chartRefundMap.put(timeKey, chartRefundMap.getOrDefault(timeKey, BigDecimal.ZERO).add(orderRefund));
+                chartNetMap.put(timeKey, chartNetMap.getOrDefault(timeKey, BigDecimal.ZERO).add(orderNet));
+                chartCountMap.put(timeKey, chartCountMap.getOrDefault(timeKey, 0L) + 1);
+            }
+
+            reconciliations.add(ShopRevenueDashboardResponse.OrderReconciliationItem.builder()
+                    .orderId(order.getId())
+                    .orderCode(order.getOrderCode())
+                    .status(order.getStatus())
+                    .paymentStatus(order.getPaymentStatus())
+                    .orderTotal(orderTotal)
+                    .refundAmount(orderRefund)
+                    .netAmount(orderNet)
+                    .orderTime(order.getCreatedAt())
+                    .deliveredTime(order.getDeliveredAt())
+                    .note(note)
+                    .build());
+        }
+
+        List<ShopRevenueDashboardResponse.RevenueDataPoint> chartData = new ArrayList<>();
+        for (String k : chartGrossMap.keySet()) {
+            chartData.add(ShopRevenueDashboardResponse.RevenueDataPoint.builder()
+                    .date(k)
+                    .grossRevenue(chartGrossMap.get(k))
+                    .refundAmount(chartRefundMap.get(k))
+                    .netRevenue(chartNetMap.get(k))
+                    .orderCount(chartCountMap.getOrDefault(k, 0L))
+                    .build());
+        }
+
+        return ShopRevenueDashboardResponse.builder()
+                .shopId(shop.getId())
+                .shopName(shop.getName())
+                .shopSlug(shop.getSlug())
+                .fromDate(startDate.toString())
+                .toDate(endDate.toString())
+                .groupBy(groupBy != null ? groupBy : "day")
+                .grossRevenue(grossRevenue)
+                .refundAmount(totalRefundAmount)
+                .netRevenue(netRevenue)
+                .pendingRevenue(pendingRevenue)
+                .cancelledRevenue(cancelledRevenue)
+                .totalOrders(totalOrdersInPeriod)
+                .deliveredOrders(deliveredOrders)
+                .returnedOrders(returnedOrders)
+                .cancelledOrders(cancelledOrders)
+                .pendingOrders(pendingOrders)
+                .revenueRule(REVENUE_RECONCILIATION_RULE)
+                .chartData(chartData)
+                .orderReconciliations(reconciliations)
+                .build();
+    }
+
+    private Shop resolveShopByIdentifier(String shopIdentifier) {
+        if (shopIdentifier == null || shopIdentifier.isBlank()) {
+            throw new BadRequestException("Mã cửa hàng hoặc slug không được để trống");
+        }
+        String trimmed = shopIdentifier.trim();
+        Shop shop = null;
+        if (trimmed.matches("^\\d+$")) {
+            shop = shopRepository.findById(Long.parseLong(trimmed)).orElse(null);
+        }
+        if (shop == null) {
+            shop = shopRepository.findBySlug(trimmed).orElse(null);
+        }
+        if (shop == null) {
+            throw new ResourceNotFoundException("Không tìm thấy cửa hàng với mã hoặc slug: " + shopIdentifier);
+        }
+        if (shop.getStatus() != ShopStatus.ACTIVE) {
+            throw new BadRequestException("Cửa hàng '" + shop.getName() + "' hiện đang tạm ngừng hoạt động (" + shop.getStatus() + ").");
+        }
+        return shop;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PublicShopDetailResponse getPublicShopPage(String shopIdentifier, ProductFilterCriteria criteria) {
+        Shop shop = resolveShopByIdentifier(shopIdentifier);
+
+        if (criteria == null) {
+            criteria = ProductFilterCriteria.builder().build();
+        }
+        criteria.setShopId(shop.getId());
+
+        PageResponse<ProductSummaryResponse> productPage = productService.getProducts(criteria);
+
+        List<Product> activeShopProducts = productRepository.findByShopIdAndStatusAndDeletedAtIsNull(
+                shop.getId(), ProductStatus.ACTIVE, Pageable.unpaged()).getContent();
+
+        Map<Long, Long> categoryCountMap = activeShopProducts.stream()
+                .filter(p -> p.getCategory() != null)
+                .collect(Collectors.groupingBy(p -> p.getCategory().getId(), Collectors.counting()));
+
+        List<PublicShopDetailResponse.ShopFilterOption> availableCategories = categoryCountMap.entrySet().stream()
+                .map(e -> {
+                    Category cat = categoryRepository.findById(e.getKey()).orElse(null);
+                    return PublicShopDetailResponse.ShopFilterOption.builder()
+                            .id(e.getKey())
+                            .name(cat != null ? cat.getName() : "Danh mục #" + e.getKey())
+                            .slug(cat != null ? cat.getSlug() : "category-" + e.getKey())
+                            .productCount(e.getValue())
+                            .build();
+                }).toList();
+
+        Map<Long, Long> brandCountMap = activeShopProducts.stream()
+                .filter(p -> p.getBrandId() != null)
+                .collect(Collectors.groupingBy(Product::getBrandId, Collectors.counting()));
+
+        List<PublicShopDetailResponse.ShopFilterOption> availableBrands = brandCountMap.entrySet().stream()
+                .map(e -> {
+                    Brand brand = brandRepository.findById(e.getKey()).orElse(null);
+                    return PublicShopDetailResponse.ShopFilterOption.builder()
+                            .id(e.getKey())
+                            .name(brand != null ? brand.getName() : "Thương hiệu #" + e.getKey())
+                            .slug(brand != null ? brand.getSlug() : "brand-" + e.getKey())
+                            .productCount(e.getValue())
+                            .build();
+                }).toList();
+
+        return PublicShopDetailResponse.builder()
+                .shop(ShopDetailResponse.fromEntity(shop, false, false))
+                .products(productPage)
+                .availableCategories(availableCategories)
+                .availableBrands(availableBrands)
+                .totalActiveProducts((long) activeShopProducts.size())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ProductSummaryResponse> getPublicShopProducts(String shopIdentifier, ProductFilterCriteria criteria) {
+        Shop shop = resolveShopByIdentifier(shopIdentifier);
+        if (criteria == null) {
+            criteria = ProductFilterCriteria.builder().build();
+        }
+        criteria.setShopId(shop.getId());
+        return productService.getProducts(criteria);
+    }
+
+    private void verifyShopAccess(Long shopId, String currentUsername) {
+        if (currentUsername == null || currentUsername.isBlank()) {
+            throw new UnauthorizedException("Yêu cầu đăng nhập");
+        }
+        User user = getCurrentUser(currentUsername);
+        boolean isAdmin = isUserAdmin(user);
+        Shop shop = shopRepository.findById(shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
+        boolean isOwner = Objects.equals(shop.getOwnerId(), user.getId());
+        boolean isMember = shopMemberRepository.existsByIdShopIdAndIdUserIdAndStatus(shopId, user.getId(), ShopMemberStatus.ACTIVE);
+
+        if (!isAdmin && !isOwner && !isMember) {
+            log.warn("Access denied: User '{}' (ID #{}) does not own shop #{} (owner ID #{})",
+                    currentUsername, user.getId(), shopId, shop.getOwnerId());
+            throw new ForbiddenException("Bạn không có quyền xem thông tin báo cáo doanh thu của cửa hàng này!");
         }
     }
 }

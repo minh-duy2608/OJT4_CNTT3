@@ -25,6 +25,21 @@ public interface ShopService {
 
     ShopDetailResponse updateShop(Long shopId, RegisterShopRequest request, String currentUsername);
 
+    /**
+     * Dashboard doanh thu cửa hàng: Thống kê doanh thu theo đơn hợp lệ (DELIVERED, RETURNED trừ hoàn, bỏ CANCELLED), đối chiếu chi tiết và lọc thời gian
+     */
+    com.example.demo.dto.response.ShopRevenueDashboardResponse getShopRevenueDashboard(Long shopId, String from, String to, String groupBy, String currentUsername);
+
+    /**
+     * Trang cửa hàng công khai & sản phẩm theo shopId hoặc slug (chỉ sản phẩm active, lọc category & brand, phân trang)
+     */
+    com.example.demo.dto.response.PublicShopDetailResponse getPublicShopPage(String shopIdentifier, com.example.demo.dto.request.ProductFilterCriteria criteria);
+
+    /**
+     * Danh sách sản phẩm công khai của cửa hàng theo shopId hoặc slug
+     */
+    com.example.demo.dto.response.PageResponse<com.example.demo.dto.response.ProductSummaryResponse> getPublicShopProducts(String shopIdentifier, com.example.demo.dto.request.ProductFilterCriteria criteria);
+
     // Admin shop management
     PageResponse<ShopDetailResponse> getAdminShops(String keyword, ShopStatus status, int page, int size);
 

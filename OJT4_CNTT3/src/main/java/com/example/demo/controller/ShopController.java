@@ -1,14 +1,18 @@
 package com.example.demo.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.example.demo.dto.request.AddShopMemberRequest;
+import com.example.demo.dto.request.ProductFilterCriteria;
 import com.example.demo.dto.request.RegisterShopRequest;
 import com.example.demo.dto.request.UpdateShopMemberRequest;
 import com.example.demo.dto.response.ApiResponse;
+import com.example.demo.dto.response.PublicShopDetailResponse;
 import com.example.demo.dto.response.ShopDetailResponse;
 import com.example.demo.dto.response.ShopManageResponse;
 import com.example.demo.dto.response.ShopMemberResponse;
+import com.example.demo.dto.response.ShopRevenueDashboardResponse;
 import com.example.demo.service.ShopMemberService;
 import com.example.demo.service.ShopService;
 import jakarta.validation.Valid;
@@ -23,8 +27,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigDecimal;
 import java.security.Principal;
 import java.util.List;
 
@@ -112,6 +118,60 @@ public class ShopController {
         String username = principal != null ? principal.getName() : null;
         ShopDetailResponse response = shopService.getShopById(shopId, username);
         return ResponseEntity.ok(ApiResponse.success("Lấy thông tin chi tiết cửa hàng thành công", response));
+    }
+
+    /**
+     * Dashboard doanh thu cửa hàng (Chủ shop / Thành viên quản lý / ADMIN)
+     */
+    @Operation(summary = "Dashboard doanh thu shop",
+            description = "Tổng hợp doanh thu theo đơn hợp lệ; thống nhất doanh thu tính từ DELIVERED hay RETURNED trừ hoàn; tránh tính đơn CANCELLED; lọc thời gian. Đối chiếu query/đơn và quy tắc doanh thu.")
+    @GetMapping({"/{shopId}/revenue/dashboard", "/{shopId}/dashboard/revenue", "/{shopId}/revenue"})
+    public ResponseEntity<ApiResponse<ShopRevenueDashboardResponse>> getShopRevenueDashboard(
+            @PathVariable Long shopId,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(defaultValue = "day") String groupBy,
+            Principal principal
+    ) {
+        String username = principal != null ? principal.getName() : null;
+        ShopRevenueDashboardResponse response = shopService.getShopRevenueDashboard(shopId, from, to, groupBy, username);
+        return ResponseEntity.ok(ApiResponse.success("Lấy dữ liệu dashboard doanh thu cửa hàng thành công", response));
+    }
+
+    /**
+     * Trang cửa hàng công khai: thông tin shop, toàn bộ sản phẩm đang bán, phân trang; lọc category và brand giống catalog
+     */
+    @Operation(summary = "Trang cửa hàng công khai & sản phẩm",
+            description = "Theo shopId/slug: thông tin shop, toàn bộ sản phẩm đang bán, phân trang; lọc category và brand giống catalog. Chỉ sản phẩm active/public.")
+    @GetMapping({"/{shopIdentifier}/public", "/public/{shopIdentifier}"})
+    public ResponseEntity<ApiResponse<PublicShopDetailResponse>> getPublicShopPage(
+            @PathVariable String shopIdentifier,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Long brandId,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) Boolean inStock,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size,
+            @RequestParam(defaultValue = "createdAt") String sort,
+            @RequestParam(defaultValue = "desc") String sortDir
+    ) {
+        ProductFilterCriteria criteria = ProductFilterCriteria.builder()
+                .keyword(keyword)
+                .categoryId(categoryId)
+                .brandId(brandId)
+                .minPrice(minPrice)
+                .maxPrice(maxPrice)
+                .inStock(inStock)
+                .page(page)
+                .size(size)
+                .sortBy(sort)
+                .sortDir(sortDir)
+                .build();
+
+        PublicShopDetailResponse response = shopService.getPublicShopPage(shopIdentifier, criteria);
+        return ResponseEntity.ok(ApiResponse.success("Lấy thông tin trang cửa hàng công khai thành công", response));
     }
 
     /**

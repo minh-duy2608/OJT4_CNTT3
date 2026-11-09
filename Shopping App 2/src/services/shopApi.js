@@ -190,5 +190,55 @@ export const shopApi = {
     return await request(`/shops/${shopId}/members/${memberId}`, {
       method: 'DELETE'
     });
+  },
+
+  /**
+   * Dashboard doanh thu shop (tổng hợp theo đơn hợp lệ, DELIVERED + RETURNED trừ hoàn, bỏ CANCELLED, đối chiếu chi tiết)
+   */
+  async getShopRevenueDashboard(shopId, { from, to, groupBy = 'day' } = {}) {
+    const params = new URLSearchParams();
+    if (from) params.append('from', from);
+    if (to) params.append('to', to);
+    if (groupBy) params.append('groupBy', groupBy);
+    const qs = params.toString();
+    return await request(`/shops/${shopId}/revenue/dashboard${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
+  /**
+   * Trang cửa hàng công khai: thông tin shop, sản phẩm phân trang, category & brand lọc theo shopId hoặc slug
+   */
+  async getPublicShopPage(shopIdentifier, params = {}) {
+    const qs = new URLSearchParams();
+    if (params.keyword) qs.append('keyword', params.keyword);
+    if (params.categoryId) qs.append('categoryId', params.categoryId);
+    if (params.brandId) qs.append('brandId', params.brandId);
+    if (params.minPrice) qs.append('minPrice', params.minPrice);
+    if (params.maxPrice) qs.append('maxPrice', params.maxPrice);
+    if (params.inStock !== undefined) qs.append('inStock', params.inStock);
+    if (params.page !== undefined) qs.append('page', params.page);
+    if (params.size !== undefined) qs.append('size', params.size);
+    if (params.sort) qs.append('sort', params.sort);
+    if (params.sortDir) qs.append('sortDir', params.sortDir);
+    const queryStr = qs.toString();
+    return await request(`/shops/${shopIdentifier}/public${queryStr ? `?${queryStr}` : ''}`, { method: 'GET' });
+  },
+
+  /**
+   * Danh sách sản phẩm công khai của cửa hàng theo shopId hoặc slug
+   */
+  async getPublicShopProducts(shopIdentifier, params = {}) {
+    const qs = new URLSearchParams();
+    if (params.keyword) qs.append('keyword', params.keyword);
+    if (params.categoryId) qs.append('categoryId', params.categoryId);
+    if (params.brandId) qs.append('brandId', params.brandId);
+    if (params.minPrice) qs.append('minPrice', params.minPrice);
+    if (params.maxPrice) qs.append('maxPrice', params.maxPrice);
+    if (params.inStock !== undefined) qs.append('inStock', params.inStock);
+    if (params.page !== undefined) qs.append('page', params.page);
+    if (params.size !== undefined) qs.append('size', params.size);
+    if (params.sort) qs.append('sort', params.sort);
+    if (params.sortDir) qs.append('sortDir', params.sortDir);
+    const queryStr = qs.toString();
+    return await request(`/shops/${shopIdentifier}/products${queryStr ? `?${queryStr}` : ''}`, { method: 'GET' });
   }
 };
