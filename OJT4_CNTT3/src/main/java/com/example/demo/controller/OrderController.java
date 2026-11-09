@@ -111,6 +111,19 @@ public class OrderController {
     }
 
     /**
+     * STT 110: GET /admin/orders/{orderId} - Chi tiết đơn hàng phục vụ quản trị (ADMIN)
+     */
+    @GetMapping({"/admin/orders/{id}", "/api/v1/admin/orders/{id}"})
+    public ResponseEntity<ApiResponse<OrderResponse>> getAdminOrderDetail(
+            @PathVariable Long id,
+            Principal principal
+    ) {
+        String username = principal != null ? principal.getName() : null;
+        OrderResponse response = orderService.getOrderDetail(id, username);
+        return ResponseEntity.ok(ApiResponse.success("Lấy thông tin chi tiết đơn hàng quản trị thành công", response));
+    }
+
+    /**
      * Quản trị viên/Shop Manager: Cập nhật trạng thái đơn hàng
      */
     @PatchMapping({"/admin/orders/{id}/status", "/api/v1/admin/orders/{id}/status"})

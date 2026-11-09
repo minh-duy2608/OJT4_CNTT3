@@ -68,7 +68,9 @@ public class SecurityConfig {
                                 "/shops/*", "/api/v1/shops/*",
                                 "/shops/*/products", "/api/v1/shops/*/products",
                                 "/shops/*/products/**", "/api/v1/shops/*/products/**",
-                                "/shops/*/coupons", "/api/v1/shops/*/coupons"
+                                "/shops/*/coupons", "/api/v1/shops/*/coupons",
+                                "/shops/*/reviews", "/api/v1/shops/*/reviews",
+                                "/shops/*/reviews/summary", "/api/v1/shops/*/reviews/summary"
                         ).permitAll()
                         .requestMatchers(
                                 org.springframework.http.HttpMethod.HEAD,
@@ -80,10 +82,14 @@ public class SecurityConfig {
                                 "/products/**", "/api/v1/products/**",
                                 "/shops/*/products", "/api/v1/shops/*/products",
                                 "/shops/*/products/**", "/api/v1/shops/*/products/**",
-                                "/shops/*/coupons", "/api/v1/shops/*/coupons"
+                                "/shops/*/coupons", "/api/v1/shops/*/coupons",
+                                "/shops/*/reviews", "/api/v1/shops/*/reviews",
+                                "/shops/*/reviews/summary", "/api/v1/shops/*/reviews/summary"
                         ).permitAll()
-                        // Public Authentication & Resource Endpoints
+                        // Public Authentication, Health, Public Config & Resource Endpoints
                         .requestMatchers(
+                                "/health", "/api/v1/health",
+                                "/config/public", "/api/v1/config/public",
                                 "/auth/register", "/api/v1/auth/register",
                                 "/auth/login", "/api/v1/auth/login",
                                 "/auth/refresh", "/api/v1/auth/refresh",
@@ -98,8 +104,9 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/error"
                         ).permitAll()
-                        // Authenticated User Profile, Orders, Cart, Wishlist, Addresses, Coupons & Logout Endpoints
+                        // Authenticated User Profile, Orders, Notifications, Reviews, Returns, Cart, Wishlist, Addresses, Coupons & Logout Endpoints
                         .requestMatchers(
+                                "/me", "/api/v1/me",
                                 "/auth/me", "/api/v1/auth/me",
                                 "/auth/me/**", "/api/v1/auth/me/**",
                                 "/auth/logout", "/api/v1/auth/logout",
@@ -107,6 +114,11 @@ public class SecurityConfig {
                                 "/cart/**", "/api/v1/cart/**",
                                 "/orders", "/api/v1/orders",
                                 "/orders/**", "/api/v1/orders/**",
+                                "/notifications", "/api/v1/notifications",
+                                "/notifications/**", "/api/v1/notifications/**",
+                                "/returns/my", "/api/v1/returns/my",
+                                "/returns/**", "/api/v1/returns/**",
+                                "/reviews/**", "/api/v1/reviews/**",
                                 "/wishlist", "/api/v1/wishlist",
                                 "/wishlist/**", "/api/v1/wishlist/**",
                                 "/addresses", "/api/v1/addresses",

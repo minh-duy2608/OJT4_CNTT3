@@ -13,6 +13,7 @@ import com.example.demo.exception.ForbiddenException;
 import com.example.demo.exception.ResourceNotFoundException;
 import com.example.demo.exception.UnauthorizedException;
 import com.example.demo.repository.*;
+import com.example.demo.service.AuditLogService;
 import com.example.demo.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,7 @@ public class OrderServiceImpl implements OrderService {
     private final ProductVariantRepository productVariantRepository;
     private final InventoryRepository inventoryRepository;
     private final ShopMemberRepository shopMemberRepository;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional
@@ -558,10 +560,15 @@ public class OrderServiceImpl implements OrderService {
             throw new ForbiddenException("Cửa hàng '" + shop.getName() + "' đã bị từ chối phê duyệt (REJECTED).");
         }
 
-        // NGHIỆP VỤ CỐT LÕI: Khi người mua hàng mua của shop nào thì CHỈ shop đó (chủ cửa hàng hoặc nhân viên active) mới có quyền chuyển trạng thái đơn hàng
+        // NGHIỆP VỤ CỐT LÕI: Khi người mua hàng mua của shop nào thì CHỈ shop đó (chủ cửa hàng hoặc nhân viên active) mới có quyền chuyển trạng thái đơn hàng.
+        // Đối với Quản trị viên hệ thống (Admin): Cho phép can thiệp theo chính sách quản trị, kiểm soát luồng trạng thái hợp lệ và bắt buộc ghi nhật ký thao tác (Audit Log).
         boolean isShopManager = isUserShopManagerForOrder(user, order);
-        if (!isShopManager) {
-            throw new ForbiddenException("Bạn không có quyền chuyển trạng thái đơn hàng này. Chỉ chủ cửa hàng hoặc nhân viên của cửa hàng '" + shop.getName() + "' (Mã shop: #" + orderShopId + ") mới có quyền thao tác!");
+        boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN ||
+                (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
+                        "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
+
+        if (!isShopManager && !isAdmin) {
+            throw new ForbiddenException("Bạn không có quyền chuyển trạng thái đơn hàng này. Chỉ chủ cửa hàng hoặc nhân viên của cửa hàng '" + shop.getName() + "' (Mã shop: #" + orderShopId + ") hoặc Quản trị viên hệ thống mới có quyền thao tác!");
         }
 
         OrderStatus oldStatus = order.getStatus();
@@ -579,7 +586,7 @@ public class OrderServiceImpl implements OrderService {
                 order.setPaymentStatus(PaymentStatus.PAID);
             } else if (newStatus == OrderStatus.CANCELLED) {
                 order.setCancelledAt(LocalDateTime.now());
-                order.setCancellationReason(request.getCancellationReason() != null ? request.getCancellationReason() : "Hủy bởi cửa hàng");
+                order.setCancellationReason(request.getCancellationReason() != null ? request.getCancellationReason() : (isAdmin ? "Hủy bởi Quản trị viên" : "Hủy bởi cửa hàng"));
                 // Hoàn lại tồn kho nếu hủy từ trạng thái chưa giao
                 if (oldStatus == OrderStatus.PENDING || oldStatus == OrderStatus.CONFIRMED || oldStatus == OrderStatus.PROCESSING) {
                     if (order.getItems() != null) {
@@ -601,6 +608,20 @@ public class OrderServiceImpl implements OrderService {
         }
 
         Order saved = orderRepository.save(order);
+
+        // Ghi nhận nhật ký Audit Log nếu Quản trị viên Admin can thiệp đơn hàng
+        if (isAdmin && !isShopManager) {
+            auditLogService.log(
+                    user.getId(),
+                    "ADMIN_OVERRIDE_ORDER_STATUS",
+                    "ORDER",
+                    String.valueOf(order.getId()),
+                    orderShopId,
+                    String.format("Admin '%s' can thiệp trạng thái đơn hàng #%s từ %s sang %s. Lý do/Ghi chú: %s",
+                            currentUsername, order.getOrderCode(), oldStatus, newStatus,
+                            request.getCancellationReason() != null ? request.getCancellationReason() : "Quản trị can thiệp")
+            );
+        }
         log.info("Order #{} ({}) of shop #{} status updated from {} to {} by '{}'",
                 saved.getId(), saved.getOrderCode(), orderShopId, oldStatus, newStatus, currentUsername);
         return mapToResponse(saved);
