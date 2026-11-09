@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.example.demo.dto.request.CreateOrderRequest;
@@ -156,6 +157,8 @@ public class OrderController {
     /**
      * Cửa hàng: Cập nhật trạng thái đơn hàng của cửa hàng
      */
+    @Operation(summary = "Cửa hàng cập nhật trạng thái đơn hàng (SHOP_MANAGER / SHOP_OWNER)",
+            description = "Chỉ owner shop được cập nhật trạng thái hợp lệ; kiểm tra ownership, transition, log thời điểm giao; user khác shop bị 403/404; transition sai bị từ chối.")
     @PatchMapping({"/shops/{shopId}/orders/{id}/status", "/api/v1/shops/{shopId}/orders/{id}/status"})
     public ResponseEntity<ApiResponse<OrderResponse>> updateShopOrderStatus(
             @PathVariable Long shopId,

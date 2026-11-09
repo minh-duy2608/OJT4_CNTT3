@@ -28,7 +28,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Slf4j
@@ -533,6 +535,16 @@ public class OrderServiceImpl implements OrderService {
                 .build();
     }
 
+    private static final Map<OrderStatus, Set<OrderStatus>> VALID_TRANSITIONS = Map.of(
+            OrderStatus.PENDING, Set.of(OrderStatus.CONFIRMED, OrderStatus.PROCESSING, OrderStatus.CANCELLED),
+            OrderStatus.CONFIRMED, Set.of(OrderStatus.PROCESSING, OrderStatus.SHIPPED, OrderStatus.CANCELLED),
+            OrderStatus.PROCESSING, Set.of(OrderStatus.SHIPPED, OrderStatus.CANCELLED),
+            OrderStatus.SHIPPED, Set.of(OrderStatus.DELIVERED, OrderStatus.CANCELLED),
+            OrderStatus.DELIVERED, Set.of(OrderStatus.RETURNED),
+            OrderStatus.CANCELLED, Set.of(),
+            OrderStatus.RETURNED, Set.of()
+    );
+
     @Override
     @Transactional
     public OrderResponse updateOrderStatus(Long orderId, UpdateOrderStatusRequest request, String currentUsername) {
@@ -571,60 +583,7 @@ public class OrderServiceImpl implements OrderService {
             throw new ForbiddenException("Bạn không có quyền chuyển trạng thái đơn hàng này. Chỉ chủ cửa hàng hoặc nhân viên của cửa hàng '" + shop.getName() + "' (Mã shop: #" + orderShopId + ") hoặc Quản trị viên hệ thống mới có quyền thao tác!");
         }
 
-        OrderStatus oldStatus = order.getStatus();
-        OrderStatus newStatus = request.getStatus();
-
-        if (newStatus != null && newStatus != oldStatus) {
-            validateStatusTransition(oldStatus, newStatus);
-            order.setStatus(newStatus);
-            if (newStatus == OrderStatus.CONFIRMED && order.getConfirmedAt() == null) {
-                order.setConfirmedAt(LocalDateTime.now());
-            } else if (newStatus == OrderStatus.SHIPPED && order.getShippedAt() == null) {
-                order.setShippedAt(LocalDateTime.now());
-            } else if (newStatus == OrderStatus.DELIVERED && order.getDeliveredAt() == null) {
-                order.setDeliveredAt(LocalDateTime.now());
-                order.setPaymentStatus(PaymentStatus.PAID);
-            } else if (newStatus == OrderStatus.CANCELLED) {
-                order.setCancelledAt(LocalDateTime.now());
-                order.setCancellationReason(request.getCancellationReason() != null ? request.getCancellationReason() : (isAdmin ? "Hủy bởi Quản trị viên" : "Hủy bởi cửa hàng"));
-                // Hoàn lại tồn kho nếu hủy từ trạng thái chưa giao
-                if (oldStatus == OrderStatus.PENDING || oldStatus == OrderStatus.CONFIRMED || oldStatus == OrderStatus.PROCESSING) {
-                    if (order.getItems() != null) {
-                        for (OrderItem item : order.getItems()) {
-                            if (item.getVariantId() != null) {
-                                inventoryRepository.findById(item.getVariantId()).ifPresent(inv -> {
-                                    inv.setQuantity(inv.getQuantity() + item.getQuantity());
-                                    inventoryRepository.save(inv);
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (request.getPaymentStatus() != null) {
-            order.setPaymentStatus(request.getPaymentStatus());
-        }
-
-        Order saved = orderRepository.save(order);
-
-        // Ghi nhận nhật ký Audit Log nếu Quản trị viên Admin can thiệp đơn hàng
-        if (isAdmin && !isShopManager) {
-            auditLogService.log(
-                    user.getId(),
-                    "ADMIN_OVERRIDE_ORDER_STATUS",
-                    "ORDER",
-                    String.valueOf(order.getId()),
-                    orderShopId,
-                    String.format("Admin '%s' can thiệp trạng thái đơn hàng #%s từ %s sang %s. Lý do/Ghi chú: %s",
-                            currentUsername, order.getOrderCode(), oldStatus, newStatus,
-                            request.getCancellationReason() != null ? request.getCancellationReason() : "Quản trị can thiệp")
-            );
-        }
-        log.info("Order #{} ({}) of shop #{} status updated from {} to {} by '{}'",
-                saved.getId(), saved.getOrderCode(), orderShopId, oldStatus, newStatus, currentUsername);
-        return mapToResponse(saved);
+        return processStatusUpdate(order, shop, request, user, isAdmin, isShopManager);
     }
 
     @Override
@@ -650,12 +609,127 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse updateShopOrderStatus(Long shopId, Long orderId, UpdateOrderStatusRequest request, String currentUsername) {
+        if (currentUsername == null || currentUsername.isBlank()) {
+            throw new UnauthorizedException("Yêu cầu đăng nhập");
+        }
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin tài khoản: " + currentUsername));
+
+        Shop shop = shopRepository.findById(shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
+
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
+
         if (!Objects.equals(order.getShopId(), shopId)) {
-            throw new BadRequestException("Đơn hàng #" + orderId + " không thuộc về cửa hàng #" + shopId);
+            throw new ResourceNotFoundException("Đơn hàng #" + orderId + " không thuộc về cửa hàng #" + shopId);
         }
-        return updateOrderStatus(orderId, request, currentUsername);
+
+        if (shop.getStatus() == ShopStatus.SUSPENDED) {
+            throw new ForbiddenException("Cửa hàng '" + shop.getName() + "' đang bị tạm ngừng kinh doanh (SUSPENDED). Mọi thao tác xử lý đơn hàng bị tạm khóa.");
+        }
+        if (shop.getStatus() == ShopStatus.REJECTED) {
+            throw new ForbiddenException("Cửa hàng '" + shop.getName() + "' đã bị từ chối phê duyệt (REJECTED).");
+        }
+
+        boolean isOwner = Objects.equals(shop.getOwnerId(), user.getId());
+        boolean isMember = shopMemberRepository.existsByIdShopIdAndIdUserIdAndStatus(shopId, user.getId(), ShopMemberStatus.ACTIVE);
+        boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN ||
+                (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
+                        "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
+
+        if (!isOwner && !isMember && !isAdmin) {
+            throw new ForbiddenException("Bạn không có quyền cập nhật trạng thái đơn hàng của cửa hàng #" + shopId + ". Chỉ chủ sở hữu (Owner) của cửa hàng mới có quyền thao tác!");
+        }
+
+        return processStatusUpdate(order, shop, request, user, isAdmin, isOwner || isMember);
+    }
+
+    private OrderResponse processStatusUpdate(Order order, Shop shop, UpdateOrderStatusRequest request, User user, boolean isAdmin, boolean isShopManager) {
+        OrderStatus oldStatus = order.getStatus();
+        OrderStatus newStatus = request.getStatus();
+
+        if (newStatus != null && newStatus != oldStatus) {
+            validateStatusTransition(oldStatus, newStatus);
+            order.setStatus(newStatus);
+            LocalDateTime now = LocalDateTime.now();
+
+            if (newStatus == OrderStatus.CONFIRMED) {
+                if (order.getConfirmedAt() == null) {
+                    order.setConfirmedAt(now);
+                }
+                log.info("Xác nhận đơn hàng #{} ({}) của Shop #{} ('{}') vào lúc: {}. Người thực hiện: '{}'",
+                        order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), order.getConfirmedAt(), user.getUsername());
+            } else if (newStatus == OrderStatus.PROCESSING) {
+                log.info("Đơn hàng #{} ({}) của Shop #{} đang được chuẩn bị hàng (PROCESSING) vào lúc: {}. Người thực hiện: '{}'",
+                        order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), now, user.getUsername());
+            } else if (newStatus == OrderStatus.SHIPPED) {
+                if (order.getShippedAt() == null) {
+                    order.setShippedAt(now);
+                }
+                log.info("Bắt đầu giao đơn hàng #{} ({}) của Shop #{} ('{}') (SHIPPED) vào lúc: {}. Người thực hiện: '{}'",
+                        order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), order.getShippedAt(), user.getUsername());
+            } else if (newStatus == OrderStatus.DELIVERED) {
+                order.setDeliveredAt(now);
+                order.setPaymentStatus(PaymentStatus.PAID);
+                log.info("Xác nhận GIAO THÀNH CÔNG (DELIVERED) cho đơn hàng #{} ({}) của Shop #{} ('{}') vào thời điểm: {}. Người thực hiện: '{}'",
+                        order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), order.getDeliveredAt(), user.getUsername());
+                auditLogService.log(
+                        user.getId(),
+                        "ORDER_DELIVERED",
+                        "ORDER",
+                        String.valueOf(order.getId()),
+                        shop.getId(),
+                        String.format("Giao thành công đơn hàng #%s vào thời điểm %s bởi %s", order.getOrderCode(), order.getDeliveredAt(), user.getUsername())
+                );
+            } else if (newStatus == OrderStatus.CANCELLED) {
+                order.setCancelledAt(now);
+                order.setCancellationReason(request.getCancellationReason() != null ? request.getCancellationReason() : (isAdmin ? "Hủy bởi Quản trị viên" : "Hủy bởi cửa hàng"));
+                log.info("Đơn hàng #{} ({}) của Shop #{} bị HỦY (CANCELLED) vào lúc: {}. Lý do: '{}'. Người thực hiện: '{}'",
+                        order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), order.getCancelledAt(), order.getCancellationReason(), user.getUsername());
+                // Hoàn lại tồn kho nếu hủy từ trạng thái chưa giao
+                if (oldStatus == OrderStatus.PENDING || oldStatus == OrderStatus.CONFIRMED || oldStatus == OrderStatus.PROCESSING) {
+                    if (order.getItems() != null) {
+                        for (OrderItem item : order.getItems()) {
+                            if (item.getVariantId() != null) {
+                                inventoryRepository.findById(item.getVariantId()).ifPresent(inv -> {
+                                    inv.setQuantity(inv.getQuantity() + item.getQuantity());
+                                    inventoryRepository.save(inv);
+                                    log.info("Restored {} items back to inventory variant #{}", item.getQuantity(), item.getVariantId());
+                                });
+                            }
+                        }
+                    }
+                }
+            } else if (newStatus == OrderStatus.RETURNED) {
+                log.info("Đơn hàng #{} ({}) của Shop #{} ghi nhận TRẢ HÀNG (RETURNED) vào lúc: {}. Người thực hiện: '{}'",
+                        order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), now, user.getUsername());
+            }
+        }
+
+        if (request.getPaymentStatus() != null) {
+            order.setPaymentStatus(request.getPaymentStatus());
+        }
+
+        Order saved = orderRepository.save(order);
+
+        // Ghi nhận nhật ký Audit Log nếu Quản trị viên Admin can thiệp đơn hàng
+        if (isAdmin && !isShopManager) {
+            auditLogService.log(
+                    user.getId(),
+                    "ADMIN_OVERRIDE_ORDER_STATUS",
+                    "ORDER",
+                    String.valueOf(order.getId()),
+                    shop.getId(),
+                    String.format("Admin '%s' can thiệp trạng thái đơn hàng #%s từ %s sang %s. Lý do/Ghi chú: %s",
+                            user.getUsername(), order.getOrderCode(), oldStatus, newStatus,
+                            request.getCancellationReason() != null ? request.getCancellationReason() : "Quản trị can thiệp")
+            );
+        }
+
+        log.info("Order #{} ({}) of shop #{} status successfully updated from {} to {} by '{}'",
+                saved.getId(), saved.getOrderCode(), shop.getId(), oldStatus, newStatus, user.getUsername());
+        return mapToResponse(saved);
     }
 
     private Shop verifyShopOrderAccess(Long shopId, String currentUsername) {
@@ -690,14 +764,21 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private void validateStatusTransition(OrderStatus oldStatus, OrderStatus newStatus) {
-        if (oldStatus == newStatus) {
+        if (oldStatus == null || newStatus == null || oldStatus == newStatus) {
             return;
         }
         if (oldStatus == OrderStatus.CANCELLED) {
             throw new BadRequestException("Đơn hàng đã ở trạng thái ĐÃ HỦY (CANCELLED), không thể thay đổi trạng thái!");
         }
+        if (oldStatus == OrderStatus.RETURNED) {
+            throw new BadRequestException("Đơn hàng đã ở trạng thái ĐÃ TRẢ HÀNG (RETURNED), không thể thay đổi trạng thái!");
+        }
         if (oldStatus == OrderStatus.DELIVERED && newStatus != OrderStatus.RETURNED) {
             throw new BadRequestException("Đơn hàng đã GIAO THÀNH CÔNG (DELIVERED), không thể chuyển ngược lại trạng thái " + newStatus + "!");
+        }
+        Set<OrderStatus> allowedNext = VALID_TRANSITIONS.getOrDefault(oldStatus, Set.of());
+        if (!allowedNext.contains(newStatus)) {
+            throw new BadRequestException(String.format("Không thể chuyển trạng thái đơn hàng từ '%s' sang '%s'. Luồng chuyển trạng thái không hợp lệ!", oldStatus, newStatus));
         }
     }
 
