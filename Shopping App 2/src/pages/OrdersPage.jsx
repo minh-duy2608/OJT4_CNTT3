@@ -379,6 +379,7 @@ export const OrdersPage = () => {
           setSelectedOrderForDetail(null);
           setOrderToConfirmDelivery(ord);
         }}
+        onOrderUpdated={fetchOrders}
       />
 
       {/* MODAL: XÁC NHẬN NHẬN HÀNG */}

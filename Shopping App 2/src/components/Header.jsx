@@ -25,6 +25,7 @@ import { formatVND } from '../data/products';
 import { RegisterShopModal } from './RegisterShopModal';
 import { WishlistModal } from './WishlistModal';
 import { ThemeToggle } from './ThemeToggle';
+import { NotificationDropdown } from './NotificationDropdown';
 import './Header.css';
 
 // Logo SVG icon hình tam giác công nghệ của Cyber
@@ -380,6 +381,9 @@ export const Header = () => {
           <div className="cyber-actions">
             {/* Nút chuyển đổi Dark / Light mode */}
             <ThemeToggle />
+
+            {/* Thông báo nếu đã đăng nhập */}
+            {isAuthenticated && <NotificationDropdown />}
 
             {/* Giỏ hàng với hiệu ứng nhảy khi sản phẩm bay vào */}
             <Link

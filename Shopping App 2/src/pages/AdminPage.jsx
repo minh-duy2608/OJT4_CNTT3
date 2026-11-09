@@ -52,7 +52,11 @@ import {
   Percent,
   Copy,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  Truck,
+  RotateCcw,
+  Star,
+  ShieldAlert
 } from 'lucide-react';
 import { revenueApi } from '../services/revenueApi';
 import { couponApi } from '../services/couponApi';
@@ -69,6 +73,12 @@ import { formatVND } from '../data/products';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { OrderDetailModal } from '../components/OrderDetailModal';
 import { parseProductSpecs, formatProductDescription, SPEC_PRESETS } from '../utils/productSpecs';
+import { AdminShipmentsTab } from '../components/admin/AdminShipmentsTab';
+import { AdminReturnsTab } from '../components/admin/AdminReturnsTab';
+import { AdminReviewsTab } from '../components/admin/AdminReviewsTab';
+import { AdminAuditLogsTab } from '../components/admin/AdminAuditLogsTab';
+import { AdminSystemHealthCard } from '../components/admin/AdminSystemHealthCard';
+import { ShopDashboardTab } from '../components/admin/ShopDashboardTab';
 import './AdminPage.css';
 
 // Core system roles protected by the system
@@ -2374,6 +2384,8 @@ export const AdminPage = () => {
         fetchBrands();
       } else if (activeTab === 'admin-shops') {
         fetchAdminShops(adminShopsPage);
+      } else if (activeTab === 'orders') {
+        fetchAdminOrders(orderPage);
       }
     } else if (isShopManager) {
       if (activeTab === 'shops') {
@@ -2393,12 +2405,12 @@ export const AdminPage = () => {
   // Strict Role Separation for Portal Tabs
   useEffect(() => {
     if (isShopManager && !isAdminUser) {
-      const allowedShopTabs = ['shops', 'inventory', 'orders', 'coupons', 'permissions'];
+      const allowedShopTabs = ['shops', 'inventory', 'orders', 'coupons', 'permissions', 'shipments', 'returns', 'reviews', 'audit-logs', 'shop-revenue'];
       if (!allowedShopTabs.includes(activeTab)) {
         setActiveTab('shops');
       }
     } else if (isAdminUser) {
-      const allowedAdminTabs = ['revenue', 'admin-shops', 'users', 'roles', 'categories', 'brands'];
+      const allowedAdminTabs = ['revenue', 'admin-shops', 'orders', 'shipments', 'returns', 'reviews', 'users', 'roles', 'categories', 'brands', 'audit-logs'];
       if (!allowedAdminTabs.includes(activeTab)) {
         setActiveTab('revenue');
       }
@@ -3345,6 +3357,46 @@ export const AdminPage = () => {
 
               <button
                 type="button"
+                className={`admin-tab-btn ${activeTab === 'orders' ? 'active' : ''}`}
+                onClick={() => setActiveTab('orders')}
+              >
+                <ShoppingBag size={17} />
+                Quản trị Đơn hàng
+                <span className="admin-tab-badge">STT 109-111</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'shipments' ? 'active' : ''}`}
+                onClick={() => setActiveTab('shipments')}
+              >
+                <Truck size={17} />
+                Quản lý Vận chuyển
+                <span className="admin-tab-badge">STT 122-123</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'returns' ? 'active' : ''}`}
+                onClick={() => setActiveTab('returns')}
+              >
+                <RotateCcw size={17} />
+                Quản lý Trả hàng
+                <span className="admin-tab-badge">STT 140-141</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'reviews' ? 'active' : ''}`}
+                onClick={() => setActiveTab('reviews')}
+              >
+                <Star size={17} />
+                Kiểm duyệt Đánh giá
+                <span className="admin-tab-badge">STT 133-134</span>
+              </button>
+
+              <button
+                type="button"
                 className={`admin-tab-btn ${activeTab === 'users' ? 'active' : ''}`}
                 onClick={() => setActiveTab('users')}
               >
@@ -3382,11 +3434,31 @@ export const AdminPage = () => {
                 Thương hiệu
                 <span className="admin-tab-badge">STT 33-38</span>
               </button>
+
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'audit-logs' ? 'active' : ''}`}
+                onClick={() => setActiveTab('audit-logs')}
+              >
+                <Shield size={17} />
+                Nhật ký Hệ thống
+                <span className="admin-tab-badge">STT 160-161</span>
+              </button>
             </>
           )}
 
           {!isAdminUser && isShopManager && (
             <>
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'shop-revenue' ? 'active' : ''}`}
+                onClick={() => setActiveTab('shop-revenue')}
+              >
+                <TrendingUp size={17} />
+                Doanh thu Cửa hàng
+                <span className="admin-tab-badge">STT 155-159</span>
+              </button>
+
               <button
                 type="button"
                 className={`admin-tab-btn ${activeTab === 'shops' ? 'active' : ''}`}
@@ -3419,12 +3491,52 @@ export const AdminPage = () => {
 
               <button
                 type="button"
+                className={`admin-tab-btn ${activeTab === 'shipments' ? 'active' : ''}`}
+                onClick={() => setActiveTab('shipments')}
+              >
+                <Truck size={17} />
+                Vận chuyển Đơn
+                <span className="admin-tab-badge">STT 119-121</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'returns' ? 'active' : ''}`}
+                onClick={() => setActiveTab('returns')}
+              >
+                <RotateCcw size={17} />
+                Yêu cầu Trả hàng
+                <span className="admin-tab-badge">STT 138-139</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'reviews' ? 'active' : ''}`}
+                onClick={() => setActiveTab('reviews')}
+              >
+                <Star size={17} />
+                Đánh giá Cửa hàng
+                <span className="admin-tab-badge">STT 130-132</span>
+              </button>
+
+              <button
+                type="button"
                 className={`admin-tab-btn ${activeTab === 'coupons' ? 'active' : ''}`}
                 onClick={() => setActiveTab('coupons')}
               >
                 <Ticket size={17} />
                 Mã Giảm Giá Shop
                 <span className="admin-tab-badge">Coupon</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'audit-logs' ? 'active' : ''}`}
+                onClick={() => setActiveTab('audit-logs')}
+              >
+                <Shield size={17} />
+                Nhật ký Shop
+                <span className="admin-tab-badge">STT 162</span>
               </button>
 
               <button
@@ -3445,6 +3557,9 @@ export const AdminPage = () => {
         {/* =================================================================== */}
         {activeTab === 'revenue' && isAdminUser && (
           <div className="admin-card-container">
+            {/* System Health Status Card */}
+            <AdminSystemHealthCard />
+
             {/* Toolbar Filter */}
             <div className="admin-toolbar" style={{ flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between' }}>
               <div className="admin-toolbar-left" style={{ flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
@@ -4579,17 +4694,34 @@ export const AdminPage = () => {
         )}
 
         {/* =================================================================== */}
-        {/* TAB 7: ĐƠN HÀNG CỬA HÀNG (SHOP MANAGER) */}
+        {/* TAB 7: ĐƠN HÀNG HỆ THỐNG / CỬA HÀNG (ADMIN & SHOP MANAGER) */}
         {/* =================================================================== */}
-        {activeTab === 'orders' && !isAdminUser && isShopManager && (
+        {activeTab === 'orders' && (isAdminUser || isShopManager) && (
           <div className="admin-card-container">
             <div className="admin-toolbar">
               <div className="admin-toolbar-left">
-                {/* Huy hiệu shop */}
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', fontWeight: 600, color: '#166534', fontSize: '0.85rem' }}>
-                  <Store size={15} />
-                  <span>🏪 Đơn hàng: <strong>{myShopInfo?.name || `Shop #${selectedShopId}`}</strong></span>
-                </div>
+                {/* Lọc Shop (nếu Admin) hoặc Huy hiệu Shop (nếu Shop Manager) */}
+                {isAdminUser ? (
+                  <select
+                    className="admin-select-filter"
+                    value={orderShopFilter}
+                    onChange={(e) => {
+                      setOrderShopFilter(e.target.value);
+                    }}
+                  >
+                    <option value="">🏬 Tất cả đơn hàng trên sàn</option>
+                    {availableShops.map((s) => (
+                      <option key={s.id} value={String(s.id)}>
+                        🏪 #{s.id}: {s.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', fontWeight: 600, color: '#166534', fontSize: '0.85rem' }}>
+                    <Store size={15} />
+                    <span>🏪 Đơn hàng: <strong>{myShopInfo?.name || `Shop #${selectedShopId}`}</strong></span>
+                  </div>
+                )}
 
                 {/* Lọc trạng thái đơn */}
                 <select
@@ -5855,6 +5987,57 @@ export const AdminPage = () => {
             )}
           </div>
         )}
+
+        {/* =================================================================== */}
+        {/* TAB: VẬN CHUYỂN & GIAO HÀNG (SHIPMENTS - ADMIN & SHOP MANAGER) */}
+        {/* =================================================================== */}
+        {activeTab === 'shipments' && (
+          <AdminShipmentsTab
+            isAdmin={isAdminUser}
+            shopId={isAdminUser ? undefined : (myShopInfo?.id || selectedShopId)}
+          />
+        )}
+
+        {/* =================================================================== */}
+        {/* TAB: ĐỔI TRẢ & HOÀN TIỀN (RETURNS - ADMIN & SHOP MANAGER) */}
+        {/* =================================================================== */}
+        {activeTab === 'returns' && (
+          <AdminReturnsTab
+            isAdmin={isAdminUser}
+            shopId={isAdminUser ? undefined : (myShopInfo?.id || selectedShopId)}
+          />
+        )}
+
+        {/* =================================================================== */}
+        {/* TAB: KIỂM DUYỆT & ĐÁNH GIÁ (REVIEWS - ADMIN & SHOP MANAGER) */}
+        {/* =================================================================== */}
+        {activeTab === 'reviews' && (
+          <AdminReviewsTab
+            isAdmin={isAdminUser}
+            shopId={isAdminUser ? undefined : (myShopInfo?.id || selectedShopId)}
+          />
+        )}
+
+        {/* =================================================================== */}
+        {/* TAB: NHẬT KÝ KIỂM TOÁN (AUDIT LOGS - ADMIN & SHOP MANAGER) */}
+        {/* =================================================================== */}
+        {activeTab === 'audit-logs' && (
+          <AdminAuditLogsTab
+            isAdmin={isAdminUser}
+            shopId={isAdminUser ? undefined : (myShopInfo?.id || selectedShopId)}
+          />
+        )}
+
+        {/* =================================================================== */}
+        {/* TAB: BÁO CÁO DOANH THU CỬA HÀNG (SHOP MANAGER) */}
+        {/* =================================================================== */}
+        {activeTab === 'shop-revenue' && !isAdminUser && isShopManager && (
+          <ShopDashboardTab
+            shopId={myShopInfo?.id || selectedShopId}
+            shopName={myShopInfo?.name}
+          />
+        )}
+
         {/* =================================================================== */}
         <ConfirmModal
           isOpen={isDetailModalOpen}

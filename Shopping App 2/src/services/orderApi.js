@@ -119,6 +119,13 @@ export const orderApi = {
   },
 
   /**
+   * STT 110: GET /admin/orders/{orderId} - Chi tiết đơn hàng phục vụ quản trị (ADMIN)
+   */
+  async getAdminOrderDetail(id) {
+    return await request(`/admin/orders/${id}`, { method: 'GET' });
+  },
+
+  /**
    * Quản trị: Cập nhật trạng thái đơn hàng
    */
   async updateOrderStatus(id, payload) {

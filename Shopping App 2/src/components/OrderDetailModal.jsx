@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   X, 
   Package, 
@@ -11,18 +11,40 @@ import {
   Truck,
   Tag,
   Phone,
-  User
+  User,
+  Star,
+  RotateCcw,
+  MessageSquare
 } from 'lucide-react';
 import { formatVND } from '../data/products';
 import { ORDER_STATUSES } from '../context/OrderContext';
+import { shipmentApi } from '../services/shipmentApi';
+import { shopReviewApi } from '../services/shopReviewApi';
+import { returnApi } from '../services/returnApi';
 import './OrderDetailModal.css';
 
 export const OrderDetailModal = ({
   isOpen,
   onClose,
   order,
-  onConfirmDelivery
+  onConfirmDelivery,
+  onOrderUpdated
 }) => {
+  const [shipments, setShipments] = useState([]);
+  const [existingReview, setExistingReview] = useState(null);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [reviewSuccessMsg, setReviewSuccessMsg] = useState('');
+
+  const [showReturnForm, setShowReturnForm] = useState(false);
+  const [returnReason, setReturnReason] = useState('Sản phẩm bị lỗi / không hoạt động');
+  const [returnNote, setReturnNote] = useState('');
+  const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
+  const [returnSuccessMsg, setReturnSuccessMsg] = useState('');
+  const [activeReturn, setActiveReturn] = useState(order?.returnRequest || null);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' && isOpen) {
@@ -32,12 +54,38 @@ export const OrderDetailModal = ({
     if (isOpen) {
       document.body.style.overflow = 'hidden';
       window.addEventListener('keydown', handleKeyDown);
+
+      // Load live shipments & review
+      if (order?.id) {
+        shipmentApi.getOrderShipments(order.id)
+          .then((res) => {
+            const list = Array.isArray(res) ? res : (res?.content || []);
+            setShipments(list);
+          })
+          .catch(() => {});
+
+        shopReviewApi.getOrderReview(order.id)
+          .then((rev) => {
+            if (rev && rev.id) {
+              setExistingReview(rev);
+              setReviewRating(rev.rating || 5);
+              setReviewComment(rev.comment || '');
+            } else {
+              setExistingReview(null);
+            }
+          })
+          .catch(() => setExistingReview(null));
+      }
     }
     return () => {
       document.body.style.overflow = 'unset';
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, order?.id]);
+
+  useEffect(() => {
+    setActiveReturn(order?.returnRequest || null);
+  }, [order]);
 
   if (!isOpen || !order) return null;
 
@@ -308,24 +356,293 @@ export const OrderDetailModal = ({
             </div>
           )}
 
-          {/* Yêu cầu đổi trả / hoàn tiền (nếu có) */}
-          {order.returnRequest && (
-            <div style={{ marginTop: '1rem', background: '#fef2f2', padding: '1rem', borderRadius: '10px', border: '1px solid #fecaca' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <span style={{ fontWeight: 700, color: '#991b1b', fontSize: '0.875rem' }}>
-                  Yêu cầu Trả hàng / Hoàn tiền
-                </span>
-                <span style={{ background: '#fee2e2', color: '#b91c1c', fontSize: '0.75rem', fontWeight: 700, padding: '2px 8px', borderRadius: '4px' }}>
-                  {order.returnRequest.status}
+          {/* THÔNG TIN VẬN CHUYỂN TRỰC TIẾP (SHIPMENTS) */}
+          {shipments.length > 0 && (
+            <div style={{ marginTop: '1rem', background: '#f8fafc', padding: '1rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.6rem' }}>
+                <Truck size={17} color="#2563eb" />
+                <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>
+                  Thông tin Vận chuyển & Giao hàng
                 </span>
               </div>
-              <div style={{ fontSize: '0.825rem', color: '#7f1d1d' }}>
-                <strong>Lý do:</strong> {order.returnRequest.reason}
-              </div>
-              {order.returnRequest.resolutionNote && (
-                <div style={{ fontSize: '0.825rem', color: '#7f1d1d', marginTop: '4px' }}>
-                  <strong>Phản hồi từ Shop:</strong> {order.returnRequest.resolutionNote}
+              {shipments.map((ship) => (
+                <div key={ship.id} style={{ fontSize: '0.825rem', color: '#475569', lineHeight: '1.6', background: '#fff', padding: '0.6rem 0.8rem', borderRadius: '6px', border: '1px solid #edf2f7', marginBottom: '6px' }}>
+                  <div><strong>Đơn vị vận chuyển:</strong> {ship.carrier || 'Giao hàng Tiêu chuẩn'}</div>
+                  {ship.trackingCode && <div><strong>Mã vận đơn:</strong> <code style={{ color: '#2563eb', fontWeight: 600 }}>{ship.trackingCode}</code></div>}
+                  <div><strong>Trạng thái vận chuyển:</strong> <span style={{ color: '#059669', fontWeight: 600 }}>{ship.status}</span></div>
+                  {ship.estimatedDeliveryDate && <div><strong>Dự kiến giao:</strong> {formatDate(ship.estimatedDeliveryDate)}</div>}
                 </div>
+              ))}
+            </div>
+          )}
+
+          {/* ĐÁNH GIÁ CỦA NGƯỜI MUA CHO SHOP */}
+          {(order.status === 'DELIVERED' || order.status === 'delivered' || order.rawStatus === 'DELIVERED') && (
+            <div style={{ marginTop: '1rem', background: '#fff', padding: '1rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Star size={17} color="#f59e0b" fill="#f59e0b" />
+                  <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>
+                    Đánh giá Cửa hàng ({order.shopName || 'Shop'})
+                  </span>
+                </div>
+                {!showReviewForm && existingReview && (
+                  <button
+                    type="button"
+                    style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                    onClick={() => setShowReviewForm(true)}
+                  >
+                    Chỉnh sửa
+                  </button>
+                )}
+              </div>
+
+              {reviewSuccessMsg && (
+                <div style={{ background: '#ecfdf5', color: '#065f46', padding: '0.5rem', borderRadius: '6px', fontSize: '0.8rem', marginBottom: '8px' }}>
+                  {reviewSuccessMsg}
+                </div>
+              )}
+
+              {/* Nếu đã có đánh giá và không mở form sửa */}
+              {existingReview && !showReviewForm && (
+                <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        size={15}
+                        color={star <= existingReview.rating ? '#f59e0b' : '#cbd5e1'}
+                        fill={star <= existingReview.rating ? '#f59e0b' : 'none'}
+                      />
+                    ))}
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', marginLeft: '6px' }}>
+                      {formatDate(existingReview.createdAt)}
+                    </span>
+                  </div>
+                  <p style={{ margin: '4px 0', fontSize: '0.85rem', color: '#334155' }}>
+                    {existingReview.comment || 'Khách hàng không để lại nhận xét bằng chữ.'}
+                  </p>
+                  {existingReview.shopReply && (
+                    <div style={{ marginTop: '8px', background: '#eff6ff', padding: '0.5rem 0.75rem', borderRadius: '6px', borderLeft: '3px solid #2563eb' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e40af' }}>Phản hồi từ người bán:</div>
+                      <div style={{ fontSize: '0.8rem', color: '#1e3a8a', marginTop: '2px' }}>{existingReview.shopReply}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Form gửi hoặc sửa đánh giá */}
+              {(!existingReview || showReviewForm) && (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    try {
+                      setIsSubmittingReview(true);
+                      if (existingReview?.id) {
+                        const updated = await shopReviewApi.updateReview(existingReview.id, {
+                          rating: reviewRating,
+                          comment: reviewComment
+                        });
+                        setExistingReview(updated);
+                        setReviewSuccessMsg('Cập nhật đánh giá thành công!');
+                      } else {
+                        const created = await shopReviewApi.createReview(order.id, {
+                          rating: reviewRating,
+                          comment: reviewComment
+                        });
+                        setExistingReview(created);
+                        setReviewSuccessMsg('Gửi đánh giá cửa hàng thành công!');
+                      }
+                      setShowReviewForm(false);
+                      setTimeout(() => setReviewSuccessMsg(''), 4000);
+                    } catch (err) {
+                      alert(err.message || 'Lỗi gửi đánh giá');
+                    } finally {
+                      setIsSubmittingReview(false);
+                    }
+                  }}
+                  style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Đánh giá sao:</span>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        type="button"
+                        key={star}
+                        onClick={() => setReviewRating(star)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}
+                      >
+                        <Star
+                          size={20}
+                          color={star <= reviewRating ? '#f59e0b' : '#cbd5e1'}
+                          fill={star <= reviewRating ? '#f59e0b' : 'none'}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                  <textarea
+                    rows={2}
+                    placeholder="Chia sẻ trải nghiệm mua sắm của bạn về sản phẩm và dịch vụ của shop..."
+                    value={reviewComment}
+                    onChange={(e) => setReviewComment(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.825rem',
+                      resize: 'vertical',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                    {existingReview && (
+                      <button
+                        type="button"
+                        onClick={() => setShowReviewForm(false)}
+                        style={{ padding: '0.4rem 0.8rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}
+                      >
+                        Hủy
+                      </button>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={isSubmittingReview}
+                      style={{
+                        padding: '0.4rem 0.9rem',
+                        background: '#2563eb',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {isSubmittingReview ? 'Đang gửi...' : (existingReview ? 'Lưu thay đổi' : 'Gửi đánh giá')}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
+
+          {/* YÊU CẦU TRẢ HÀNG / HOÀN TIỀN */}
+          {(activeReturn || (order.status === 'DELIVERED' || order.status === 'delivered' || order.rawStatus === 'DELIVERED')) && (
+            <div style={{ marginTop: '1rem', background: '#fff', padding: '1rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <RotateCcw size={17} color="#dc2626" />
+                  <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>
+                    Yêu cầu Đổi trả / Hoàn tiền
+                  </span>
+                </div>
+                {activeReturn && (
+                  <span style={{ background: '#fee2e2', color: '#b91c1c', fontSize: '0.75rem', fontWeight: 700, padding: '2px 8px', borderRadius: '4px' }}>
+                    {activeReturn.status}
+                  </span>
+                )}
+              </div>
+
+              {returnSuccessMsg && (
+                <div style={{ background: '#ecfdf5', color: '#065f46', padding: '0.5rem', borderRadius: '6px', fontSize: '0.8rem', marginBottom: '8px' }}>
+                  {returnSuccessMsg}
+                </div>
+              )}
+
+              {activeReturn ? (
+                <div style={{ background: '#fef2f2', padding: '0.75rem', borderRadius: '8px', border: '1px solid #fecaca', fontSize: '0.825rem', color: '#7f1d1d' }}>
+                  <div><strong>Lý do yêu cầu:</strong> {activeReturn.reason}</div>
+                  {activeReturn.note && <div style={{ marginTop: '3px' }}><strong>Ghi chú:</strong> {activeReturn.note}</div>}
+                  {activeReturn.requestedAmount && <div style={{ marginTop: '3px' }}><strong>Số tiền yêu cầu hoàn:</strong> {formatVND(activeReturn.requestedAmount)}</div>}
+                  {activeReturn.resolutionNote && (
+                    <div style={{ marginTop: '6px', background: '#fee2e2', padding: '0.5rem', borderRadius: '4px', fontWeight: 600 }}>
+                      Phản hồi từ người bán: {activeReturn.resolutionNote}
+                    </div>
+                  )}
+                </div>
+              ) : showReturnForm ? (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    try {
+                      setIsSubmittingReturn(true);
+                      const res = await returnApi.requestReturn(order.id, {
+                        reason: returnReason,
+                        note: returnNote,
+                        requestedAmount: totalPayment
+                      });
+                      setActiveReturn(res);
+                      setReturnSuccessMsg('Yêu cầu trả hàng đã được gửi thành công đến người bán!');
+                      setShowReturnForm(false);
+                      if (onOrderUpdated) onOrderUpdated();
+                    } catch (err) {
+                      alert(err.message || 'Lỗi gửi yêu cầu trả hàng');
+                    } finally {
+                      setIsSubmittingReturn(false);
+                    }
+                  }}
+                  style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+                >
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Lý do trả hàng:</label>
+                  <select
+                    value={returnReason}
+                    onChange={(e) => setReturnReason(e.target.value)}
+                    style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.825rem' }}
+                  >
+                    <option value="Sản phẩm bị lỗi / không hoạt động">Sản phẩm bị lỗi / không hoạt động</option>
+                    <option value="Hàng không đúng mô tả hoặc sai mẫu mã">Hàng không đúng mô tả hoặc sai mẫu mã</option>
+                    <option value="Thiếu phụ kiện hoặc linh kiện đi kèm">Thiếu phụ kiện hoặc linh kiện đi kèm</option>
+                    <option value="Bị hư hỏng trong quá trình vận chuyển">Bị hư hỏng trong quá trình vận chuyển</option>
+                    <option value="Khác">Lý do khác</option>
+                  </select>
+
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Chi tiết mô tả lỗi:</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Vui lòng mô tả cụ thể tình trạng sản phẩm..."
+                    value={returnNote}
+                    onChange={(e) => setReturnNote(e.target.value)}
+                    style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.825rem', boxSizing: 'border-box' }}
+                  />
+
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowReturnForm(false)}
+                      style={{ padding: '0.4rem 0.8rem', background: '#f1f5f9', border: 'none', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmittingReturn}
+                      style={{ padding: '0.4rem 0.9rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      {isSubmittingReturn ? 'Đang gửi...' : 'Gửi yêu cầu'}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowReturnForm(true)}
+                  style={{
+                    background: '#fee2e2',
+                    color: '#dc2626',
+                    border: '1px solid #fecaca',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '6px',
+                    fontSize: '0.825rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <RotateCcw size={15} /> Gửi yêu cầu Đổi trả / Hoàn tiền
+                </button>
               )}
             </div>
           )}
