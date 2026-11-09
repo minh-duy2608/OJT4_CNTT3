@@ -238,3 +238,4 @@ export const AdminAuditLogsTab = ({ isAdmin, shopId }) => {
     </div>
   );
 };
+

@@ -86,3 +86,4 @@ export const auditLogApi = {
     return await request(`/shops/${shopId}/audit-logs${qs ? `?${qs}` : ''}`, { method: 'GET' });
   }
 };
+

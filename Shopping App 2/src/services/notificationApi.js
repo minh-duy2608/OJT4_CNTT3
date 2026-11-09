@@ -93,3 +93,4 @@ export const notificationApi = {
     return await request(`/notifications/${id}`, { method: 'DELETE' });
   }
 };
+

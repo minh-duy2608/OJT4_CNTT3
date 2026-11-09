@@ -80,3 +80,4 @@ export const systemApi = {
     return await request('/admin/health', { method: 'GET' });
   }
 };
+
