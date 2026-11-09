@@ -26,3 +26,4 @@ public class AuditLogResponse {
     private String details;
     private LocalDateTime createdAt;
 }
+

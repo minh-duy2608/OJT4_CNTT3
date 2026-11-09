@@ -20,3 +20,4 @@ public class TopProductResponse {
     private Long totalSoldQuantity;
     private BigDecimal totalRevenue;
 }
+

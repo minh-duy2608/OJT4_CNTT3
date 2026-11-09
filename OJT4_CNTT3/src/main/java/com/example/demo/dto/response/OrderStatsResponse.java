@@ -15,3 +15,4 @@ public class OrderStatsResponse {
     private Long totalOrders;
     private Map<String, Long> countByStatus;
 }
+

@@ -18,3 +18,4 @@ public class ModerateShopReviewRequest {
 
     private String reason;
 }
+

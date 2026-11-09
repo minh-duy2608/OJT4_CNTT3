@@ -34,3 +34,4 @@ public interface DashboardService {
 
     RevenueReportResponse getShopRevenueReport(Long shopId, String from, String to, String groupBy, String currentUsername);
 }
+

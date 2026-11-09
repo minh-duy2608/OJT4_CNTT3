@@ -27,3 +27,4 @@ public interface ShipmentRepository extends JpaRepository<Shipment, Long> {
 
     Optional<Shipment> findByTrackingCode(String trackingCode);
 }
+

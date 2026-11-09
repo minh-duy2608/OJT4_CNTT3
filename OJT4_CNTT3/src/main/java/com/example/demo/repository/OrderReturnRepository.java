@@ -26,3 +26,4 @@ public interface OrderReturnRepository extends JpaRepository<OrderReturn, Long> 
 
     boolean existsByOrderIdAndStatusNotIn(Long orderId, List<ReturnStatus> excludedStatuses);
 }
+

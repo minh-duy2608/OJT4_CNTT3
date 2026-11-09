@@ -24,3 +24,4 @@ public class ShopDashboardSummaryResponse {
     private Long activeProducts;
     private Long lowStockItems;
 }
+

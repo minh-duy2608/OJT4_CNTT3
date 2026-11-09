@@ -19,3 +19,4 @@ public class UpdateShopReviewRequest {
 
     private String comment;
 }
+

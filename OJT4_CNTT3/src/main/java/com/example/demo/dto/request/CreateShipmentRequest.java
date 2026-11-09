@@ -21,3 +21,4 @@ public class CreateShipmentRequest {
     private BigDecimal shippingFee;
     private String note;
 }
+

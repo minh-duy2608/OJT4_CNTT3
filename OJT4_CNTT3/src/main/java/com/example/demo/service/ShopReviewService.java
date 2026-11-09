@@ -33,3 +33,4 @@ public interface ShopReviewService {
 
     ShopReviewResponse moderateReview(Long reviewId, ModerateShopReviewRequest request, String currentUsername);
 }
+

@@ -4,3 +4,4 @@ public enum ShopReviewStatus {
     PUBLISHED,
     HIDDEN
 }
+

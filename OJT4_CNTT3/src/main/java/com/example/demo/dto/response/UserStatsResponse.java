@@ -16,3 +16,4 @@ public class UserStatsResponse {
     private Map<String, Long> countByRole;
     private Map<String, Long> countByStatus;
 }
+

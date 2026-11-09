@@ -22,3 +22,4 @@ public interface ShipmentService {
 
     ShipmentResponse adminUpdateShipment(Long shipmentId, UpdateShipmentRequest request, String currentUsername);
 }
+

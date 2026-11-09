@@ -23,3 +23,4 @@ public class DashboardSummaryResponse {
     private Long activeShops;
     private Long totalProducts;
 }
+

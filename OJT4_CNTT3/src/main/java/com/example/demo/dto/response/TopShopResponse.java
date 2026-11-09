@@ -19,3 +19,4 @@ public class TopShopResponse {
     private Long totalDeliveredOrders;
     private BigDecimal totalRevenue;
 }
+

@@ -73,3 +73,4 @@ public class Shipment {
         this.updatedAt = LocalDateTime.now();
     }
 }
+

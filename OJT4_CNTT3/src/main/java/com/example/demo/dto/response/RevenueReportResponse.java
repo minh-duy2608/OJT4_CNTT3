@@ -29,3 +29,4 @@ public class RevenueReportResponse {
         private Long orderCount;
     }
 }
+

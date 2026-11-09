@@ -17,3 +17,4 @@ public interface NotificationService {
 
     void createNotification(Long userId, String type, String title, String message, String referenceType, Long referenceId);
 }
+

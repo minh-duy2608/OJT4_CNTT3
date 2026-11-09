@@ -23,3 +23,4 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
     Page<AuditLog> findByShopIdOrderByCreatedAtDesc(Long shopId, Pageable pageable);
 }
+

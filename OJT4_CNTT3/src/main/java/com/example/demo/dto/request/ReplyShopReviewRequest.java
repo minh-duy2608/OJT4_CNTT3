@@ -15,3 +15,4 @@ public class ReplyShopReviewRequest {
     @NotBlank(message = "Nội dung phản hồi không được để trống")
     private String reply;
 }
+

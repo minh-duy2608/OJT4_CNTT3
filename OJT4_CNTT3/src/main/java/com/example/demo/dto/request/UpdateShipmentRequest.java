@@ -16,3 +16,4 @@ public class UpdateShipmentRequest {
     private ShipmentStatus status;
     private String note;
 }
+

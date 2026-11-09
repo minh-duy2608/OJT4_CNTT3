@@ -33,3 +33,4 @@ public class ShopReviewResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
+

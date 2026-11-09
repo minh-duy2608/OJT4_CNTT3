@@ -34,3 +34,4 @@ public interface ShopReviewRepository extends JpaRepository<ShopReview, Long> {
     @Query("SELECT COUNT(r) FROM ShopReview r WHERE r.shopId = :shopId AND r.rating = :rating AND r.status = 'PUBLISHED'")
     long countByShopIdAndRating(@Param("shopId") Long shopId, @Param("rating") int rating);
 }
+

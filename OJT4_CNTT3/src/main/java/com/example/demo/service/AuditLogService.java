@@ -16,3 +16,4 @@ public interface AuditLogService {
 
     PageResponse<AuditLogResponse> getShopAuditLogs(Long shopId, int page, int size, String currentUsername);
 }
+

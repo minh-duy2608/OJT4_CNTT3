@@ -21,3 +21,4 @@ public class CreateShopReviewRequest {
 
     private String comment;
 }
+
