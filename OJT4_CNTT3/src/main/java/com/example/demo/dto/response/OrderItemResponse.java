@@ -15,6 +15,7 @@ public class OrderItemResponse {
 
     private Long id;
     private Long variantId;
+    private Long productId;
     private String productName;
     private String variantName;
     private String sku;
@@ -23,5 +24,6 @@ public class OrderItemResponse {
     private Integer quantity;
     private BigDecimal discountAmount;
     private BigDecimal lineTotal;
+    private Boolean isReviewed;
 }
 

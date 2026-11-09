@@ -16,6 +16,11 @@ public interface OrderService {
     OrderResponse getOrderDetail(Long orderId, String currentUsername);
 
     /**
+     * Khách hàng xác nhận đã nhận hàng (chuyển sang DELIVERED, ghi deliveredAt, chống xác nhận lặp)
+     */
+    OrderResponse confirmOrderDelivery(Long orderId, String currentUsername);
+
+    /**
      * STT 102: GET /orders/{orderId}/tracking - Theo dõi trạng thái đơn hàng (CLIENT)
      */
     OrderTrackingResponse getOrderTracking(Long orderId, String currentUsername);

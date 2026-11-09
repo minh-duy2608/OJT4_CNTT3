@@ -23,12 +23,13 @@ import { OrderDetailModal } from '../components/OrderDetailModal';
 import './OrdersPage.css';
 
 export const OrdersPage = () => {
-  const { orders, updateOrderStatus, cancelOrder } = useOrders();
+  const { orders, updateOrderStatus, cancelOrder, confirmDelivery } = useOrders();
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
-  // Modal xác nhận hủy đơn & Xem chi tiết đơn
+  // Modal xác nhận hủy đơn, xác nhận nhận hàng & Xem chi tiết đơn
   const [orderToCancel, setOrderToCancel] = useState(null);
+  const [orderToConfirmDelivery, setOrderToConfirmDelivery] = useState(null);
   const [selectedOrderForDetail, setSelectedOrderForDetail] = useState(null);
 
   // Redirect nếu chưa đăng nhập
@@ -293,6 +294,30 @@ export const OrdersPage = () => {
 
                   {/* Khu vực thao tác & mô phỏng trạng thái cho người dùng */}
                   <div className="order-actions-wrap">
+                    {/* Nút Khách xác nhận đã nhận hàng */}
+                    {(order.canConfirmDelivery || order.status === 'delivering' || order.status === 'shipped' || order.rawStatus === 'SHIPPED') && (
+                      <button
+                        type="button"
+                        style={{
+                          background: '#059669',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '0.45rem 0.9rem',
+                          fontSize: '0.85rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                        onClick={() => setOrderToConfirmDelivery(order)}
+                        title="Xác nhận bạn đã nhận được hàng và hài lòng với sản phẩm"
+                      >
+                        <CheckCircle2 size={15} /> Đã nhận được hàng
+                      </button>
+                    )}
+
                     {/* Nút xem chi tiết đơn hàng */}
                     <button
                       type="button"
@@ -342,6 +367,31 @@ export const OrdersPage = () => {
         isOpen={Boolean(selectedOrderForDetail)}
         onClose={() => setSelectedOrderForDetail(null)}
         order={selectedOrderForDetail}
+        onConfirmDelivery={(ord) => {
+          setSelectedOrderForDetail(null);
+          setOrderToConfirmDelivery(ord);
+        }}
+      />
+
+      {/* MODAL: XÁC NHẬN NHẬN HÀNG */}
+      <ConfirmModal
+        isOpen={Boolean(orderToConfirmDelivery)}
+        onClose={() => setOrderToConfirmDelivery(null)}
+        type="primary"
+        title="Xác nhận đã nhận hàng"
+        message={orderToConfirmDelivery ? `Bạn xác nhận đã nhận được kiện hàng #${orderToConfirmDelivery.id} và kiểm tra sản phẩm thành công? Trạng thái đơn sẽ được cập nhật thành Đã giao (DELIVERED).` : ''}
+        confirmText="Tôi đã nhận hàng"
+        cancelText="Chưa nhận được"
+        onConfirm={async () => {
+          if (orderToConfirmDelivery) {
+            try {
+              await confirmDelivery(orderToConfirmDelivery.id);
+            } catch (e) {
+              alert(e.message || 'Lỗi khi xác nhận nhận hàng');
+            }
+            setOrderToConfirmDelivery(null);
+          }
+        }}
       />
 
       {/* MODEL BOX: XÁC NHẬN HỦY ĐƠN HÀNG */}

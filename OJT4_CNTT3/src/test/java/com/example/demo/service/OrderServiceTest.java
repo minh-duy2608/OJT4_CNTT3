@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-@DisplayName("Order Service Unit Tests - Update Shop Order Status")
+@DisplayName("Order Service Unit Tests - Update Shop Order Status & Customer Confirm Delivery")
 class OrderServiceTest extends BaseUnitTest {
 
     @Mock
@@ -39,7 +39,16 @@ class OrderServiceTest extends BaseUnitTest {
     private ShopMemberRepository shopMemberRepository;
 
     @Mock
+    private ProductVariantRepository productVariantRepository;
+
+    @Mock
     private InventoryRepository inventoryRepository;
+
+    @Mock
+    private OrderReturnRepository orderReturnRepository;
+
+    @Mock
+    private ProductReviewRepository productReviewRepository;
 
     @Mock
     private AuditLogService auditLogService;
@@ -48,6 +57,7 @@ class OrderServiceTest extends BaseUnitTest {
     private OrderServiceImpl orderService;
 
     private User ownerUser;
+    private User customerUser;
     private User otherUser;
     private Shop shop;
     private Order order;
@@ -59,6 +69,13 @@ class OrderServiceTest extends BaseUnitTest {
                 .username("shopowner")
                 .email("owner@shop.com")
                 .role(Role.SHOP_MANAGER)
+                .build();
+
+        customerUser = User.builder()
+                .id(5L)
+                .username("customer")
+                .email("customer@cyber.com")
+                .role(Role.ROLE_USER)
                 .build();
 
         otherUser = User.builder()
@@ -149,17 +166,26 @@ class OrderServiceTest extends BaseUnitTest {
     @Test
     @DisplayName("Đơn hàng không thuộc về shop truyền vào -> Trả về 404 ResourceNotFoundException")
     void testUpdateShopOrderStatus_NotFound_OrderMismatchShop() {
+        Shop shop20 = Shop.builder()
+                .id(20L)
+                .name("Shop 20")
+                .ownerId(1L)
+                .status(ShopStatus.ACTIVE)
+                .build();
+
         when(userRepository.findByUsername("shopowner")).thenReturn(Optional.of(ownerUser));
-        when(shopRepository.findById(10L)).thenReturn(Optional.of(shop));
+        when(shopRepository.findById(20L)).thenReturn(Optional.of(shop20));
         when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
 
-        // Shop trong url là 20L, nhưng đơn hàng thuộc shop 10L
+        // Shop trong url là 20L, nhưng đơn hàng order.getShopId() là 10L
         UpdateOrderStatusRequest request = UpdateOrderStatusRequest.builder()
                 .status(OrderStatus.DELIVERED)
                 .build();
 
-        assertThrows(ResourceNotFoundException.class, () ->
+        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class, () ->
                 orderService.updateShopOrderStatus(20L, 100L, request, "shopowner"));
+
+        assertTrue(ex.getMessage().contains("không thuộc về cửa hàng #20"));
     }
 
     @Test
@@ -219,6 +245,115 @@ class OrderServiceTest extends BaseUnitTest {
                 orderService.updateShopOrderStatus(10L, 100L, request, "shopowner"));
 
         verify(orderRepository, never()).save(any());
+    }
+
+    // =========================================================================
+    // CUSTOMER CONFIRM DELIVERY TESTS
+    // =========================================================================
+
+    @Test
+    @DisplayName("Khách hàng xác nhận nhận hàng thành công khi đơn đang SHIPPED -> Chuyển DELIVERED, lưu deliveredAt, paymentStatus PAID và ghi Audit Log")
+    void testConfirmOrderDelivery_Success() {
+        order.setStatus(OrderStatus.SHIPPED);
+        when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        OrderResponse response = orderService.confirmOrderDelivery(100L, "customer");
+
+        assertNotNull(response);
+        assertEquals(OrderStatus.DELIVERED, response.getStatus());
+        assertEquals(PaymentStatus.PAID, response.getPaymentStatus());
+        assertNotNull(response.getDeliveredAt());
+        assertTrue(response.getCanReview());
+        assertFalse(response.getCanConfirmDelivery());
+        verify(orderRepository).save(order);
+        verify(auditLogService).log(eq(5L), eq("CUSTOMER_CONFIRMED_DELIVERY"), eq("ORDER"), eq("100"), eq(10L), anyString());
+    }
+
+    @Test
+    @DisplayName("Khách hàng xác nhận đơn hàng của người khác -> Bị từ chối 403 ForbiddenException")
+    void testConfirmOrderDelivery_Forbidden_WhenOtherUser() {
+        order.setStatus(OrderStatus.SHIPPED);
+        // Order owner is 5L, user attempting is 2L
+        when(userRepository.findByUsername("otheruser")).thenReturn(Optional.of(otherUser));
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class, () ->
+                orderService.confirmOrderDelivery(100L, "otheruser"));
+
+        assertTrue(ex.getMessage().contains("Bạn không có quyền xác nhận đơn hàng của người khác"));
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Chống xác nhận lặp: Đơn hàng đã DELIVERED -> Bị từ chối 400 BadRequestException")
+    void testConfirmOrderDelivery_BadRequest_DuplicateConfirmation() {
+        order.setStatus(OrderStatus.DELIVERED);
+        order.setDeliveredAt(LocalDateTime.now().minusHours(2));
+
+        when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                orderService.confirmOrderDelivery(100L, "customer"));
+
+        assertTrue(ex.getMessage().contains("đã được xác nhận giao thành công trước đó"));
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Đơn hàng chưa ở trạng thái SHIPPED (đang PENDING/CONFIRMED) -> Bị từ chối 400 BadRequestException")
+    void testConfirmOrderDelivery_BadRequest_WhenNotShipped() {
+        order.setStatus(OrderStatus.CONFIRMED);
+
+        when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                orderService.confirmOrderDelivery(100L, "customer"));
+
+        assertTrue(ex.getMessage().contains("Chỉ có thể xác nhận nhận hàng khi đơn hàng đang ở trạng thái đang giao"));
+        verify(orderRepository, never()).save(any());
+    }
+
+    // =========================================================================
+    // CUSTOMER ORDER DETAIL TESTS
+    // =========================================================================
+
+    @Test
+    @DisplayName("Khách hàng sở hữu xem chi tiết đơn hàng -> Trả về đầy đủ timeline, items, hướng dẫn hoàn hàng, điều kiện review")
+    void testGetOrderDetail_Success_Owner() {
+        order.setStatus(OrderStatus.DELIVERED);
+        order.setDeliveredAt(LocalDateTime.now().minusDays(1));
+
+        when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+        OrderResponse response = orderService.getOrderDetail(100L, "customer");
+
+        assertNotNull(response);
+        assertEquals(100L, response.getId());
+        assertEquals("ORD-100-XYZ", response.getOrderCode());
+        assertNotNull(response.getTimeline());
+        assertFalse(response.getTimeline().isEmpty());
+        assertNotNull(response.getReturnInstructions());
+        assertTrue(response.getCanReview());
+        assertNotNull(response.getReviewConditionMessage());
+    }
+
+    @Test
+    @DisplayName("User khác không sở hữu đơn và không phải shop/admin xem chi tiết -> Bị từ chối 403 ForbiddenException")
+    void testGetOrderDetail_Forbidden_WhenOtherUser() {
+        when(userRepository.findByUsername("otheruser")).thenReturn(Optional.of(otherUser));
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+        when(shopRepository.findById(10L)).thenReturn(Optional.of(shop));
+        when(shopMemberRepository.existsByIdShopIdAndIdUserIdAndStatus(10L, 2L, ShopMemberStatus.ACTIVE)).thenReturn(false);
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class, () ->
+                orderService.getOrderDetail(100L, "otheruser"));
+
+        assertTrue(ex.getMessage().contains("Bạn không có quyền"));
     }
 }
 

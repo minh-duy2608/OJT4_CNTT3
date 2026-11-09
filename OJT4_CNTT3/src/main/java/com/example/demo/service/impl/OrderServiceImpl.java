@@ -7,6 +7,7 @@ import com.example.demo.dto.response.OrderItemResponse;
 import com.example.demo.dto.response.OrderResponse;
 import com.example.demo.dto.response.OrderTrackingResponse;
 import com.example.demo.dto.response.PageResponse;
+import com.example.demo.dto.response.ReturnResponse;
 import com.example.demo.entity.*;
 import com.example.demo.exception.BadRequestException;
 import com.example.demo.exception.ForbiddenException;
@@ -47,6 +48,8 @@ public class OrderServiceImpl implements OrderService {
     private final ProductVariantRepository productVariantRepository;
     private final InventoryRepository inventoryRepository;
     private final ShopMemberRepository shopMemberRepository;
+    private final OrderReturnRepository orderReturnRepository;
+    private final ProductReviewRepository productReviewRepository;
     private final AuditLogService auditLogService;
 
     @Override
@@ -264,7 +267,9 @@ public class OrderServiceImpl implements OrderService {
             orderPage = orderRepository.findByUserIdOrderByCreatedAtDesc(user.getId(), pageable);
         }
 
-        List<OrderResponse> content = orderPage.getContent().stream().map(this::mapToResponse).toList();
+        List<OrderResponse> content = orderPage.getContent().stream()
+                .map(o -> mapToDetailedResponse(o, user.getId()))
+                .toList();
         return PageResponse.<OrderResponse>builder()
                 .content(content)
                 .page(orderPage.getNumber())
@@ -279,24 +284,80 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public OrderResponse getOrderDetail(Long orderId, String currentUsername) {
+        if (currentUsername == null || currentUsername.isBlank()) {
+            throw new UnauthorizedException("Yêu cầu đăng nhập để xem thông tin chi tiết đơn hàng");
+        }
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin tài khoản: " + currentUsername));
+
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
 
-        if (currentUsername != null && !currentUsername.isBlank()) {
-            User user = userRepository.findByUsername(currentUsername).orElse(null);
-            if (user != null) {
-                boolean isBuyer = Objects.equals(order.getUserId(), user.getId());
-                boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN ||
-                        (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
-                                "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
-                boolean isShopManager = isUserShopManagerForOrder(user, order);
-                if (!isBuyer && !isAdmin && !isShopManager) {
-                    throw new ForbiddenException("Bạn không có quyền truy cập đơn hàng này");
-                }
-            }
+        boolean isBuyer = Objects.equals(order.getUserId(), user.getId());
+        boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN ||
+                (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
+                        "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
+        boolean isShopManager = isUserShopManagerForOrder(user, order);
+        if (!isBuyer && !isAdmin && !isShopManager) {
+            log.warn("Access denied for user '{}' (ID #{}) to order #{}", currentUsername, user.getId(), orderId);
+            throw new ForbiddenException("Bạn không có quyền truy cập thông tin chi tiết đơn hàng này");
         }
 
-        return mapToResponse(order);
+        return mapToDetailedResponse(order, user.getId());
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse confirmOrderDelivery(Long orderId, String currentUsername) {
+        if (currentUsername == null || currentUsername.isBlank()) {
+            throw new UnauthorizedException("Yêu cầu đăng nhập để xác nhận nhận hàng");
+        }
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin tài khoản: " + currentUsername));
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
+
+        // 1. Chỉ khách hàng sở hữu đơn mới được xác nhận nhận hàng
+        if (!Objects.equals(order.getUserId(), user.getId())) {
+            log.warn("User #{} ('{}') attempted to confirm delivery for order #{} owned by user #{}",
+                    user.getId(), user.getUsername(), order.getId(), order.getUserId());
+            throw new ForbiddenException("Bạn không có quyền xác nhận đơn hàng của người khác!");
+        }
+
+        // 2. Chống xác nhận lặp (đã DELIVERED trước đó)
+        if (order.getStatus() == OrderStatus.DELIVERED) {
+            throw new BadRequestException("Đơn hàng này đã được xác nhận giao thành công trước đó (vào lúc " + order.getDeliveredAt() + ")!");
+        }
+
+        // 3. Chỉ xác nhận khi đơn đang ở trạng thái SHIPPING / SHIPPED
+        if (order.getStatus() != OrderStatus.SHIPPED) {
+            throw new BadRequestException("Chỉ có thể xác nhận nhận hàng khi đơn hàng đang ở trạng thái đang giao (SHIPPED). Trạng thái hiện tại: " + order.getStatus());
+        }
+
+        // 4. Chuyển DELIVERED, ghi deliveredAt, cập nhật paymentStatus
+        LocalDateTime now = LocalDateTime.now();
+        order.setStatus(OrderStatus.DELIVERED);
+        order.setDeliveredAt(now);
+        order.setPaymentStatus(PaymentStatus.PAID);
+        order.setUpdatedAt(now);
+
+        Order saved = orderRepository.save(order);
+        log.info("Customer '{}' (User #{}) confirmed delivery for order #{} ({}) at {}",
+                user.getUsername(), user.getId(), saved.getId(), saved.getOrderCode(), now);
+
+        // 5. Ghi Audit Log
+        auditLogService.log(
+                user.getId(),
+                "CUSTOMER_CONFIRMED_DELIVERY",
+                "ORDER",
+                String.valueOf(saved.getId()),
+                saved.getShopId(),
+                String.format("Khách hàng '%s' (ID #%d) đã xác nhận nhận hàng thành công cho đơn #%s",
+                        user.getUsername(), user.getId(), saved.getOrderCode())
+        );
+
+        return mapToDetailedResponse(saved, user.getId());
     }
 
     @Override
@@ -326,81 +387,8 @@ public class OrderServiceImpl implements OrderService {
             shopName = shopRepository.findById(order.getShopId()).map(Shop::getName).orElse("Shop #" + order.getShopId());
         }
 
-        List<OrderTrackingResponse.TrackingTimelineEvent> timeline = new ArrayList<>();
+        List<OrderTrackingResponse.TrackingTimelineEvent> timeline = buildOrderTimeline(order, shopName);
         OrderStatus currentStatus = order.getStatus();
-
-        // 1. PENDING (Đã đặt đơn)
-        timeline.add(OrderTrackingResponse.TrackingTimelineEvent.builder()
-                .step("PENDING")
-                .title("Đặt hàng thành công")
-                .description("Đơn hàng #" + order.getOrderCode() + " đã được tạo và chuyển đến cửa hàng " + (shopName != null ? shopName : ""))
-                .timestamp(order.getCreatedAt())
-                .completed(true)
-                .current(currentStatus == OrderStatus.PENDING)
-                .build());
-
-        // 2. CONFIRMED (Đã xác nhận)
-        boolean isConfirmedDone = order.getConfirmedAt() != null ||
-                currentStatus == OrderStatus.CONFIRMED ||
-                currentStatus == OrderStatus.PROCESSING ||
-                currentStatus == OrderStatus.SHIPPED ||
-                currentStatus == OrderStatus.DELIVERED;
-        timeline.add(OrderTrackingResponse.TrackingTimelineEvent.builder()
-                .step("CONFIRMED")
-                .title("Cửa hàng xác nhận")
-                .description(isConfirmedDone ? "Người bán đã tiếp nhận và xác nhận đơn hàng" : "Chờ cửa hàng kiểm tra và xác nhận đơn")
-                .timestamp(order.getConfirmedAt())
-                .completed(isConfirmedDone)
-                .current(currentStatus == OrderStatus.CONFIRMED)
-                .build());
-
-        // 3. PROCESSING (Đang đóng gói)
-        boolean isProcessingDone = currentStatus == OrderStatus.PROCESSING ||
-                currentStatus == OrderStatus.SHIPPED ||
-                currentStatus == OrderStatus.DELIVERED;
-        timeline.add(OrderTrackingResponse.TrackingTimelineEvent.builder()
-                .step("PROCESSING")
-                .title("Đang đóng gói")
-                .description(isProcessingDone ? "Kiện hàng đã được chuẩn bị và đóng gói niêm phong" : "Cửa hàng chuẩn bị hàng đóng gói")
-                .timestamp(order.getConfirmedAt() != null ? order.getConfirmedAt() : null)
-                .completed(isProcessingDone)
-                .current(currentStatus == OrderStatus.PROCESSING)
-                .build());
-
-        // 4. SHIPPED (Đang vận chuyển)
-        boolean isShippedDone = order.getShippedAt() != null ||
-                currentStatus == OrderStatus.SHIPPED ||
-                currentStatus == OrderStatus.DELIVERED;
-        timeline.add(OrderTrackingResponse.TrackingTimelineEvent.builder()
-                .step("SHIPPED")
-                .title("Đang vận chuyển")
-                .description(isShippedDone ? "Đơn hàng đã bàn giao cho shipper và đang trên đường giao đến bạn" : "Đang chờ bàn giao cho đơn vị vận chuyển")
-                .timestamp(order.getShippedAt())
-                .completed(isShippedDone)
-                .current(currentStatus == OrderStatus.SHIPPED)
-                .build());
-
-        // 5. DELIVERED / CANCELLED
-        if (currentStatus == OrderStatus.CANCELLED) {
-            timeline.add(OrderTrackingResponse.TrackingTimelineEvent.builder()
-                    .step("CANCELLED")
-                    .title("Đơn hàng đã hủy")
-                    .description("Đơn hàng đã bị hủy. " + (order.getNote() != null ? "Lý do: " + order.getNote() : ""))
-                    .timestamp(order.getCancelledAt() != null ? order.getCancelledAt() : order.getUpdatedAt())
-                    .completed(true)
-                    .current(true)
-                    .build());
-        } else {
-            boolean isDeliveredDone = order.getDeliveredAt() != null || currentStatus == OrderStatus.DELIVERED;
-            timeline.add(OrderTrackingResponse.TrackingTimelineEvent.builder()
-                    .step("DELIVERED")
-                    .title("Giao hàng thành công")
-                    .description(isDeliveredDone ? "Đơn hàng đã được giao thành công tới người nhận" : "Đang chờ hoàn tất giao nhận")
-                    .timestamp(order.getDeliveredAt())
-                    .completed(isDeliveredDone)
-                    .current(currentStatus == OrderStatus.DELIVERED)
-                    .build());
-        }
 
         String statusDesc = switch (currentStatus) {
             case PENDING -> "Chờ xác nhận";
@@ -801,24 +789,142 @@ public class OrderServiceImpl implements OrderService {
         return user;
     }
 
-    private OrderResponse mapToResponse(Order order) {
-        List<OrderItemResponse> itemResponses = order.getItems() != null
-                ? order.getItems().stream().map(it -> OrderItemResponse.builder()
-                .id(it.getId())
-                .variantId(it.getVariantId())
-                .productName(it.getProductName())
-                .variantName(it.getVariantName())
-                .sku(it.getSku())
-                .productImageUrl(it.getProductImageUrl())
-                .unitPrice(it.getUnitPrice())
-                .quantity(it.getQuantity())
-                .discountAmount(it.getDiscountAmount())
-                .lineTotal(it.getLineTotal())
-                .build()).toList()
-                : List.of();
+    private static final String DEFAULT_RETURN_INSTRUCTIONS =
+            "1. Quý khách có thể gửi yêu cầu Trả hàng / Hoàn tiền trong vòng 7 ngày kể từ khi nhận hàng thành công.\n" +
+            "2. Sản phẩm đổi trả phải còn nguyên tem niêm phong, phụ kiện, hộp đóng gói và chưa qua sửa chữa hoặc can thiệp kỹ thuật.\n" +
+            "3. Vui lòng quay video lúc mở kiện hàng và chụp ảnh chi tiết lỗi để Shop đối soát và xử lý hoàn tiền nhanh nhất.";
 
+    private List<OrderTrackingResponse.TrackingTimelineEvent> buildOrderTimeline(Order order, String shopName) {
+        List<OrderTrackingResponse.TrackingTimelineEvent> timeline = new ArrayList<>();
+        OrderStatus currentStatus = order.getStatus();
+
+        // 1. PENDING (Đã đặt đơn)
+        timeline.add(OrderTrackingResponse.TrackingTimelineEvent.builder()
+                .step("PENDING")
+                .title("Đặt hàng thành công")
+                .description("Đơn hàng #" + order.getOrderCode() + " đã được tạo" + (shopName != null ? " và chuyển đến cửa hàng " + shopName : ""))
+                .timestamp(order.getCreatedAt())
+                .completed(true)
+                .current(currentStatus == OrderStatus.PENDING)
+                .build());
+
+        // 2. CONFIRMED (Đã xác nhận)
+        boolean isConfirmedDone = order.getConfirmedAt() != null ||
+                currentStatus == OrderStatus.CONFIRMED ||
+                currentStatus == OrderStatus.PROCESSING ||
+                currentStatus == OrderStatus.SHIPPED ||
+                currentStatus == OrderStatus.DELIVERED;
+        timeline.add(OrderTrackingResponse.TrackingTimelineEvent.builder()
+                .step("CONFIRMED")
+                .title("Cửa hàng xác nhận")
+                .description(isConfirmedDone ? "Người bán đã tiếp nhận và xác nhận đơn hàng" : "Chờ cửa hàng kiểm tra và xác nhận đơn")
+                .timestamp(order.getConfirmedAt())
+                .completed(isConfirmedDone)
+                .current(currentStatus == OrderStatus.CONFIRMED)
+                .build());
+
+        // 3. PROCESSING (Đang đóng gói)
+        boolean isProcessingDone = currentStatus == OrderStatus.PROCESSING ||
+                currentStatus == OrderStatus.SHIPPED ||
+                currentStatus == OrderStatus.DELIVERED;
+        timeline.add(OrderTrackingResponse.TrackingTimelineEvent.builder()
+                .step("PROCESSING")
+                .title("Đang đóng gói")
+                .description(isProcessingDone ? "Kiện hàng đã được chuẩn bị và đóng gói niêm phong" : "Cửa hàng chuẩn bị hàng đóng gói")
+                .timestamp(order.getConfirmedAt() != null ? order.getConfirmedAt() : null)
+                .completed(isProcessingDone)
+                .current(currentStatus == OrderStatus.PROCESSING)
+                .build());
+
+        // 4. SHIPPED (Đang vận chuyển)
+        boolean isShippedDone = order.getShippedAt() != null ||
+                currentStatus == OrderStatus.SHIPPED ||
+                currentStatus == OrderStatus.DELIVERED;
+        timeline.add(OrderTrackingResponse.TrackingTimelineEvent.builder()
+                .step("SHIPPED")
+                .title("Đang vận chuyển")
+                .description(isShippedDone ? "Đơn hàng đã bàn giao cho đơn vị vận chuyển và đang trên đường giao đến bạn" : "Đang chờ bàn giao cho shipper")
+                .timestamp(order.getShippedAt())
+                .completed(isShippedDone)
+                .current(currentStatus == OrderStatus.SHIPPED)
+                .build());
+
+        // 5. Kết thúc: CANCELLED / RETURNED / DELIVERED
+        if (currentStatus == OrderStatus.CANCELLED) {
+            timeline.add(OrderTrackingResponse.TrackingTimelineEvent.builder()
+                    .step("CANCELLED")
+                    .title("Đơn hàng đã hủy")
+                    .description("Đơn hàng đã bị hủy. " + (order.getCancellationReason() != null ? "Lý do: " + order.getCancellationReason() : (order.getNote() != null ? order.getNote() : "")))
+                    .timestamp(order.getCancelledAt() != null ? order.getCancelledAt() : order.getUpdatedAt())
+                    .completed(true)
+                    .current(true)
+                    .build());
+        } else if (currentStatus == OrderStatus.RETURNED) {
+            timeline.add(OrderTrackingResponse.TrackingTimelineEvent.builder()
+                    .step("RETURNED")
+                    .title("Đã hoàn trả hàng")
+                    .description("Đơn hàng đã được hoàn trả / hoàn tiền thành công")
+                    .timestamp(order.getUpdatedAt())
+                    .completed(true)
+                    .current(true)
+                    .build());
+        } else {
+            boolean isDeliveredDone = order.getDeliveredAt() != null || currentStatus == OrderStatus.DELIVERED;
+            timeline.add(OrderTrackingResponse.TrackingTimelineEvent.builder()
+                    .step("DELIVERED")
+                    .title("Giao hàng thành công")
+                    .description(isDeliveredDone ? "Đơn hàng đã được giao thành công tới người nhận" : "Đang chờ hoàn tất giao nhận")
+                    .timestamp(order.getDeliveredAt())
+                    .completed(isDeliveredDone)
+                    .current(currentStatus == OrderStatus.DELIVERED)
+                    .build());
+        }
+
+        return timeline;
+    }
+
+    private ReturnResponse mapToReturnResponse(OrderReturn r, Order order, String shopName) {
+        if (r == null) return null;
+        String requesterName = null;
+        if (r.getRequester() != null) {
+            requesterName = r.getRequester().getFullName();
+        } else if (r.getRequestedBy() != null) {
+            requesterName = userRepository.findById(r.getRequestedBy()).map(User::getFullName).orElse(null);
+        }
+
+        String processorName = null;
+        if (r.getProcessor() != null) {
+            processorName = r.getProcessor().getFullName();
+        } else if (r.getProcessedBy() != null) {
+            processorName = userRepository.findById(r.getProcessedBy()).map(User::getFullName).orElse(null);
+        }
+
+        return ReturnResponse.builder()
+                .id(r.getId())
+                .orderId(r.getOrderId() != null ? r.getOrderId() : order.getId())
+                .orderCode(order.getOrderCode())
+                .shopId(order.getShopId())
+                .shopName(shopName)
+                .requestedBy(r.getRequestedBy())
+                .requesterName(requesterName)
+                .reason(r.getReason())
+                .description(r.getDescription())
+                .status(r.getStatus())
+                .refundAmount(r.getRefundAmount())
+                .processedBy(r.getProcessedBy())
+                .processorName(processorName)
+                .processedAt(r.getProcessedAt())
+                .resolutionNote(r.getResolutionNote())
+                .createdAt(r.getCreatedAt())
+                .updatedAt(r.getUpdatedAt())
+                .build();
+    }
+
+    private OrderResponse mapToDetailedResponse(Order order, Long currentUserId) {
         String shopName = null;
-        if (order.getShopId() != null) {
+        if (order.getShop() != null) {
+            shopName = order.getShop().getName();
+        } else if (order.getShopId() != null) {
             shopName = shopRepository.findById(order.getShopId()).map(Shop::getShopName).orElse(null);
         }
 
@@ -828,6 +934,78 @@ public class OrderServiceImpl implements OrderService {
             userFullName = order.getUser().getFullName();
             userEmail = order.getUser().getEmail();
         }
+
+        // 1. Timeline hành trình đơn hàng
+        List<OrderTrackingResponse.TrackingTimelineEvent> timeline = buildOrderTimeline(order, shopName);
+
+        // 2. Chi tiết items kèm productId và cờ isReviewed (phục vụ viết đánh giá)
+        List<OrderItemResponse> itemResponses = order.getItems() != null
+                ? order.getItems().stream().map(it -> {
+                    Long productId = null;
+                    if (it.getVariant() != null && it.getVariant().getProduct() != null) {
+                        productId = it.getVariant().getProduct().getId();
+                    } else if (it.getVariantId() != null) {
+                        productId = productVariantRepository.findById(it.getVariantId())
+                                .map(v -> v.getProduct() != null ? v.getProduct().getId() : null)
+                                .orElse(null);
+                    }
+
+                    Boolean isReviewed = null;
+                    if (currentUserId != null && productId != null && productReviewRepository != null) {
+                        try {
+                            isReviewed = productReviewRepository.existsByProductIdAndUserId(productId, currentUserId);
+                        } catch (Exception e) {
+                            log.debug("Could not determine review status for product #{}: {}", productId, e.getMessage());
+                        }
+                    }
+
+                    return OrderItemResponse.builder()
+                            .id(it.getId())
+                            .variantId(it.getVariantId())
+                            .productId(productId)
+                            .productName(it.getProductName())
+                            .variantName(it.getVariantName())
+                            .sku(it.getSku())
+                            .productImageUrl(it.getProductImageUrl())
+                            .unitPrice(it.getUnitPrice())
+                            .quantity(it.getQuantity())
+                            .discountAmount(it.getDiscountAmount())
+                            .lineTotal(it.getLineTotal())
+                            .isReviewed(isReviewed)
+                            .build();
+                }).toList()
+                : List.of();
+
+        // 3. Yêu cầu đổi trả / hoàn tiền (nếu có)
+        ReturnResponse returnResponse = null;
+        OrderReturn latestReturn = null;
+        if (orderReturnRepository != null && order.getId() != null) {
+            try {
+                List<OrderReturn> returns = orderReturnRepository.findByOrderIdOrderByCreatedAtDesc(order.getId());
+                if (returns != null && !returns.isEmpty()) {
+                    latestReturn = returns.get(0);
+                    returnResponse = mapToReturnResponse(latestReturn, order, shopName);
+                }
+            } catch (Exception e) {
+                log.debug("Could not fetch return requests for order #{}: {}", order.getId(), e.getMessage());
+            }
+        }
+
+        // 4. Các cờ điều kiện thao tác
+        boolean canConfirmDelivery = order.getStatus() == OrderStatus.SHIPPED;
+        boolean canCancel = order.getStatus() == OrderStatus.PENDING || order.getStatus() == OrderStatus.CONFIRMED;
+
+        boolean isWithinReturnWindow = order.getDeliveredAt() == null ||
+                order.getDeliveredAt().isAfter(LocalDateTime.now().minusDays(7));
+        boolean noActiveReturn = latestReturn == null ||
+                latestReturn.getStatus() == ReturnStatus.REJECTED ||
+                latestReturn.getStatus() == ReturnStatus.CANCELLED;
+        boolean canReturn = order.getStatus() == OrderStatus.DELIVERED && isWithinReturnWindow && noActiveReturn;
+
+        boolean canReview = order.getStatus() == OrderStatus.DELIVERED;
+        String reviewConditionMessage = canReview
+                ? "Đơn hàng đã được giao thành công. Quý khách có thể viết đánh giá & nhận xét chất lượng sản phẩm."
+                : "Chỉ đơn hàng đã giao thành công (DELIVERED) mới đủ điều kiện đánh giá sản phẩm.";
 
         return OrderResponse.builder()
                 .id(order.getId())
@@ -857,7 +1035,19 @@ public class OrderServiceImpl implements OrderService {
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())
                 .items(itemResponses)
+                .timeline(timeline)
+                .canConfirmDelivery(canConfirmDelivery)
+                .canCancel(canCancel)
+                .canReturn(canReturn)
+                .canReview(canReview)
+                .reviewConditionMessage(reviewConditionMessage)
+                .returnRequest(returnResponse)
+                .returnInstructions(DEFAULT_RETURN_INSTRUCTIONS)
                 .build();
+    }
+
+    private OrderResponse mapToResponse(Order order) {
+        return mapToDetailedResponse(order, order.getUserId());
     }
 }
 

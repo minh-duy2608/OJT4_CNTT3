@@ -82,6 +82,31 @@ public class OrderController {
     }
 
     /**
+     * Khách hàng xác nhận đã nhận hàng (chỉ khi đơn đang SHIPPING/SHIPPED)
+     */
+    @Operation(summary = "Khách hàng xác nhận đã nhận hàng (CLIENT)",
+            description = "Customer chỉ xác nhận đơn của mình đang SHIPPING/SHIPPED; chuyển DELIVERED, ghi deliveredAt; chống xác nhận lặp.")
+    @PatchMapping({"/orders/{id}/confirm-delivery", "/api/v1/orders/{id}/confirm-delivery", "/orders/{id}/delivered"})
+    public ResponseEntity<ApiResponse<OrderResponse>> confirmOrderDelivery(
+            @PathVariable Long id,
+            Principal principal
+    ) {
+        String username = principal != null ? principal.getName() : null;
+        OrderResponse response = orderService.confirmOrderDelivery(id, username);
+        return ResponseEntity.ok(ApiResponse.success("Xác nhận đã nhận hàng thành công", response));
+    }
+
+    @PostMapping({"/orders/{id}/confirm-delivery", "/api/v1/orders/{id}/confirm-delivery"})
+    public ResponseEntity<ApiResponse<OrderResponse>> confirmOrderDeliveryPost(
+            @PathVariable Long id,
+            Principal principal
+    ) {
+        String username = principal != null ? principal.getName() : null;
+        OrderResponse response = orderService.confirmOrderDelivery(id, username);
+        return ResponseEntity.ok(ApiResponse.success("Xác nhận đã nhận hàng thành công", response));
+    }
+
+    /**
      * Người mua hủy đơn hàng (khi ở trạng thái PENDING hoặc CONFIRMED)
      */
     @PatchMapping({"/orders/{id}/cancel", "/api/v1/orders/{id}/cancel"})

@@ -98,6 +98,13 @@ export const orderApi = {
   },
 
   /**
+   * Khách hàng xác nhận đã nhận hàng
+   */
+  async confirmDelivery(id) {
+    return await request(`/orders/${id}/confirm-delivery`, { method: 'PATCH' });
+  },
+
+  /**
    * Quản trị: Lấy danh sách tất cả đơn hàng
    */
   async getAdminOrders(params = {}) {

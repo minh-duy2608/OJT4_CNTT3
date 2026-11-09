@@ -20,7 +20,8 @@ import './OrderDetailModal.css';
 export const OrderDetailModal = ({
   isOpen,
   onClose,
-  order
+  order,
+  onConfirmDelivery
 }) => {
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -275,10 +276,105 @@ export const OrderDetailModal = ({
               <span className="total-highlight">{formatVND(totalPayment)}</span>
             </div>
           </div>
+
+          {/* Timeline chi tiết các mốc trạng thái */}
+          {order.timeline && order.timeline.length > 0 && (
+            <div className="order-detail-timeline-block" style={{ marginTop: '1.25rem', background: '#f8fafc', padding: '1rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', color: '#1e293b' }}>
+                <Clock size={16} color="#3b82f6" /> Lịch sử hành trình trạng thái đơn hàng
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {order.timeline.map((ev, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '0.825rem' }}>
+                    <span style={{
+                      marginTop: '3px',
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      background: ev.completed ? '#10b981' : '#cbd5e1',
+                      flexShrink: 0
+                    }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, color: ev.current ? '#2563eb' : '#334155' }}>
+                        {ev.title} {ev.timestamp && <span style={{ fontWeight: 400, color: '#64748b', fontSize: '0.75rem' }}>({formatDate(ev.timestamp)})</span>}
+                      </div>
+                      <div style={{ color: '#64748b', fontSize: '0.8rem', marginTop: '1px' }}>
+                        {ev.description}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Yêu cầu đổi trả / hoàn tiền (nếu có) */}
+          {order.returnRequest && (
+            <div style={{ marginTop: '1rem', background: '#fef2f2', padding: '1rem', borderRadius: '10px', border: '1px solid #fecaca' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <span style={{ fontWeight: 700, color: '#991b1b', fontSize: '0.875rem' }}>
+                  Yêu cầu Trả hàng / Hoàn tiền
+                </span>
+                <span style={{ background: '#fee2e2', color: '#b91c1c', fontSize: '0.75rem', fontWeight: 700, padding: '2px 8px', borderRadius: '4px' }}>
+                  {order.returnRequest.status}
+                </span>
+              </div>
+              <div style={{ fontSize: '0.825rem', color: '#7f1d1d' }}>
+                <strong>Lý do:</strong> {order.returnRequest.reason}
+              </div>
+              {order.returnRequest.resolutionNote && (
+                <div style={{ fontSize: '0.825rem', color: '#7f1d1d', marginTop: '4px' }}>
+                  <strong>Phản hồi từ Shop:</strong> {order.returnRequest.resolutionNote}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Hướng dẫn hoàn hàng */}
+          {order.returnInstructions && (
+            <div style={{ marginTop: '1rem', background: '#f0fdf4', padding: '1rem', borderRadius: '10px', border: '1px solid #bbf7d0' }}>
+              <div style={{ fontWeight: 700, color: '#166534', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                Chính sách & Hướng dẫn trả hàng / hoàn tiền
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#15803d', whiteSpace: 'pre-line', lineHeight: '1.5' }}>
+                {order.returnInstructions}
+              </div>
+            </div>
+          )}
+
+          {/* Điều kiện đánh giá sản phẩm */}
+          {order.reviewConditionMessage && (
+            <div style={{ marginTop: '1rem', background: '#eff6ff', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #bfdbfe', fontSize: '0.825rem', color: '#1e40af' }}>
+              <strong>Đánh giá sản phẩm:</strong> {order.reviewConditionMessage}
+            </div>
+          )}
         </div>
 
         {/* Footer Modal */}
         <div className="order-detail-footer">
+          {/* Nút Khách xác nhận nhận hàng */}
+          {(order.canConfirmDelivery || order.status === 'delivering' || order.status === 'shipped' || order.rawStatus === 'SHIPPED') && onConfirmDelivery && (
+            <button
+              type="button"
+              style={{
+                background: '#059669',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '0.55rem 1.1rem',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              onClick={() => onConfirmDelivery(order)}
+            >
+              <CheckCircle2 size={16} /> Đã nhận được hàng
+            </button>
+          )}
+
           <button 
             type="button" 
             className="btn-detail-secondary"

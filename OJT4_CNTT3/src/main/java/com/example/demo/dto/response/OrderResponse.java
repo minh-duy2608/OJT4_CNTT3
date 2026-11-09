@@ -50,5 +50,19 @@ public class OrderResponse {
     private LocalDateTime updatedAt;
 
     private List<OrderItemResponse> items;
+
+    // Chi tiết timeline hành trình đơn hàng
+    private List<OrderTrackingResponse.TrackingTimelineEvent> timeline;
+
+    // Quyền thao tác của khách hàng
+    private Boolean canConfirmDelivery;
+    private Boolean canCancel;
+    private Boolean canReturn;
+    private Boolean canReview;
+    private String reviewConditionMessage;
+
+    // Yêu cầu đổi trả / hoàn tiền (nếu có) & Hướng dẫn hoàn hàng
+    private ReturnResponse returnRequest;
+    private String returnInstructions;
 }
 

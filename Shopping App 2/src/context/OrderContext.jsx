@@ -69,7 +69,18 @@ export const OrderProvider = ({ children }) => {
           subtotal: Number(o.subtotal || 0),
           shippingFee: Number(o.shippingFee || 0),
           totalPayment: Number(o.totalAmount || 0),
-          paymentMethod: o.paymentMethod || 'COD'
+          paymentMethod: o.paymentMethod || 'COD',
+          rawStatus: o.status,
+          deliveredAt: o.deliveredAt,
+          cancellationReason: o.cancellationReason,
+          timeline: o.timeline,
+          canConfirmDelivery: o.canConfirmDelivery !== undefined ? o.canConfirmDelivery : (o.status === 'SHIPPED'),
+          canCancel: o.canCancel !== undefined ? o.canCancel : (o.status === 'PENDING' || o.status === 'CONFIRMED'),
+          canReturn: o.canReturn,
+          canReview: o.canReview !== undefined ? o.canReview : (o.status === 'DELIVERED'),
+          reviewConditionMessage: o.reviewConditionMessage,
+          returnRequest: o.returnRequest,
+          returnInstructions: o.returnInstructions
         }));
 
         setOrders(mapped);
@@ -185,6 +196,34 @@ export const OrderProvider = ({ children }) => {
     );
   };
 
+  // Khách hàng xác nhận đã nhận hàng thành công
+  const confirmDelivery = async (orderId) => {
+    const target = orders.find(o => o.id === orderId || o.backendId === orderId);
+    const targetId = target?.backendId || (typeof orderId === 'number' ? orderId : null);
+    if (targetId) {
+      try {
+        await orderApi.confirmDelivery(targetId);
+      } catch (err) {
+        console.warn('Failed to confirm delivery on BE:', err);
+        throw err;
+      }
+    }
+    setOrders((prev) =>
+      prev.map((order) =>
+        (order.id === orderId || order.backendId === orderId)
+          ? {
+              ...order,
+              status: 'delivered',
+              canConfirmDelivery: false,
+              canReview: true,
+              deliveredAt: new Date().toISOString()
+            }
+          : order
+      )
+    );
+    fetchOrdersFromApi();
+  };
+
   return (
     <OrderContext.Provider
       value={{
@@ -193,6 +232,7 @@ export const OrderProvider = ({ children }) => {
         fetchOrdersFromApi,
         createOrder,
         updateOrderStatus,
+        confirmDelivery,
         cancelOrder
       }}
     >
