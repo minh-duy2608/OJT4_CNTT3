@@ -54,6 +54,10 @@ public class ReturnServiceImpl implements ReturnService {
             throw new BadRequestException("Chỉ có thể yêu cầu trả hàng khi đơn hàng đã được giao thành công (DELIVERED)");
         }
 
+        if (order.getDeliveredAt() != null && order.getDeliveredAt().isBefore(LocalDateTime.now().minusDays(3))) {
+            throw new BadRequestException("Đã quá thời hạn 3 ngày yêu cầu trả hàng / hoàn tiền kể từ khi nhận hàng");
+        }
+
         boolean hasActiveReturn = orderReturnRepository.existsByOrderIdAndStatusNotIn(
                 orderId, List.of(ReturnStatus.CANCELLED, ReturnStatus.REJECTED)
         );

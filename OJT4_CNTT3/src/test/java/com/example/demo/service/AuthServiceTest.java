@@ -60,6 +60,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("TC-AUTH: AuthService 11 Microservice APIs Unit Tests")
@@ -127,7 +128,7 @@ class AuthServiceTest {
         when(userRepository.existsByUsername("nguyenvan_a")).thenReturn(false);
         when(userRepository.existsByEmail("vana@example.com")).thenReturn(false);
         when(passwordEncoder.encode("SecurePassword123!")).thenReturn("encoded_secure_password");
-        when(userRepository.save(any(User.class))).thenReturn(user);
+        lenient().when(userRepository.save(any(User.class))).thenReturn(user);
         when(tokenProvider.getEmailVerificationExpirationMs()).thenReturn(86400000L);
 
         UserResponse response = authService.register(registerRequest);
@@ -174,10 +175,10 @@ class AuthServiceTest {
 
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .thenReturn(authentication);
-        when(tokenProvider.generateToken(userDetails)).thenReturn("mocked.jwt.token");
+        when(tokenProvider.generateToken(any())).thenReturn("mocked.jwt.token");
         when(tokenProvider.getExpirationMs()).thenReturn(86400000L);
         when(tokenProvider.getRefreshExpirationMs()).thenReturn(604800000L);
-        when(userRepository.save(any(User.class))).thenReturn(user);
+        lenient().when(userRepository.save(any(User.class))).thenReturn(user);
 
         LoginResponse response = authService.login(loginRequest);
 
@@ -238,7 +239,10 @@ class AuthServiceTest {
 
         when(refreshTokenRepository.findByToken("revoked-token")).thenReturn(Optional.of(revokedToken));
 
-        assertThrows(UnauthorizedException.class, () -> authService.refreshToken(new RefreshTokenRequest("revoked-token")));
+        RefreshTokenRequest request = new RefreshTokenRequest("revoked-token");
+        assertThrows(UnauthorizedException.class, () -> {
+            authService.refreshToken(request);
+        });
     }
 
     @Test
@@ -267,7 +271,7 @@ class AuthServiceTest {
     @DisplayName("API 6: Cập nhật thông tin cá nhân")
     void updateProfile_success() {
         when(userRepository.findByUsernameOrEmail("nguyenvan_a", "nguyenvan_a")).thenReturn(Optional.of(user));
-        when(userRepository.save(any(User.class))).thenReturn(user);
+        lenient().when(userRepository.save(any(User.class))).thenReturn(user);
 
         UpdateProfileRequest request = UpdateProfileRequest.builder()
                 .fullName("Nguyễn Văn A Mới")

@@ -1,7 +1,10 @@
 package com.example.demo.service;
 
 import com.example.demo.common.BaseUnitTest;
+import com.example.demo.dto.request.ValidateCouponItem;
+import com.example.demo.dto.request.ValidateCouponRequest;
 import com.example.demo.dto.response.CouponResponse;
+import com.example.demo.dto.response.ValidateCouponResponse;
 import com.example.demo.entity.*;
 import com.example.demo.exception.BadRequestException;
 import com.example.demo.exception.UnauthorizedException;
@@ -340,5 +343,105 @@ class CouponServiceTest extends BaseUnitTest {
     void testGetUserWalletCoupons_notLoggedIn_throwsUnauthorized() {
         assertThrows(UnauthorizedException.class,
                 () -> couponService.getUserWalletCoupons(null));
+    }
+
+    // ==================== removeCouponFromWallet ====================
+
+    @Test
+    @DisplayName("T14 - Gỡ mã giảm giá khỏi ví cá nhân thành công")
+    void testRemoveCouponFromWallet_success() {
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(mockUser));
+
+        couponService.removeCouponFromWallet(100L, "testuser");
+
+        verify(userCouponRepository).deleteByUserIdAndCouponId(1L, 100L);
+    }
+
+    // ==================== validateCoupon & Shop/Product Scope ====================
+
+    @Test
+    @DisplayName("T15 - Validate coupon với phạm vi sản phẩm (Product Scope) thành công khi sản phẩm nằm trong danh mục áp dụng")
+    void testValidateCoupon_withProductScope_success() {
+        CouponProduct cp = new CouponProduct(new CouponProductId(100L, 50L));
+        ProductVariant variant = ProductVariant.builder()
+                .id(10L)
+                .price(BigDecimal.valueOf(500000))
+                .product(Product.builder().id(50L).build())
+                .build();
+
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(mockUser));
+        when(couponRepository.findByCode("SAVE20")).thenReturn(Optional.of(mockCoupon));
+        when(couponProductRepository.findByIdCouponId(100L)).thenReturn(List.of(cp));
+        when(productVariantRepository.findById(10L)).thenReturn(Optional.of(variant));
+
+        ValidateCouponRequest request = ValidateCouponRequest.builder()
+                .code("SAVE20")
+                .items(List.of(ValidateCouponItem.builder().productId(50L).variantId(10L).quantity(1).build()))
+                .build();
+
+        ValidateCouponResponse response = couponService.validateCoupon(request, "testuser");
+
+        assertNotNull(response);
+        assertTrue(response.isValid());
+        assertEquals("SAVE20", response.getCode());
+        // 20% của 500,000 = 100,000
+        assertEquals(new BigDecimal("100000.00"), response.getDiscountAmount());
+    }
+
+    @Test
+    @DisplayName("T16 - Validate coupon thất bại khi sản phẩm mua KHÔNG THUỘC danh mục sản phẩm áp dụng của mã")
+    void testValidateCoupon_withProductScope_ineligibleProduct() {
+        // Coupon chỉ áp dụng cho product 50L
+        CouponProduct cp = new CouponProduct(new CouponProductId(100L, 50L));
+        // Nhưng giỏ hàng mua product 99L
+        ProductVariant variant = ProductVariant.builder()
+                .id(20L)
+                .price(BigDecimal.valueOf(500000))
+                .product(Product.builder().id(99L).build())
+                .build();
+
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(mockUser));
+        when(couponRepository.findByCode("SAVE20")).thenReturn(Optional.of(mockCoupon));
+        when(couponProductRepository.findByIdCouponId(100L)).thenReturn(List.of(cp));
+        when(productVariantRepository.findById(20L)).thenReturn(Optional.of(variant));
+
+        ValidateCouponRequest request = ValidateCouponRequest.builder()
+                .code("SAVE20")
+                .items(List.of(ValidateCouponItem.builder().productId(99L).variantId(20L).quantity(1).build()))
+                .build();
+
+        ValidateCouponResponse response = couponService.validateCoupon(request, "testuser");
+
+        assertNotNull(response);
+        assertFalse(response.isValid());
+        assertTrue(response.getMessage().contains("không áp dụng cho bất kỳ sản phẩm nào"));
+    }
+
+    @Test
+    @DisplayName("T17 - Validate coupon thất bại khi giá trị đơn hàng chưa đạt giá trị tối thiểu (minOrderAmount)")
+    void testValidateCoupon_minOrderAmountNotMet() {
+        mockCoupon.setMinOrderAmount(BigDecimal.valueOf(1000000)); // Đơn tối thiểu 1,000,000đ
+
+        ProductVariant variant = ProductVariant.builder()
+                .id(10L)
+                .price(BigDecimal.valueOf(400000)) // Đơn mới 400,000đ
+                .product(Product.builder().id(50L).build())
+                .build();
+
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(mockUser));
+        when(couponRepository.findByCode("SAVE20")).thenReturn(Optional.of(mockCoupon));
+        when(couponProductRepository.findByIdCouponId(100L)).thenReturn(List.of()); // all products
+        when(productVariantRepository.findById(10L)).thenReturn(Optional.of(variant));
+
+        ValidateCouponRequest request = ValidateCouponRequest.builder()
+                .code("SAVE20")
+                .items(List.of(ValidateCouponItem.builder().productId(50L).variantId(10L).quantity(1).build()))
+                .build();
+
+        ValidateCouponResponse response = couponService.validateCoupon(request, "testuser");
+
+        assertNotNull(response);
+        assertFalse(response.isValid());
+        assertTrue(response.getMessage().contains("chưa đạt giá trị tối thiểu"));
     }
 }

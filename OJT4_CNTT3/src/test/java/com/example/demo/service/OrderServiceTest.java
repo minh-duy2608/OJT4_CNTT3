@@ -17,6 +17,7 @@ import org.mockito.Mock;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -354,6 +355,120 @@ class OrderServiceTest extends BaseUnitTest {
                 orderService.getOrderDetail(100L, "otheruser"));
 
         assertTrue(ex.getMessage().contains("Bạn không có quyền"));
+    }
+
+    // =========================================================================
+    // CANCEL ORDER TESTS (HỦY ĐƠN)
+    // =========================================================================
+
+    @Test
+    @DisplayName("Hủy đơn hàng thành công khi đơn ở trạng thái PENDING -> Chuyển CANCELLED và lưu cancellationReason")
+    void testCancelOrder_Success_WhenPending() {
+        order.setStatus(OrderStatus.PENDING);
+        when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        OrderResponse response = orderService.cancelOrder(100L, "Đổi ý không muốn mua nữa", "customer");
+
+        assertNotNull(response);
+        assertEquals(OrderStatus.CANCELLED, response.getStatus());
+        assertEquals("Đổi ý không muốn mua nữa", response.getCancellationReason());
+        assertNotNull(response.getCancelledAt());
+        verify(orderRepository).save(order);
+    }
+
+    @Test
+    @DisplayName("Hủy đơn hàng thành công khi CONFIRMED -> Hoàn trả số lượng tồn kho")
+    void testCancelOrder_Success_WhenConfirmed_RestoresInventory() {
+        order.setStatus(OrderStatus.CONFIRMED);
+        OrderItem item = OrderItem.builder()
+                .id(1L)
+                .order(order)
+                .variantId(50L)
+                .quantity(2)
+                .build();
+        order.setItems(new java.util.ArrayList<>(List.of(item)));
+
+        Inventory inv = Inventory.builder()
+                .variantId(50L)
+                .quantity(10)
+                .build();
+
+        when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+        when(inventoryRepository.findById(50L)).thenReturn(Optional.of(inv));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        OrderResponse response = orderService.cancelOrder(100L, "Trùng đơn", "customer");
+
+        assertNotNull(response);
+        assertEquals(OrderStatus.CANCELLED, response.getStatus());
+        assertEquals(12, inv.getQuantity()); // 10 + 2 restored
+        verify(inventoryRepository).save(inv);
+        verify(orderRepository).save(order);
+    }
+
+    @Test
+    @DisplayName("Hủy đơn thất bại khi đơn đang SHIPPED hoặc DELIVERED -> 400 BadRequestException")
+    void testCancelOrder_BadRequest_WhenShippedOrDelivered() {
+        order.setStatus(OrderStatus.SHIPPED);
+        when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                orderService.cancelOrder(100L, "Muốn hủy", "customer"));
+
+        assertTrue(ex.getMessage().contains("Không thể hủy đơn hàng đang ở trạng thái: SHIPPED"));
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("User khác không có quyền hủy đơn hàng của người khác -> 403 ForbiddenException")
+    void testCancelOrder_Forbidden_WhenOtherUser() {
+        order.setStatus(OrderStatus.PENDING);
+        when(userRepository.findByUsername("otheruser")).thenReturn(Optional.of(otherUser));
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class, () ->
+                orderService.cancelOrder(100L, "Hủy trộm", "otheruser"));
+
+        assertTrue(ex.getMessage().contains("Bạn không có quyền hủy đơn hàng này"));
+        verify(orderRepository, never()).save(any());
+    }
+
+    // =========================================================================
+    // HẠN 3 NGÀY ĐỔI TRẢ TESTS
+    // =========================================================================
+
+    @Test
+    @DisplayName("Kiểm tra hạn 3 ngày: Đơn hàng DELIVERED trong vòng 3 ngày (1 ngày trước) -> canReturn = true")
+    void testGetOrderDetail_CanReturn_Within3Days_True() {
+        order.setStatus(OrderStatus.DELIVERED);
+        order.setDeliveredAt(LocalDateTime.now().minusDays(1));
+
+        when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+        OrderResponse response = orderService.getOrderDetail(100L, "customer");
+
+        assertNotNull(response);
+        assertTrue(response.getCanReturn());
+    }
+
+    @Test
+    @DisplayName("Kiểm tra hạn 3 ngày: Đơn hàng DELIVERED quá 3 ngày (4 ngày trước) -> canReturn = false")
+    void testGetOrderDetail_CanReturn_After3Days_False() {
+        order.setStatus(OrderStatus.DELIVERED);
+        order.setDeliveredAt(LocalDateTime.now().minusDays(4));
+
+        when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+        OrderResponse response = orderService.getOrderDetail(100L, "customer");
+
+        assertNotNull(response);
+        assertFalse(response.getCanReturn());
     }
 }
 

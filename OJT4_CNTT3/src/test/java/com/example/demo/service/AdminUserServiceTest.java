@@ -57,6 +57,9 @@ class AdminUserServiceTest extends BaseUnitTest {
     @Mock
     private AddressRepository addressRepository;
 
+    @Mock
+    private com.example.demo.repository.ShopRepository shopRepository;
+
     @InjectMocks
     private AdminUserServiceImpl adminUserService;
 
