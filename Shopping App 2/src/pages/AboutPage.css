@@ -1,9 +1,10 @@
 /* ==========================================================================
-   1. CHẾ ĐỘ SÁNG (LIGHT MODE) - MẶC ĐỊNH CHUẨN SẮC NÉT
+   1. MẶC ĐỊNH SỬ DỤNG CHẤT LIỆU TỰ ĐỘNG (LIGHT & DARK INHERITANCE)
    ========================================================================== */
 
 .about-page-wrapper {
   padding: 3rem 1rem 5rem;
+  color: inherit;
 }
 
 .about-hero-section {
@@ -15,27 +16,30 @@
 .about-badge {
   display: inline-block;
   padding: 4px 12px;
-  background: #f1f5f9;
-  color: #0f172a;
+  background: rgba(125, 125, 125, 0.12);
+  color: inherit;
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   border-radius: 9999px;
   margin-bottom: 1rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid rgba(125, 125, 125, 0.2);
 }
 
+/* TIÊU ĐỀ CHÍNH - KHÔNG HARDCODE MÀU ĐEN (TỰ ĐỘNG ĂN THEO THEME) */
 .about-hero-title {
   font-size: 2.25rem;
   font-weight: 800;
-  color: #0f172a; /* Màu đen xám đậm sắc nét ở nền sáng */
+  color: inherit; /* Tự động kế thừa màu chữ chính từ trang */
   line-height: 1.25;
   margin-bottom: 1rem;
 }
 
+/* MÔ TẢ HERO - DÙNG MÀU TƯƠNG PHẢN ĐỘNG */
 .about-hero-desc {
   font-size: 1.05rem;
-  color: #475569; /* Xám đậm dễ đọc trên nền sáng */
+  color: inherit;
+  opacity: 0.85;
   line-height: 1.6;
 }
 
@@ -46,48 +50,50 @@
   margin-bottom: 4rem;
 }
 
+/* CARD TỰ ĐỘNG THÍCH ỨNG NỀN */
 .about-feature-card {
-  background: #ffffff; /* Nền trắng mịn ở chế độ sáng */
-  border: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(125, 125, 125, 0.2);
   border-radius: 16px;
   padding: 2rem 1.5rem;
   transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
 }
 
 .about-feature-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 24px -4px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
 }
 
 .about-feature-icon {
   width: 56px;
   height: 56px;
   border-radius: 12px;
-  background: #0f172a;
-  color: #ffffff;
+  background: rgba(125, 125, 125, 0.15);
+  color: inherit;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 1.25rem;
+  border: 1px solid rgba(125, 125, 125, 0.2);
 }
 
 .about-feature-card h3 {
   font-size: 1.15rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
-  color: #0f172a; /* Tiêu đề ô Card nền sáng */
+  color: inherit;
 }
 
 .about-feature-card p {
-  color: #475569; /* Chữ mô tả ô Card rõ 100% ở nền sáng */
+  color: inherit;
+  opacity: 0.8;
   font-size: 0.9rem;
   line-height: 1.5;
 }
 
 .about-mission-section {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(125, 125, 125, 0.2);
   border-radius: 20px;
   padding: 3rem 2rem;
   max-width: 900px;
@@ -98,11 +104,12 @@
   font-size: 1.75rem;
   font-weight: 800;
   margin-bottom: 1rem;
-  color: #0f172a;
+  color: inherit;
 }
 
 .about-mission-content p {
-  color: #334155;
+  color: inherit;
+  opacity: 0.85;
   line-height: 1.7;
   font-size: 0.95rem;
   margin-bottom: 1.5rem;
@@ -123,117 +130,94 @@
   gap: 10px;
   font-size: 0.95rem;
   font-weight: 500;
-  color: #1e293b;
+  color: inherit;
 }
 
 
 /* ==========================================================================
-   2. CHẾ ĐỘ TỐI (DARK MODE OVERRIDES - BAO QUÁT 100% BỘ CHỌN THEME)
+   2. ÉP MÀU CHẮC CHẮN CHO DARK MODE (QUÉT MỌI BỘ CHỌN THEME CÓ THỂ CÓ)
    ========================================================================== */
 
-[data-theme='dark'] .about-badge,
-.dark .about-badge,
-.dark-mode .about-badge,
-body.dark .about-badge,
-body.dark-mode .about-badge {
-  background: rgba(255, 255, 255, 0.1);
-  color: #f8fafc;
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-[data-theme='dark'] .about-hero-title,
 .dark .about-hero-title,
 .dark-mode .about-hero-title,
+.dark-theme .about-hero-title,
+[data-theme='dark'] .about-hero-title,
+[class*='dark'] .about-hero-title,
 body.dark .about-hero-title,
-body.dark-mode .about-hero-title {
-  color: #ffffff !important; /* Đảm bảo tiêu đề luôn trắng sáng nổi bật trong Dark Mode */
+body.dark-mode .about-hero-title,
+body.dark-theme .about-hero-title {
+  color: #ffffff !important; /* Buộc chữ tiêu đề luôn trắng ở Dark Mode */
 }
 
-[data-theme='dark'] .about-hero-desc,
 .dark .about-hero-desc,
 .dark-mode .about-hero-desc,
+.dark-theme .about-hero-desc,
+[data-theme='dark'] .about-hero-desc,
+[class*='dark'] .about-hero-desc,
 body.dark .about-hero-desc,
-body.dark-mode .about-hero-desc {
-  color: #94a3b8 !important;
+body.dark-mode .about-hero-desc,
+body.dark-theme .about-hero-desc {
+  color: #94a3b8 !important; /* Chữ mô tả xám sáng rõ đẹp */
 }
 
-[data-theme='dark'] .about-feature-card,
 .dark .about-feature-card,
 .dark-mode .about-feature-card,
+.dark-theme .about-feature-card,
+[data-theme='dark'] .about-feature-card,
+[class*='dark'] .about-feature-card,
 body.dark .about-feature-card,
 body.dark-mode .about-feature-card {
-  background: rgba(255, 255, 255, 0.05) !important; /* Đổi ô card thành kính mờ tối sang trọng */
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  box-shadow: none;
-  backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
-[data-theme='dark'] .about-feature-card:hover,
-.dark .about-feature-card:hover,
-.dark-mode .about-feature-card:hover,
-body.dark .about-feature-card:hover,
-body.dark-mode .about-feature-card:hover {
-  background: rgba(255, 255, 255, 0.08) !important;
-  border-color: rgba(255, 255, 255, 0.2) !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
-}
-
-[data-theme='dark'] .about-feature-icon,
-.dark .about-feature-icon,
-.dark-mode .about-feature-icon,
-body.dark .about-feature-icon,
-body.dark-mode .about-feature-icon {
-  background: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-[data-theme='dark'] .about-feature-card h3,
 .dark .about-feature-card h3,
 .dark-mode .about-feature-card h3,
+.dark-theme .about-feature-card h3,
+[data-theme='dark'] .about-feature-card h3,
+[class*='dark'] .about-feature-card h3,
 body.dark .about-feature-card h3,
 body.dark-mode .about-feature-card h3 {
   color: #ffffff !important;
 }
 
-[data-theme='dark'] .about-feature-card p,
 .dark .about-feature-card p,
 .dark-mode .about-feature-card p,
+.dark-theme .about-feature-card p,
+[data-theme='dark'] .about-feature-card p,
+[class*='dark'] .about-feature-card p,
 body.dark .about-feature-card p,
 body.dark-mode .about-feature-card p {
   color: #94a3b8 !important;
 }
 
-[data-theme='dark'] .about-mission-section,
 .dark .about-mission-section,
 .dark-mode .about-mission-section,
+.dark-theme .about-mission-section,
+[data-theme='dark'] .about-mission-section,
+[class*='dark'] .about-mission-section,
 body.dark .about-mission-section,
 body.dark-mode .about-mission-section {
   background: rgba(255, 255, 255, 0.05) !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  backdrop-filter: blur(8px);
+  border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
-[data-theme='dark'] .about-mission-content h2,
 .dark .about-mission-content h2,
 .dark-mode .about-mission-content h2,
+.dark-theme .about-mission-content h2,
+[data-theme='dark'] .about-mission-content h2,
+[class*='dark'] .about-mission-content h2,
 body.dark .about-mission-content h2,
 body.dark-mode .about-mission-content h2 {
   color: #ffffff !important;
 }
 
-[data-theme='dark'] .about-mission-content p,
 .dark .about-mission-content p,
 .dark-mode .about-mission-content p,
+.dark-theme .about-mission-content p,
+[data-theme='dark'] .about-mission-content p,
+[class*='dark'] .about-mission-content p,
 body.dark .about-mission-content p,
 body.dark-mode .about-mission-content p {
   color: #cbd5e1 !important;
-}
-
-[data-theme='dark'] .about-mission-points li,
-.dark .about-mission-points li,
-.dark-mode .about-mission-points li,
-body.dark .about-mission-points li,
-body.dark-mode .about-mission-points li {
-  color: #f1f5f9 !important;
 }
