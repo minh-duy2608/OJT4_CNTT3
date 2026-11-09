@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Heart, ShoppingBag } from 'lucide-react';
+import { ShoppingBag } from 'lucide-react';
 import { formatVND } from '../data/products';
 import './ProductCard.css';
 
 export const ProductCard = ({ product }) => {
   const navigate = useNavigate();
-  const [liked, setLiked] = useState(Boolean(product?.isLiked));
 
   if (!product) return null;
 
@@ -25,11 +24,6 @@ export const ProductCard = ({ product }) => {
     navigate(`/products/${product.id}`);
   };
 
-  const handleToggleLike = (e) => {
-    e.stopPropagation();
-    setLiked(!liked);
-  };
-
   return (
     <article
       className="cyber-product-card"
@@ -41,21 +35,6 @@ export const ProductCard = ({ product }) => {
         if (e.key === 'Enter') navigate(`/products/${product.id}`);
       }}
     >
-      {/* Nút yêu thích */}
-      <button
-        type="button"
-        className={`product-wishlist-btn ${liked ? 'is-active' : ''}`}
-        onClick={handleToggleLike}
-        aria-label={liked ? 'Bỏ yêu thích' : 'Thêm vào yêu thích'}
-      >
-        <Heart
-          size={19}
-          strokeWidth={1.8}
-          fill={liked ? '#ef4444' : 'none'}
-          color={liked ? '#ef4444' : '#a1a1aa'}
-        />
-      </button>
-
       {/* Ảnh sản phẩm */}
       <div className="product-img-wrapper">
         <img

@@ -3,7 +3,6 @@ import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   Search,
   X,
-  Heart,
   ShoppingCart,
   User,
   Smartphone,
@@ -377,26 +376,10 @@ export const Header = () => {
             </ul>
           </nav>
 
-          {/* Nhóm Icons tác vụ: Theme Toggle, Yêu thích, Giỏ hàng, Tài khoản */}
+          {/* Nhóm Icons tác vụ: Theme Toggle, Giỏ hàng, Tài khoản */}
           <div className="cyber-actions">
             {/* Nút chuyển đổi Dark / Light mode */}
             <ThemeToggle />
-
-            {/* Wishlist - STT 79 */}
-            <button
-              type="button"
-              onClick={() => {
-                if (!isAuthenticated) {
-                  navigate('/login?redirect=/');
-                } else {
-                  setIsWishlistModalOpen(true);
-                }
-              }}
-              className="cyber-action-btn"
-              aria-label="Danh sách yêu thích"
-            >
-              <Heart size={21} strokeWidth={1.8} />
-            </button>
 
             {/* Giỏ hàng với hiệu ứng nhảy khi sản phẩm bay vào */}
             <Link

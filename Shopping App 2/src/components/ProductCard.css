@@ -26,37 +26,6 @@
   box-shadow: 0 12px 24px -4px rgba(37, 99, 235, 0.12), 0 4px 8px -2px rgba(0, 0, 0, 0.06);
 }
 
-/* Nút yêu thích (Wishlist) */
-.product-wishlist-btn {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  border-radius: 50%;
-  cursor: pointer;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #64748b;
-  transition: all 0.2s ease;
-  z-index: 5;
-}
-
-.product-wishlist-btn:hover {
-  transform: scale(1.1);
-  color: #ef4444;
-  background: #fef2f2;
-  border-color: #fca5a5;
-}
-
-.product-wishlist-btn.is-active {
-  color: #ef4444;
-  background: #fef2f2;
-}
-
 /* Khung ảnh sản phẩm */
 .product-img-wrapper {
   width: 100%;
@@ -172,13 +141,6 @@
   background-color: #334155;
   border-color: #60a5fa;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
-}
-
-[data-theme='dark'] .product-wishlist-btn,
-.dark .product-wishlist-btn {
-  background: rgba(0, 0, 0, 0.3);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #94a3b8;
 }
 
 [data-theme='dark'] .product-img-wrapper,
