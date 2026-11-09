@@ -23,7 +23,7 @@ import { OrderDetailModal } from '../components/OrderDetailModal';
 import './OrdersPage.css';
 
 export const OrdersPage = () => {
-  const { orders, loading, updateOrderStatus, cancelOrder, confirmDelivery } = useOrders();
+  const { orders, loading, updateOrderStatus, cancelOrder, confirmDelivery, fetchOrdersFromApi } = useOrders();
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -379,7 +379,7 @@ export const OrdersPage = () => {
           setSelectedOrderForDetail(null);
           setOrderToConfirmDelivery(ord);
         }}
-        onOrderUpdated={fetchOrders}
+        onOrderUpdated={fetchOrdersFromApi}
       />
 
       {/* MODAL: XÁC NHẬN NHẬN HÀNG */}
