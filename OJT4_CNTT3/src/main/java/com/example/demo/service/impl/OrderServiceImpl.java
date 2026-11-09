@@ -790,7 +790,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private static final String DEFAULT_RETURN_INSTRUCTIONS =
-            "1. Quý khách có thể gửi yêu cầu Trả hàng / Hoàn tiền trong vòng 7 ngày kể từ khi nhận hàng thành công.\n" +
+            "1. Quý khách có thể gửi yêu cầu Trả hàng / Hoàn tiền trong vòng 3 ngày kể từ khi nhận hàng thành công.\n" +
             "2. Sản phẩm đổi trả phải còn nguyên tem niêm phong, phụ kiện, hộp đóng gói và chưa qua sửa chữa hoặc can thiệp kỹ thuật.\n" +
             "3. Vui lòng quay video lúc mở kiện hàng và chụp ảnh chi tiết lỗi để Shop đối soát và xử lý hoàn tiền nhanh nhất.";
 
@@ -996,7 +996,7 @@ public class OrderServiceImpl implements OrderService {
         boolean canCancel = order.getStatus() == OrderStatus.PENDING || order.getStatus() == OrderStatus.CONFIRMED;
 
         boolean isWithinReturnWindow = order.getDeliveredAt() == null ||
-                order.getDeliveredAt().isAfter(LocalDateTime.now().minusDays(7));
+                order.getDeliveredAt().isAfter(LocalDateTime.now().minusDays(3));
         boolean noActiveReturn = latestReturn == null ||
                 latestReturn.getStatus() == ReturnStatus.REJECTED ||
                 latestReturn.getStatus() == ReturnStatus.CANCELLED;

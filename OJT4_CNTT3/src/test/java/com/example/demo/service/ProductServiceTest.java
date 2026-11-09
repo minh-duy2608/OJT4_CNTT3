@@ -15,6 +15,7 @@ import com.example.demo.entity.ProductStatus;
 import com.example.demo.entity.ProductVariant;
 import com.example.demo.entity.ProductVariantStatus;
 import com.example.demo.entity.Shop;
+import com.example.demo.entity.ShopStatus;
 import com.example.demo.exception.ResourceNotFoundException;
 import com.example.demo.repository.InventoryRepository;
 import com.example.demo.repository.ProductImageRepository;
@@ -247,7 +248,9 @@ class ProductServiceTest extends BaseUnitTest {
     void createProduct_success() {
         Category cat = Category.builder().id(1L).name("Điện thoại").build();
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(cat));
-        when(shopRepository.findAll()).thenReturn(List.of(Shop.builder().id(1L).name("Cyber Store").build()));
+        Shop defaultShop = Shop.builder().id(1L).name("Cyber Store").status(ShopStatus.ACTIVE).build();
+        when(shopRepository.findAll()).thenReturn(List.of(defaultShop));
+        when(shopRepository.findById(1L)).thenReturn(Optional.of(defaultShop));
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
             Product p = invocation.getArgument(0);
             p.setId(101L);
