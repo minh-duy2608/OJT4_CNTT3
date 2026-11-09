@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { HeroBanner } from '../components/HeroBanner';
 import { ProductsPage } from './ProductsPage';
 import { DiscountProducts } from '../components/DiscountProducts';
+import './HomePage.css';
 
 export const HomePage = () => {
   const [searchParams] = useSearchParams();

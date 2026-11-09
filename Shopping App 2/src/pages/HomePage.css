@@ -1,0 +1,9 @@
+.home-page-container {
+  padding-bottom: 4rem;
+}
+
+.home-page-container > .cyber-products-container,
+.home-page-container > .discount-products-section {
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
