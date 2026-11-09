@@ -48,20 +48,254 @@ public class CouponServiceImpl implements CouponService {
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
     private final UserRepository userRepository;
+    private final UserCouponRepository userCouponRepository;
 
     @Override
     @Transactional(readOnly = true)
     public List<CouponResponse> getPublicShopCoupons(Long shopId) {
+        return getPublicShopCoupons(shopId, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CouponResponse> getPublicShopCoupons(Long shopId, String currentUsername) {
         Shop shop = shopRepository.findById(shopId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
 
         LocalDateTime now = LocalDateTime.now(ZONE_VN);
         List<Coupon> activeCoupons = couponRepository.findActivePublicCouponsByShopId(shopId, now);
 
+        Long currentUserId = null;
+        if (currentUsername != null && !currentUsername.isBlank()) {
+            currentUserId = userRepository.findByUsername(currentUsername).map(User::getId).orElse(null);
+        }
+
+        Long finalUserId = currentUserId;
+        return activeCoupons.stream().map(c -> mapToCouponResponseWithWallet(c, shop.getName(), finalUserId, now)).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CouponResponse> getStorefrontCoupons(Long shopId, String currentUsername) {
+        LocalDateTime now = LocalDateTime.now(ZONE_VN);
+        List<Coupon> activeCoupons = couponRepository.findActiveStorefrontCoupons(shopId, now);
+
+        Long currentUserId = null;
+        if (currentUsername != null && !currentUsername.isBlank()) {
+            currentUserId = userRepository.findByUsername(currentUsername).map(User::getId).orElse(null);
+        }
+
+        Long finalUserId = currentUserId;
         return activeCoupons.stream().map(c -> {
-            long productRestrictions = couponProductRepository.countByIdCouponId(c.getId());
-            return CouponResponse.fromEntity(c, shop.getName(), productRestrictions == 0);
+            String shopName = null;
+            if (c.getShopId() != null) {
+                shopName = shopRepository.findById(c.getShopId()).map(Shop::getName).orElse(null);
+            }
+            return mapToCouponResponseWithWallet(c, shopName, finalUserId, now);
         }).toList();
+    }
+
+    @Override
+    @Transactional
+    public CouponResponse saveCouponToWallet(Long couponId, String currentUsername) {
+        if (currentUsername == null || currentUsername.isBlank()) {
+            throw new UnauthorizedException("Vui lòng đăng nhập để lưu mã giảm giá vào ví");
+        }
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new UnauthorizedException("Người dùng không hợp lệ"));
+
+        Coupon coupon = couponRepository.findById(couponId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mã giảm giá #" + couponId));
+
+        LocalDateTime now = LocalDateTime.now(ZONE_VN);
+        validateCouponForSaving(coupon, now);
+
+        // Chống lưu trùng / Idempotency: nếu đã lưu thì trả về thông tin hiện tại, không lỗi và không tạo bản ghi mới
+        Optional<UserCoupon> existing = userCouponRepository.findByUserIdAndCouponId(user.getId(), coupon.getId());
+        LocalDateTime savedAt;
+        if (existing.isPresent()) {
+            log.info("Mã coupon #{} đã được lưu trong ví của user #{} trước đó (Idempotent call)", coupon.getId(), user.getId());
+            savedAt = existing.get().getSavedAt();
+        } else {
+            UserCoupon userCoupon = UserCoupon.builder()
+                    .userId(user.getId())
+                    .couponId(coupon.getId())
+                    .savedAt(now)
+                    .build();
+            userCouponRepository.save(userCoupon);
+            savedAt = now;
+            log.info("Lưu thành công coupon #{} vào ví của user #{}", coupon.getId(), user.getId());
+        }
+
+        String shopName = null;
+        if (coupon.getShopId() != null) {
+            shopName = shopRepository.findById(coupon.getShopId()).map(Shop::getName).orElse(null);
+        }
+
+        int userUsageCount = (int) couponUsageRepository.countAppliedUsagesByCouponAndUser(coupon.getId(), user.getId());
+        boolean allProducts = couponProductRepository.countByIdCouponId(coupon.getId()) == 0;
+
+        return CouponResponse.fromEntity(
+                coupon,
+                shopName,
+                allProducts,
+                null,
+                true,
+                savedAt,
+                true,
+                null,
+                userUsageCount
+        );
+    }
+
+    @Override
+    @Transactional
+    public CouponResponse saveCouponCodeToWallet(String code, String currentUsername) {
+        if (code == null || code.trim().isEmpty()) {
+            throw new BadRequestException("Vui lòng nhập mã giảm giá");
+        }
+        Coupon coupon = couponRepository.findByCode(code.trim().toUpperCase())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mã giảm giá '" + code.trim().toUpperCase() + "'"));
+        return saveCouponToWallet(coupon.getId(), currentUsername);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CouponResponse> getUserWalletCoupons(String currentUsername) {
+        if (currentUsername == null || currentUsername.isBlank()) {
+            throw new UnauthorizedException("Vui lòng đăng nhập để xem ví mã giảm giá");
+        }
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new UnauthorizedException("Người dùng không hợp lệ"));
+
+        LocalDateTime now = LocalDateTime.now(ZONE_VN);
+        List<UserCoupon> userCoupons = userCouponRepository.findByUserIdOrderBySavedAtDesc(user.getId());
+
+        List<CouponResponse> responses = new ArrayList<>();
+        for (UserCoupon uc : userCoupons) {
+            Coupon coupon = couponRepository.findById(uc.getCouponId()).orElse(null);
+            if (coupon == null) continue;
+
+            String shopName = null;
+            if (coupon.getShopId() != null) {
+                shopName = shopRepository.findById(coupon.getShopId()).map(Shop::getName).orElse(null);
+            }
+
+            int userUsageCount = (int) couponUsageRepository.countAppliedUsagesByCouponAndUser(coupon.getId(), user.getId());
+            boolean allProducts = couponProductRepository.countByIdCouponId(coupon.getId()) == 0;
+
+            boolean isValid = true;
+            String invalidReason = null;
+            if (coupon.getStatus() != CouponStatus.ACTIVE) {
+                isValid = false;
+                invalidReason = "Mã không còn hoạt động";
+            } else if (coupon.getStartAt() != null && now.isBefore(coupon.getStartAt())) {
+                isValid = false;
+                invalidReason = "Chưa đến thời gian áp dụng";
+            } else if (coupon.getEndAt() != null && now.isAfter(coupon.getEndAt())) {
+                isValid = false;
+                invalidReason = "Mã đã hết hạn sử dụng";
+            } else if (coupon.getUsageLimit() != null && coupon.getUsageCount() != null && coupon.getUsageCount() >= coupon.getUsageLimit()) {
+                isValid = false;
+                invalidReason = "Mã đã hết lượt sử dụng chung";
+            } else if (coupon.getPerUserLimit() != null && userUsageCount >= coupon.getPerUserLimit()) {
+                isValid = false;
+                invalidReason = "Bạn đã dùng hết số lượt cho phép (" + coupon.getPerUserLimit() + " lần)";
+            }
+
+            responses.add(CouponResponse.fromEntity(
+                    coupon,
+                    shopName,
+                    allProducts,
+                    null,
+                    true,
+                    uc.getSavedAt(),
+                    isValid,
+                    invalidReason,
+                    userUsageCount
+            ));
+        }
+
+        return responses;
+    }
+
+    @Override
+    @Transactional
+    public void removeCouponFromWallet(Long couponId, String currentUsername) {
+        if (currentUsername == null || currentUsername.isBlank()) {
+            throw new UnauthorizedException("Vui lòng đăng nhập");
+        }
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new UnauthorizedException("Người dùng không hợp lệ"));
+        userCouponRepository.deleteByUserIdAndCouponId(user.getId(), couponId);
+    }
+
+    private void validateCouponForSaving(Coupon coupon, LocalDateTime now) {
+        if (coupon.getStatus() != CouponStatus.ACTIVE) {
+            throw new BadRequestException("Mã giảm giá '" + coupon.getCode() + "' hiện không hoạt động hoặc đã bị vô hiệu hóa");
+        }
+        if (coupon.getStartAt() != null && now.isBefore(coupon.getStartAt())) {
+            throw new BadRequestException("Mã giảm giá '" + coupon.getCode() + "' chưa đến thời gian áp dụng");
+        }
+        if (coupon.getEndAt() != null && now.isAfter(coupon.getEndAt())) {
+            throw new BadRequestException("Mã giảm giá '" + coupon.getCode() + "' đã hết hạn sử dụng");
+        }
+        if (coupon.getUsageLimit() != null && coupon.getUsageCount() != null && coupon.getUsageCount() >= coupon.getUsageLimit()) {
+            throw new BadRequestException("Mã giảm giá '" + coupon.getCode() + "' đã hết số lượt sử dụng");
+        }
+        if (coupon.getShopId() != null) {
+            Shop shop = shopRepository.findById(coupon.getShopId()).orElse(null);
+            if (shop != null && shop.getStatus() != ShopStatus.ACTIVE) {
+                throw new BadRequestException("Cửa hàng phát hành mã giảm giá hiện đang tạm ngừng hoạt động");
+            }
+        }
+    }
+
+    private CouponResponse mapToCouponResponseWithWallet(Coupon coupon, String shopName, Long currentUserId, LocalDateTime now) {
+        boolean allProducts = couponProductRepository.countByIdCouponId(coupon.getId()) == 0;
+        boolean isSaved = false;
+        LocalDateTime savedAt = null;
+        int userUsageCount = 0;
+
+        if (currentUserId != null) {
+            Optional<UserCoupon> ucOpt = userCouponRepository.findByUserIdAndCouponId(currentUserId, coupon.getId());
+            if (ucOpt.isPresent()) {
+                isSaved = true;
+                savedAt = ucOpt.get().getSavedAt();
+            }
+            userUsageCount = (int) couponUsageRepository.countAppliedUsagesByCouponAndUser(coupon.getId(), currentUserId);
+        }
+
+        boolean isValid = true;
+        String invalidReason = null;
+        if (coupon.getStatus() != CouponStatus.ACTIVE) {
+            isValid = false;
+            invalidReason = "Mã không hoạt động";
+        } else if (coupon.getStartAt() != null && now.isBefore(coupon.getStartAt())) {
+            isValid = false;
+            invalidReason = "Chưa đến thời gian áp dụng";
+        } else if (coupon.getEndAt() != null && now.isAfter(coupon.getEndAt())) {
+            isValid = false;
+            invalidReason = "Mã đã hết hạn sử dụng";
+        } else if (coupon.getUsageLimit() != null && coupon.getUsageCount() != null && coupon.getUsageCount() >= coupon.getUsageLimit()) {
+            isValid = false;
+            invalidReason = "Mã đã hết lượt sử dụng chung";
+        } else if (coupon.getPerUserLimit() != null && userUsageCount >= coupon.getPerUserLimit()) {
+            isValid = false;
+            invalidReason = "Bạn đã dùng hết số lượt cho phép (" + coupon.getPerUserLimit() + " lần)";
+        }
+
+        return CouponResponse.fromEntity(
+                coupon,
+                shopName,
+                allProducts,
+                null,
+                isSaved,
+                savedAt,
+                isValid,
+                invalidReason,
+                userUsageCount
+        );
     }
 
     @Override

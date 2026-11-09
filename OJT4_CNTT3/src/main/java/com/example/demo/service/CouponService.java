@@ -18,6 +18,36 @@ public interface CouponService {
     List<CouponResponse> getPublicShopCoupons(Long shopId);
 
     /**
+     * Lấy danh sách mã giảm giá công khai của cửa hàng có kèm trạng thái đã lưu vào ví của user
+     */
+    List<CouponResponse> getPublicShopCoupons(Long shopId, String currentUsername);
+
+    /**
+     * Storefront hiển thị danh sách coupon còn hiệu lực của shop hoặc toàn sàn
+     */
+    List<CouponResponse> getStorefrontCoupons(Long shopId, String currentUsername);
+
+    /**
+     * Lưu coupon vào ví của người dùng (Idempotent: lưu lặp không lỗi, không trùng)
+     */
+    CouponResponse saveCouponToWallet(Long couponId, String currentUsername);
+
+    /**
+     * Lưu coupon vào ví bằng mã code (Idempotent: lưu lặp không lỗi, không trùng)
+     */
+    CouponResponse saveCouponCodeToWallet(String code, String currentUsername);
+
+    /**
+     * Lấy danh sách coupon trong ví của người dùng kèm trạng thái hiệu lực hiện tại
+     */
+    List<CouponResponse> getUserWalletCoupons(String currentUsername);
+
+    /**
+     * Gỡ mã giảm giá khỏi ví của người dùng
+     */
+    void removeCouponFromWallet(Long couponId, String currentUsername);
+
+    /**
      * STT 90: POST /coupons/validate - Kiểm tra mã giảm giá với giỏ hàng hoặc đơn hàng dự kiến (CLIENT)
      */
     ValidateCouponResponse validateCoupon(ValidateCouponRequest request, String currentUsername);

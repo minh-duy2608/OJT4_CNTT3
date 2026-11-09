@@ -202,5 +202,46 @@ export const couponApi = {
       method: 'PUT',
       body: JSON.stringify({ productIds })
     });
+  },
+
+  /**
+   * Storefront: Lấy danh sách coupon hiển thị trên storefront (toàn sàn hoặc theo shop)
+   */
+  async getStorefrontCoupons(shopId) {
+    const params = new URLSearchParams();
+    if (shopId) params.append('shopId', shopId);
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    return await request(`/coupons/storefront${queryString}`, { method: 'GET' });
+  },
+
+  /**
+   * Khách hàng lưu mã coupon vào ví voucher cá nhân theo couponId (Idempotent)
+   */
+  async saveCouponToWallet(couponId) {
+    return await request(`/coupons/${couponId}/save`, { method: 'POST' });
+  },
+
+  /**
+   * Khách hàng nhập mã code để lưu vào ví voucher (Idempotent)
+   */
+  async saveCouponCodeToWallet(code) {
+    return await request(`/coupons/save`, {
+      method: 'POST',
+      body: JSON.stringify({ code })
+    });
+  },
+
+  /**
+   * Khách hàng lấy danh sách mã giảm giá đã lưu trong ví cá nhân
+   */
+  async getUserWalletCoupons() {
+    return await request(`/user/coupons`, { method: 'GET' });
+  },
+
+  /**
+   * Khách hàng gỡ mã giảm giá khỏi ví
+   */
+  async removeCouponFromWallet(couponId) {
+    return await request(`/user/coupons/${couponId}`, { method: 'DELETE' });
   }
 };

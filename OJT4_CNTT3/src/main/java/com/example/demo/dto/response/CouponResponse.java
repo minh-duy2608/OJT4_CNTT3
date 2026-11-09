@@ -37,11 +37,32 @@ public class CouponResponse {
     private boolean applicableToAllProducts;
     private List<Long> productIds;
 
+    // Các trường phục vụ ví voucher và storefront của người dùng
+    private Boolean isSaved;
+    private LocalDateTime savedAt;
+    private Boolean isValid;
+    private String invalidReason;
+    private Integer userUsageCount;
+
     public static CouponResponse fromEntity(Coupon c, String shopName, boolean allProducts) {
         return fromEntity(c, shopName, allProducts, null);
     }
 
     public static CouponResponse fromEntity(Coupon c, String shopName, boolean allProducts, List<Long> productIds) {
+        return fromEntity(c, shopName, allProducts, productIds, false, null, true, null, 0);
+    }
+
+    public static CouponResponse fromEntity(
+            Coupon c,
+            String shopName,
+            boolean allProducts,
+            List<Long> productIds,
+            Boolean isSaved,
+            LocalDateTime savedAt,
+            Boolean isValid,
+            String invalidReason,
+            Integer userUsageCount
+    ) {
         if (c == null) return null;
         return CouponResponse.builder()
                 .id(c.getId())
@@ -62,6 +83,11 @@ public class CouponResponse {
                 .status(c.getStatus())
                 .applicableToAllProducts(allProducts)
                 .productIds(productIds)
+                .isSaved(isSaved != null ? isSaved : false)
+                .savedAt(savedAt)
+                .isValid(isValid != null ? isValid : true)
+                .invalidReason(invalidReason)
+                .userUsageCount(userUsageCount != null ? userUsageCount : 0)
                 .build();
     }
 }

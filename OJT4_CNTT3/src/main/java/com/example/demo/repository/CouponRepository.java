@@ -32,6 +32,14 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
 
     @Query("SELECT c FROM Coupon c WHERE " +
            "(:shopId IS NULL OR c.shopId = :shopId) AND " +
+           "c.status = 'ACTIVE' " +
+           "AND c.startAt <= :now AND c.endAt >= :now " +
+           "AND (c.usageLimit IS NULL OR c.usageCount < c.usageLimit) " +
+           "ORDER BY c.discountValue DESC, c.createdAt DESC")
+    List<Coupon> findActiveStorefrontCoupons(@Param("shopId") Long shopId, @Param("now") LocalDateTime now);
+
+    @Query("SELECT c FROM Coupon c WHERE " +
+           "(:shopId IS NULL OR c.shopId = :shopId) AND " +
            "(:status IS NULL OR c.status = :status) AND " +
            "(:keyword IS NULL OR LOWER(c.code) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(c.name) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     Page<Coupon> searchCoupons(
