@@ -334,9 +334,11 @@ public class OrderServiceImpl implements OrderService {
             throw new ForbiddenException("Bạn không có quyền xác nhận đơn hàng của người khác!");
         }
 
-        // 2. Chống xác nhận lặp (đã xác nhận trước đó)
+        // 2. Chống xác nhận lặp (đã xác nhận trước đó) - Xử lý idempotent: nếu đã xác nhận thành công trước đó thì trả về đơn hiện tại
         if (Boolean.TRUE.equals(order.getBuyerConfirmedDelivery())) {
-            throw new BadRequestException("Bạn đã xác nhận nhận hàng cho đơn này trước đó (vào lúc " + order.getDeliveredAt() + ")!");
+            log.info("Order #{} ({}) has already been confirmed as delivered by user '{}'. Returning current order state.",
+                    order.getId(), order.getOrderCode(), user.getUsername());
+            return mapToDetailedResponse(order, user.getId());
         }
 
         // 3. Cho phép xác nhận khi đơn đang ở trạng thái SHIPPED hoặc DELIVERED (chưa bấm xác nhận)

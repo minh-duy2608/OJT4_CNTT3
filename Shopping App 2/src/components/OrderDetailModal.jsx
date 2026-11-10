@@ -48,14 +48,15 @@ export const OrderDetailModal = ({
 
       // Load live shipments & review
       if (order?.id) {
-        shipmentApi.getOrderShipments(order.id)
+        const targetOrderId = order.backendId || (typeof order.id === 'number' ? order.id : (typeof order.id === 'string' && order.id.includes('-') ? order.id.split('-').pop() : order.id));
+        shipmentApi.getOrderShipments(targetOrderId)
           .then((res) => {
             const list = Array.isArray(res) ? res : (res?.content || []);
             setShipments(list);
           })
           .catch(() => {});
 
-        shopReviewApi.getOrderReview(order.id)
+        shopReviewApi.getOrderReview(targetOrderId)
           .then((rev) => {
             if (rev && rev.id) {
               setExistingReview(rev);
@@ -512,7 +513,7 @@ export const OrderDetailModal = ({
         {/* Footer Modal */}
         <div className="order-detail-footer">
           {/* Nút Khách xác nhận nhận hàng */}
-          {(order.canConfirmDelivery || order.status === 'delivering' || order.status === 'shipped' || order.rawStatus === 'SHIPPED') && onConfirmDelivery && (
+          {!order.buyerConfirmedDelivery && (order.canConfirmDelivery || order.status === 'delivering' || order.status === 'shipped' || order.rawStatus === 'SHIPPED') && onConfirmDelivery && (
             <button
               type="button"
               style={{

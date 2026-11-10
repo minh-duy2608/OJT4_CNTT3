@@ -119,7 +119,8 @@ export const OrderReturnModal = ({
         evidenceUrls: evidenceUrls.length > 0 ? JSON.stringify(evidenceUrls) : ''
       };
 
-      await returnApi.requestReturn(order.id, payload);
+      const targetOrderId = order.backendId || (typeof order.id === 'number' ? order.id : (typeof order.id === 'string' && order.id.includes('-') ? order.id.split('-').pop() : order.id));
+      await returnApi.requestReturn(targetOrderId, payload);
 
       if (onSuccess) {
         onSuccess(order);

@@ -40,7 +40,9 @@ export const OrderReviewModal = ({
     setSuccessMsg('');
     setIsLoading(true);
 
-    shopReviewApi.getOrderReview(order.id)
+    const targetOrderId = order.backendId || (typeof order.id === 'number' ? order.id : (typeof order.id === 'string' && order.id.includes('-') ? order.id.split('-').pop() : order.id));
+
+    shopReviewApi.getOrderReview(targetOrderId)
       .then((rev) => {
         if (rev && rev.id) {
           setExistingReview(rev);
@@ -84,7 +86,8 @@ export const OrderReviewModal = ({
         setExistingReview(updated);
         setSuccessMsg('Cập nhật đánh giá thành công!');
       } else {
-        const created = await shopReviewApi.createReview(order.id, {
+        const targetOrderId = order.backendId || (typeof order.id === 'number' ? order.id : (typeof order.id === 'string' && order.id.includes('-') ? order.id.split('-').pop() : order.id));
+        const created = await shopReviewApi.createReview(targetOrderId, {
           rating,
           comment: comment.trim()
         });
