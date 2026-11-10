@@ -35,8 +35,10 @@ public interface ProductReviewRepository extends JpaRepository<ProductReview, Lo
     // Kiểm tra xem khách hàng đã mua sản phẩm này trong đơn hàng thành công chưa (Chỉ đơn DELIVERED)
     @Query("SELECT COUNT(oi) > 0 FROM OrderItem oi " +
            "JOIN oi.order o " +
-           "WHERE (o.userId = :userId OR o.user.id = :userId) " +
+           "WHERE (o.userId = :userId) " +
            "AND o.status = com.example.demo.entity.OrderStatus.DELIVERED " +
-           "AND (oi.variant.product.id = :productId OR EXISTS (SELECT v FROM ProductVariant v WHERE v.id = oi.variantId AND v.product.id = :productId))")
+           "AND (oi.variant.product.id = :productId " +
+           "     OR EXISTS (SELECT v FROM ProductVariant v WHERE v.id = oi.variantId AND v.product.id = :productId) " +
+           "     OR (oi.variantId = :productId))")
     boolean hasUserPurchasedProduct(@Param("userId") Long userId, @Param("productId") Long productId);
 }

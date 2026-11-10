@@ -38,20 +38,6 @@ export const ProductReviewsSection = ({ product, onSummaryLoaded }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRatingFilter, setSelectedRatingFilter] = useState(null); // null = Tất cả
 
-  // Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalRating, setModalRating] = useState(5);
-  const [modalHoverRating, setModalHoverRating] = useState(0);
-  const [modalTitle, setModalTitle] = useState('');
-  const [modalContent, setModalContent] = useState('');
-  const [modalImages, setModalImages] = useState([]);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formError, setFormError] = useState('');
-
-  // Modal thông báo chưa mua hàng
-  const [showNotPurchasedModal, setShowNotPurchasedModal] = useState(false);
-
   // Seller Reply State
   const [replyingReviewId, setReplyingReviewId] = useState(null);
   const [replyText, setReplyText] = useState('');
@@ -128,129 +114,6 @@ export const ProductReviewsSection = ({ product, onSummaryLoaded }) => {
   useEffect(() => {
     fetchMyReview();
   }, [fetchMyReview]);
-
-  // Open modal for new review or editing
-  const handleOpenModal = () => {
-    if (!isAuthenticated) {
-      alert('Vui lòng đăng nhập để viết đánh giá cho sản phẩm!');
-      return;
-    }
-
-    // Nếu đã đánh giá rồi: cho phép mở modal chỉnh sửa bài viết của mình
-    if (myReview && myReview.id) {
-      setModalRating(myReview.rating || 5);
-      setModalTitle(myReview.title || '');
-      setModalContent(myReview.content || '');
-      setModalImages(Array.isArray(myReview.imageUrls) ? myReview.imageUrls : []);
-      setFormError('');
-      setIsModalOpen(true);
-      return;
-    }
-
-    // CHỈ CHO PHÉP ĐÁNH GIÁ NẾU ĐÃ MUA HÀNG THÀNH CÔNG
-    const hasPurchased = summaryData?.hasPurchased;
-    if (!hasPurchased) {
-      setShowNotPurchasedModal(true);
-      return;
-    }
-
-    // New review
-    setModalRating(5);
-    setModalTitle('');
-    setModalContent('');
-    setModalImages([]);
-    setFormError('');
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setFormError('');
-  };
-
-  const handleImageUploadModal = async (e) => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-
-    if (modalImages.length + files.length > 5) {
-      setFormError('Tối đa 5 hình ảnh cho mỗi đánh giá.');
-      return;
-    }
-
-    setIsUploadingImage(true);
-    setFormError('');
-
-    try {
-      const uploadedUrls = [];
-      for (const file of files) {
-        if (!file.type.startsWith('image/')) continue;
-        try {
-          const res = await productApi.uploadImage(file);
-          const fileUrl = res?.url || res?.fileUrl || (typeof res === 'string' ? res : null);
-          if (fileUrl) {
-            uploadedUrls.push(fileUrl);
-          }
-        } catch {
-          const reader = new FileReader();
-          await new Promise((resolve) => {
-            reader.onload = (readEvent) => {
-              uploadedUrls.push(readEvent.target.result);
-              resolve();
-            };
-            reader.readAsDataURL(file);
-          });
-        }
-      }
-      setModalImages((prev) => [...prev, ...uploadedUrls]);
-    } catch (err) {
-      setFormError('Không thể tải ảnh lên: ' + err.message);
-    } finally {
-      setIsUploadingImage(false);
-      e.target.value = '';
-    }
-  };
-
-  const handleRemoveImageModal = (indexToRemove) => {
-    setModalImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
-  };
-
-  // Submit Review Form
-  const handleSubmitReview = async (e) => {
-    e.preventDefault();
-    if (!modalContent.trim() || modalContent.trim().length < 5) {
-      setFormError('Nội dung nhận xét phải có tối thiểu 5 ký tự.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setFormError('');
-
-    try {
-      const payload = {
-        rating: modalRating,
-        title: modalTitle.trim() || undefined,
-        content: modalContent.trim(),
-        imageUrls: modalImages
-      };
-
-      if (myReview && myReview.id) {
-        // Cập nhật đánh giá
-        await productReviewApi.updateReview(productId, myReview.id, payload);
-      } else {
-        // Tạo đánh giá mới (mỗi người chỉ được 1 bài)
-        await productReviewApi.createReview(productId, payload);
-      }
-
-      handleCloseModal();
-      await fetchReviews();
-      await fetchMyReview();
-    } catch (err) {
-      const msg = err.data?.message || err.message || 'Có lỗi xảy ra khi lưu đánh giá. Vui lòng thử lại!';
-      setFormError(msg);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   // Delete My Review
   const handleDeleteReview = async (reviewId) => {
@@ -358,49 +221,39 @@ export const ProductReviewsSection = ({ product, onSummaryLoaded }) => {
           })}
         </div>
 
-        {/* Cột phải: Lời kêu gọi & Nút Viết đánh giá */}
-        <div className="review-cta-box">
-          <div className="review-cta-text">
-            {hasReviewed ? (
-              'Bạn đã gửi đánh giá cho sản phẩm này.'
-            ) : hasPurchased ? (
-              'Bạn đã mua sản phẩm này! Hãy chia sẻ cảm nhận thực tế nhé.'
-            ) : (
-              'Chỉ khách hàng đã mua sản phẩm mới có thể viết đánh giá.'
-            )}
-          </div>
-
-          {hasReviewed ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-              <div className="btn-my-review-badge">
-                <CheckCircle2 size={14} /> Đã đánh giá ({myReview.rating}★)
-              </div>
-              <button 
-                type="button" 
-                className="btn-write-review"
-                style={{ background: '#2563eb' }}
-                onClick={handleOpenModal}
-              >
-                <Edit3 size={16} /> Chỉnh sửa đánh giá
-              </button>
+        {/* Cột phải: Hướng dẫn đánh giá tại Đơn hàng */}
+        <div className="review-cta-box" style={{ justifyContent: 'center' }}>
+          <div style={{
+            backgroundColor: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            borderRadius: '12px',
+            padding: '1.25rem 1rem',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '8px',
+            width: '100%'
+          }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              backgroundColor: '#eff6ff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#2563eb'
+            }}>
+              <ShoppingBag size={22} />
             </div>
-          ) : (
-            <button 
-              type="button" 
-              className={`btn-write-review ${!hasPurchased ? 'btn-write-locked' : ''}`}
-              onClick={handleOpenModal}
-              title={!hasPurchased ? 'Cần mua hàng thành công để đánh giá' : 'Viết đánh giá ngay'}
-            >
-              {!hasPurchased && <Lock size={15} style={{ marginRight: '2px' }} />}
-              <Edit3 size={16} /> Viết đánh giá
-            </button>
-          )}
-
-          {!hasReviewed && !hasPurchased && isAuthenticated && (
-            <span style={{ fontSize: '0.725rem', color: '#64748b', textAlign: 'center' }}>
-              (Yêu cầu đã mua hàng thành công)
-            </span>
-          )}
+            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1e293b' }}>
+              Đánh giá từ người mua thực tế
+            </div>
+            <div style={{ fontSize: '0.8rem', color: '#64748b', lineHeight: 1.5 }}>
+              Để đảm bảo 100% đánh giá là khách quan, quý khách vui lòng truy cập mục <strong>Đơn hàng của tôi</strong> sau khi đã nhận kiện hàng thành công để gửi đánh giá & nhận xét sản phẩm.
+            </div>
+          </div>
         </div>
       </div>
 
@@ -475,26 +328,8 @@ export const ProductReviewsSection = ({ product, onSummaryLoaded }) => {
                     </div>
                   </div>
 
-                  {/* Nút sửa / xóa của người viết hoặc admin */}
+                  {/* Nút xóa của người viết hoặc admin */}
                   <div className="review-actions-menu">
-                    {isOwner && (
-                      <button 
-                        type="button" 
-                        className="review-action-btn"
-                        onClick={() => {
-                          setModalRating(review.rating || 5);
-                          setModalTitle(review.title || '');
-                          setModalContent(review.content || '');
-                          setModalImages(Array.isArray(review.imageUrls) ? review.imageUrls : []);
-                          setFormError('');
-                          setMyReview(review);
-                          setIsModalOpen(true);
-                        }}
-                        title="Chỉnh sửa đánh giá"
-                      >
-                        <Edit3 size={13} /> Sửa
-                      </button>
-                    )}
                     {(isOwner || isSellerOfThisProduct) && (
                       <button 
                         type="button" 
@@ -651,247 +486,6 @@ export const ProductReviewsSection = ({ product, onSummaryLoaded }) => {
         </div>
       )}
 
-      {/* 5. MODAL VIẾT ĐÁNH GIÁ (CHỈ MỞ KHI ĐÃ MUA HÀNG THÀNH CÔNG) */}
-      {isModalOpen && (
-        <div className="review-modal-backdrop" onClick={handleCloseModal}>
-          <div className="review-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="review-modal-header">
-              <h3 className="review-modal-title">
-                {hasReviewed ? 'Chỉnh sửa bài đánh giá' : 'Đánh giá sản phẩm'}
-              </h3>
-              <button 
-                type="button" 
-                className="review-modal-close" 
-                onClick={handleCloseModal}
-                aria-label="Đóng"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitReview}>
-              <div className="review-modal-body">
-                {/* Thông tin sản phẩm */}
-                <div className="review-product-preview">
-                  {product?.primaryImageUrl || product?.image ? (
-                    <img 
-                      src={product.primaryImageUrl || product.image} 
-                      alt={product.name} 
-                      className="review-product-thumb" 
-                    />
-                  ) : null}
-                  <div className="review-product-name">{product?.name}</div>
-                </div>
-
-                {/* Chọn số sao */}
-                <div className="star-selector-box">
-                  <div className="star-selector-row">
-                    {[1, 2, 3, 4, 5].map((star) => {
-                      const activeScore = modalHoverRating || modalRating;
-                      const isFilled = star <= activeScore;
-                      return (
-                        <button
-                          key={star}
-                          type="button"
-                          className={`star-btn ${isFilled ? 'active' : ''}`}
-                          onMouseEnter={() => setModalHoverRating(star)}
-                          onMouseLeave={() => setModalHoverRating(0)}
-                          onClick={() => setModalRating(star)}
-                          aria-label={`${star} sao`}
-                        >
-                          <Star 
-                            size={32} 
-                            fill={isFilled ? '#f59e0b' : 'none'} 
-                            color={isFilled ? '#f59e0b' : '#cbd5e1'} 
-                          />
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="star-sentiment-text">
-                    {SENTIMENT_LABELS[modalHoverRating || modalRating]}
-                  </div>
-                </div>
-
-                {formError && (
-                  <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '0.65rem 0.85rem', borderRadius: '8px', fontSize: '0.8125rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <AlertCircle size={16} />
-                    <span>{formError}</span>
-                  </div>
-                )}
-
-                <div className="review-form-group">
-                  <label className="review-form-label">
-                    Tiêu đề (Tùy chọn)
-                  </label>
-                  <input
-                    type="text"
-                    className="review-form-input"
-                    placeholder="Ví dụ: Rất ưng ý, chất lượng tốt..."
-                    value={modalTitle}
-                    onChange={(e) => setModalTitle(e.target.value)}
-                    maxLength={200}
-                  />
-                </div>
-
-                <div className="review-form-group">
-                  <label className="review-form-label">
-                    Cảm nhận chi tiết về sản phẩm *
-                  </label>
-                  <textarea
-                    className="review-form-textarea"
-                    placeholder="Hãy chia sẻ trải nghiệm thực tế của bạn về chất lượng, thiết kế, hiệu năng, đóng gói giao hàng..."
-                    value={modalContent}
-                    onChange={(e) => setModalContent(e.target.value)}
-                    rows={4}
-                    required
-                  />
-                </div>
-
-                {/* Đính kèm hình ảnh thực tế */}
-                <div className="review-form-group">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                    <label className="review-form-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <ImageIcon size={15} color="#475569" />
-                      <span>Ảnh chụp thực tế ({modalImages.length}/5)</span>
-                    </label>
-                    {modalImages.length < 5 && (
-                      <label style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '4px 10px',
-                        backgroundColor: '#f1f5f9',
-                        color: '#2563eb',
-                        borderRadius: '6px',
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        cursor: isUploadingImage ? 'not-allowed' : 'pointer',
-                        border: '1px solid #cbd5e1'
-                      }}>
-                        <Upload size={13} />
-                        <span>{isUploadingImage ? 'Đang tải...' : 'Thêm ảnh'}</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          disabled={isUploadingImage}
-                          onChange={handleImageUploadModal}
-                          style={{ display: 'none' }}
-                        />
-                      </label>
-                    )}
-                  </div>
-
-                  {modalImages.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
-                      {modalImages.map((imgUrl, idx) => (
-                        <div key={idx} style={{ position: 'relative', width: '64px', height: '64px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-                          <img
-                            src={imgUrl}
-                            alt={`Preview ${idx + 1}`}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveImageModal(idx)}
-                            style={{
-                              position: 'absolute',
-                              top: '2px',
-                              right: '2px',
-                              background: 'rgba(0, 0, 0, 0.65)',
-                              color: '#fff',
-                              border: 'none',
-                              borderRadius: '50%',
-                              width: '18px',
-                              height: '18px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer',
-                              padding: 0
-                            }}
-                            title="Xóa ảnh này"
-                          >
-                            <Trash2 size={11} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="review-policy-notice">
-                  ℹ️ <strong>Quy định:</strong> Bạn đã mua sản phẩm này tại Cyber. Mỗi khách hàng chỉ được viết <strong>1 bài đánh giá</strong> và có thể chỉnh sửa lại nội dung bất kỳ lúc nào.
-                </div>
-              </div>
-
-              <div className="review-modal-footer">
-                <button 
-                  type="button" 
-                  className="btn-modal-cancel" 
-                  onClick={handleCloseModal}
-                  disabled={isSubmitting}
-                >
-                  Hủy
-                </button>
-                <button 
-                  type="submit" 
-                  className="btn-modal-submit"
-                  disabled={isSubmitting || isUploadingImage}
-                >
-                  {isSubmitting ? 'Đang gửi...' : isUploadingImage ? 'Đang tải ảnh...' : (hasReviewed ? 'Lưu thay đổi' : 'Gửi đánh giá')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 6. MODAL THÔNG BÁO KHI CHƯA MUA HÀNG */}
-      {showNotPurchasedModal && (
-        <div className="review-modal-backdrop" onClick={() => setShowNotPurchasedModal(false)}>
-          <div className="review-modal-content" style={{ maxWidth: '440px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-            <div className="review-modal-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
-              <div style={{ width: '100%' }} />
-              <button 
-                type="button" 
-                className="review-modal-close" 
-                onClick={() => setShowNotPurchasedModal(false)}
-                aria-label="Đóng"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="review-modal-body" style={{ padding: '0.5rem 1.75rem 1.75rem', alignItems: 'center' }}>
-              <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem' }}>
-                <ShoppingBag size={30} color="#ea580c" />
-              </div>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.5rem' }}>
-                Chỉ dành cho khách đã mua hàng
-              </h3>
-              <p style={{ fontSize: '0.875rem', color: '#475569', lineHeight: 1.6, margin: 0 }}>
-                Bạn cần mua sản phẩm <strong>"{product?.name}"</strong> và hoàn tất đơn hàng thành công trước khi có thể viết đánh giá & nhận xét.
-              </p>
-              <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '8px', fontSize: '0.8125rem', color: '#64748b', marginTop: '1rem', width: '100%' }}>
-                💡 Tính năng này giúp đảm bảo 100% đánh giá trên hệ thống là khách quan từ người dùng thực tế.
-              </div>
-            </div>
-
-            <div className="review-modal-footer" style={{ justifyContent: 'center' }}>
-              <button 
-                type="button" 
-                className="btn-modal-submit"
-                style={{ width: '100%' }}
-                onClick={() => setShowNotPurchasedModal(false)}
-              >
-                Đã hiểu
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   );
 };

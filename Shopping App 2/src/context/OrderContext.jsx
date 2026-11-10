@@ -58,11 +58,15 @@ export const OrderProvider = ({ children }) => {
           },
           items: (o.items || []).map(it => ({
             id: it.id,
-            productId: it.variantId,
+            productId: it.productId || it.variantId || it.id,
+            variantId: it.variantId,
             name: `${it.productName}${it.variantName ? ` (${it.variantName})` : ''}`,
+            productName: it.productName,
+            variantName: it.variantName,
             price: Number(it.unitPrice || 0),
             quantity: Number(it.quantity || 1),
-            image: it.productImageUrl
+            image: it.productImageUrl,
+            isReviewed: Boolean(it.isReviewed)
           })),
           voucherCode: o.note?.includes('Voucher:') ? o.note.split('Voucher:')[1]?.trim() : null,
           discountAmount: Number(o.discountAmount || 0),
