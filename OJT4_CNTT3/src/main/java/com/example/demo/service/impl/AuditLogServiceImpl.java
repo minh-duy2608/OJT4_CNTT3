@@ -38,7 +38,7 @@ public class AuditLogServiceImpl implements AuditLogService {
     private final UserRepository userRepository;
     private final ShopRepository shopRepository;
     private final ShopMemberRepository shopMemberRepository;
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private String formatJsonDetails(String details) {
         if (details == null || details.trim().isEmpty()) {
