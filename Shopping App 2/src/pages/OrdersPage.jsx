@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useOrders, ORDER_STATUSES } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 import { formatVND } from '../data/products';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { OrderDetailModal } from '../components/OrderDetailModal';
@@ -29,6 +30,7 @@ import './OrdersPage.css';
 export const OrdersPage = () => {
   const { orders, loading, updateOrderStatus, cancelOrder, confirmDelivery, fetchOrdersFromApi } = useOrders();
   const { isAuthenticated } = useAuth();
+  const { showToast } = useCart();
   const navigate = useNavigate();
 
   // Modal xác nhận hủy đơn, xác nhận nhận hàng & Xem chi tiết đơn
@@ -585,7 +587,7 @@ export const OrdersPage = () => {
       <ConfirmModal
         isOpen={Boolean(orderToConfirmDelivery)}
         onClose={() => setOrderToConfirmDelivery(null)}
-        type="primary"
+        type="confirm"
         title="Xác nhận đã nhận hàng"
         message={orderToConfirmDelivery ? `Bạn xác nhận đã nhận được kiện hàng #${orderToConfirmDelivery.id} và kiểm tra sản phẩm thành công? Trạng thái đơn sẽ được cập nhật thành Đã giao (DELIVERED).` : ''}
         confirmText="Tôi đã nhận hàng"
@@ -594,10 +596,12 @@ export const OrdersPage = () => {
           if (orderToConfirmDelivery) {
             try {
               await confirmDelivery(orderToConfirmDelivery.id);
+              showToast('Xác nhận đã nhận hàng thành công! Đơn hàng đã chuyển sang trạng thái Đã giao.', 'success');
             } catch (e) {
-              alert(e.message || 'Lỗi khi xác nhận nhận hàng');
+              showToast(e.message || 'Lỗi khi xác nhận nhận hàng', 'error');
+            } finally {
+              setOrderToConfirmDelivery(null);
             }
-            setOrderToConfirmDelivery(null);
           }
         }}
       />
@@ -611,10 +615,16 @@ export const OrdersPage = () => {
         message={orderToCancel ? `Bạn có chắc chắn muốn hủy đơn hàng #${orderToCancel.id}? Thao tác này sẽ dừng việc giao hàng.` : ''}
         confirmText="Xác nhận hủy đơn"
         cancelText="Giữ lại đơn hàng"
-        onConfirm={() => {
+        onConfirm={async () => {
           if (orderToCancel) {
-            cancelOrder(orderToCancel.id);
-            setOrderToCancel(null);
+            try {
+              await cancelOrder(orderToCancel.id);
+              showToast('Đã hủy đơn hàng thành công!', 'info');
+            } catch (e) {
+              showToast(e.message || 'Lỗi khi hủy đơn hàng', 'error');
+            } finally {
+              setOrderToCancel(null);
+            }
           }
         }}
       />

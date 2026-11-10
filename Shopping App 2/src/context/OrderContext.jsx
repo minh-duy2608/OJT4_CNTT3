@@ -210,8 +210,11 @@ export const OrderProvider = ({ children }) => {
           ? {
               ...order,
               status: 'delivered',
+              rawStatus: 'DELIVERED',
+              buyerConfirmedDelivery: true,
               canConfirmDelivery: false,
               canReview: true,
+              canReturn: true,
               deliveredAt: new Date().toISOString()
             }
           : order

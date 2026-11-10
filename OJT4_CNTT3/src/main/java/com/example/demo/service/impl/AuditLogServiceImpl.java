@@ -14,6 +14,8 @@ import com.example.demo.repository.ShopMemberRepository;
 import com.example.demo.repository.ShopRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.service.AuditLogService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +25,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 
 @Slf4j
@@ -34,6 +38,28 @@ public class AuditLogServiceImpl implements AuditLogService {
     private final UserRepository userRepository;
     private final ShopRepository shopRepository;
     private final ShopMemberRepository shopMemberRepository;
+    private final ObjectMapper objectMapper;
+
+    private String formatJsonDetails(String details) {
+        if (details == null || details.trim().isEmpty()) {
+            return "{}";
+        }
+        String trimmed = details.trim();
+        if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+            try {
+                objectMapper.readTree(trimmed);
+                return trimmed;
+            } catch (Exception ignored) {
+            }
+        }
+        try {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("message", details);
+            return objectMapper.writeValueAsString(map);
+        } catch (Exception e) {
+            return "{\"message\":\"" + details.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "") + "\"}";
+        }
+    }
 
     @Override
     @Transactional
@@ -51,19 +77,24 @@ public class AuditLogServiceImpl implements AuditLogService {
             }
         }
 
-        AuditLog logEntry = AuditLog.builder()
-                .actorUserId(actorUserId)
-                .action(action)
-                .entityType(entityType)
-                .entityId(entityId)
-                .shopId(shopId)
-                .ipAddress(ipAddress)
-                .userAgent(userAgent)
-                .details(details)
-                .build();
+        try {
+            String jsonDetails = formatJsonDetails(details);
+            AuditLog logEntry = AuditLog.builder()
+                    .actorUserId(actorUserId)
+                    .action(action)
+                    .entityType(entityType)
+                    .entityId(entityId)
+                    .shopId(shopId)
+                    .ipAddress(ipAddress)
+                    .userAgent(userAgent)
+                    .details(jsonDetails)
+                    .build();
 
-        auditLogRepository.save(logEntry);
-        log.info("[AUDIT] Action: {}, Entity: {} #{}, Shop: #{}, Actor: #{}", action, entityType, entityId, shopId, actorUserId);
+            auditLogRepository.save(logEntry);
+            log.info("[AUDIT] Action: {}, Entity: {} #{}, Shop: #{}, Actor: #{}", action, entityType, entityId, shopId, actorUserId);
+        } catch (Exception e) {
+            log.warn("[AUDIT] Không thể lưu audit log: {}", e.getMessage());
+        }
     }
 
     @Override
@@ -162,6 +193,18 @@ public class AuditLogServiceImpl implements AuditLogService {
             shopName = shopRepository.findById(a.getShopId()).map(com.example.demo.entity.Shop::getName).orElse(null);
         }
 
+        String rawDetails = a.getDetails();
+        String displayDetails = rawDetails;
+        if (rawDetails != null && rawDetails.trim().startsWith("{")) {
+            try {
+                JsonNode node = objectMapper.readTree(rawDetails);
+                if (node.has("message") && node.get("message").isTextual()) {
+                    displayDetails = node.get("message").asText();
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
         return AuditLogResponse.builder()
                 .id(a.getId())
                 .actorUserId(a.getActorUserId())
@@ -174,7 +217,7 @@ public class AuditLogServiceImpl implements AuditLogService {
                 .shopName(shopName)
                 .ipAddress(a.getIpAddress())
                 .userAgent(a.getUserAgent())
-                .details(a.getDetails())
+                .details(displayDetails)
                 .createdAt(a.getCreatedAt())
                 .build();
     }
