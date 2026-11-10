@@ -16,6 +16,8 @@ import com.example.demo.repository.*;
 import com.example.demo.service.AuditLogService;
 import com.example.demo.service.NotificationService;
 import com.example.demo.service.ShopReviewService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -25,7 +27,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -41,6 +46,7 @@ public class ShopReviewServiceImpl implements ShopReviewService {
     private final ShopMemberRepository shopMemberRepository;
     private final NotificationService notificationService;
     private final AuditLogService auditLogService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     @Transactional(readOnly = true)
@@ -111,12 +117,22 @@ public class ShopReviewServiceImpl implements ShopReviewService {
             throw new BadRequestException("Đơn hàng này đã được đánh giá trước đó");
         }
 
+        String imageUrlsJson = null;
+        if (request.getImageUrls() != null && !request.getImageUrls().isEmpty()) {
+            try {
+                imageUrlsJson = objectMapper.writeValueAsString(request.getImageUrls());
+            } catch (Exception e) {
+                imageUrlsJson = String.join(",", request.getImageUrls());
+            }
+        }
+
         ShopReview review = ShopReview.builder()
                 .orderId(orderId)
                 .shopId(order.getShopId())
                 .userId(user.getId())
                 .rating(request.getRating())
                 .comment(request.getComment())
+                .imageUrls(imageUrlsJson)
                 .status(ShopReviewStatus.PUBLISHED)
                 .build();
 
@@ -172,6 +188,13 @@ public class ShopReviewServiceImpl implements ShopReviewService {
         }
         if (request.getComment() != null) {
             review.setComment(request.getComment());
+        }
+        if (request.getImageUrls() != null) {
+            try {
+                review.setImageUrls(objectMapper.writeValueAsString(request.getImageUrls()));
+            } catch (Exception e) {
+                review.setImageUrls(String.join(",", request.getImageUrls()));
+            }
         }
 
         ShopReview saved = shopReviewRepository.save(review);
@@ -358,6 +381,22 @@ public class ShopReviewServiceImpl implements ShopReviewService {
             orderCode = orderRepository.findById(r.getOrderId()).map(Order::getOrderCode).orElse(null);
         }
 
+        List<String> imageUrls = new ArrayList<>();
+        if (r.getImageUrls() != null && !r.getImageUrls().isBlank()) {
+            try {
+                if (r.getImageUrls().trim().startsWith("[")) {
+                    imageUrls = objectMapper.readValue(r.getImageUrls(), new TypeReference<List<String>>() {});
+                } else {
+                    imageUrls = Arrays.stream(r.getImageUrls().split(","))
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty())
+                            .toList();
+                }
+            } catch (Exception e) {
+                imageUrls = List.of(r.getImageUrls());
+            }
+        }
+
         return ShopReviewResponse.builder()
                 .id(r.getId())
                 .orderId(r.getOrderId())
@@ -370,6 +409,7 @@ public class ShopReviewServiceImpl implements ShopReviewService {
                 .userAvatarUrl(userAvatarUrl)
                 .rating(r.getRating())
                 .comment(r.getComment())
+                .imageUrls(imageUrls)
                 .status(r.getStatus())
                 .shopReply(r.getShopReply())
                 .repliedAt(r.getRepliedAt())

@@ -60,6 +60,9 @@ public class ProductReview {
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
 
+    @Column(name = "image_urls", columnDefinition = "TEXT")
+    private String imageUrls;
+
     @Column(name = "is_buyer")
     @Builder.Default
     private Boolean isBuyer = false;

@@ -24,6 +24,7 @@ public class ShopReviewResponse {
     private String userAvatarUrl;
     private Integer rating;
     private String comment;
+    private java.util.List<String> imageUrls;
     private ShopReviewStatus status;
     private String shopReply;
     private LocalDateTime repliedAt;

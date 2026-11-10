@@ -163,6 +163,20 @@ export const AdminReviewsTab = ({ isAdmin, shopId }) => {
                   </td>
                   <td style={{ padding: '0.75rem 1rem', maxWidth: '250px' }}>
                     <div style={{ color: '#334155', lineHeight: '1.4' }}>{r.comment || 'Không có bình luận chữ'}</div>
+                    {Array.isArray(r.imageUrls) && r.imageUrls.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                        {r.imageUrls.map((img, i) => (
+                          <img
+                            key={i}
+                            src={img}
+                            alt="review attachment"
+                            style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '4px', cursor: 'pointer', border: '1px solid #e2e8f0' }}
+                            onClick={() => window.open(img, '_blank')}
+                            title="Bấm để xem ảnh phóng to"
+                          />
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td style={{ padding: '0.75rem 1rem', maxWidth: '200px', fontSize: '0.8rem', color: '#475569' }}>
                     {r.shopReply ? (

@@ -18,5 +18,7 @@ public class UpdateShopReviewRequest {
     private Integer rating;
 
     private String comment;
+
+    private java.util.List<String> imageUrls;
 }
 

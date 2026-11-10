@@ -29,5 +29,7 @@ public class UpdateProductReviewRequest {
     @NotBlank(message = "Nội dung nhận xét không được để trống")
     @Size(min = 5, max = 2000, message = "Nội dung nhận xét phải từ 5 đến 2000 ký tự")
     private String content;
+
+    private java.util.List<String> imageUrls;
 }
 

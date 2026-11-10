@@ -6,9 +6,13 @@ import {
   AlertCircle, 
   Store, 
   Package, 
-  Send
+  Send,
+  Image as ImageIcon,
+  Upload,
+  Trash2
 } from 'lucide-react';
 import { shopReviewApi } from '../services/shopReviewApi';
+import { productApi } from '../services/productApi';
 
 const RATING_DESCRIPTIONS = {
   1: 'Rất tệ - Không hài lòng với sản phẩm và dịch vụ',
@@ -27,6 +31,8 @@ export const OrderReviewModal = ({
   const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [images, setImages] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
   const [existingReview, setExistingReview] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,14 +54,17 @@ export const OrderReviewModal = ({
           setExistingReview(rev);
           setRating(rev.rating || 5);
           setComment(rev.comment || '');
+          setImages(Array.isArray(rev.imageUrls) ? rev.imageUrls : []);
         } else {
           setExistingReview(null);
           setRating(5);
           setComment('');
+          setImages([]);
         }
       })
       .catch(() => {
         setExistingReview(null);
+        setImages([]);
       })
       .finally(() => {
         setIsLoading(false);
@@ -65,6 +74,52 @@ export const OrderReviewModal = ({
   if (!isOpen || !order) return null;
 
   const activeStar = hoverRating || rating;
+
+  const handleImageUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    if (images.length + files.length > 5) {
+      setErrorMsg('Tối đa 5 hình ảnh cho mỗi đánh giá.');
+      return;
+    }
+
+    setIsUploading(true);
+    setErrorMsg('');
+
+    try {
+      const uploadedUrls = [];
+      for (const file of files) {
+        if (!file.type.startsWith('image/')) continue;
+        try {
+          const res = await productApi.uploadImage(file);
+          const fileUrl = res?.url || res?.fileUrl || (typeof res === 'string' ? res : null);
+          if (fileUrl) {
+            uploadedUrls.push(fileUrl);
+          }
+        } catch {
+          const reader = new FileReader();
+          await new Promise((resolve) => {
+            reader.onload = (readEvent) => {
+              uploadedUrls.push(readEvent.target.result);
+              resolve();
+            };
+            reader.readAsDataURL(file);
+          });
+        }
+      }
+      setImages((prev) => [...prev, ...uploadedUrls]);
+    } catch (err) {
+      setErrorMsg('Không thể tải ảnh lên: ' + err.message);
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveImage = (indexToRemove) => {
+    setImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -81,7 +136,8 @@ export const OrderReviewModal = ({
       if (existingReview?.id) {
         const updated = await shopReviewApi.updateReview(existingReview.id, {
           rating,
-          comment: comment.trim()
+          comment: comment.trim(),
+          imageUrls: images
         });
         setExistingReview(updated);
         setSuccessMsg('Cập nhật đánh giá thành công!');
@@ -89,7 +145,8 @@ export const OrderReviewModal = ({
         const targetOrderId = order.backendId || (typeof order.id === 'number' ? order.id : (typeof order.id === 'string' && order.id.includes('-') ? order.id.split('-').pop() : order.id));
         const created = await shopReviewApi.createReview(targetOrderId, {
           rating,
-          comment: comment.trim()
+          comment: comment.trim(),
+          imageUrls: images
         });
         setExistingReview(created);
         setSuccessMsg('Gửi đánh giá đơn hàng thành công!');
@@ -314,6 +371,78 @@ export const OrderReviewModal = ({
             />
           </div>
 
+          {/* Đính kèm hình ảnh đánh giá */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <label style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                <ImageIcon size={16} color="#475569" /> Ảnh chụp sản phẩm thực tế ({images.length}/5):
+              </label>
+              {images.length < 5 && (
+                <label style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  backgroundColor: '#f1f5f9',
+                  color: '#2563eb',
+                  borderRadius: '6px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: isUploading ? 'not-allowed' : 'pointer',
+                  border: '1px solid #cbd5e1'
+                }}>
+                  <Upload size={14} />
+                  <span>{isUploading ? 'Đang tải lên...' : 'Thêm ảnh'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    disabled={isUploading}
+                    onChange={handleImageUpload}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+              )}
+            </div>
+
+            {images.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '8px' }}>
+                {images.map((imgUrl, idx) => (
+                  <div key={idx} style={{ position: 'relative', width: '70px', height: '70px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                    <img
+                      src={imgUrl}
+                      alt={`Review evidence ${idx + 1}`}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveImage(idx)}
+                      style={{
+                        position: 'absolute',
+                        top: '2px',
+                        right: '2px',
+                        background: 'rgba(0, 0, 0, 0.65)',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '20px',
+                        height: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        padding: 0
+                      }}
+                      title="Xóa ảnh này"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Nếu shop đã từng phản hồi đánh giá này */}
           {existingReview?.shopReply && (
             <div style={{
@@ -361,7 +490,7 @@ export const OrderReviewModal = ({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isSubmitting || isLoading}
+            disabled={isSubmitting || isLoading || isUploading}
             style={{
               padding: '0.6rem 1.4rem',
               borderRadius: '8px',
@@ -370,13 +499,13 @@ export const OrderReviewModal = ({
               color: '#ffffff',
               fontSize: '0.875rem',
               fontWeight: 600,
-              cursor: isSubmitting || isLoading ? 'not-allowed' : 'pointer',
+              cursor: isSubmitting || isLoading || isUploading ? 'not-allowed' : 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px'
             }}
           >
-            {isSubmitting ? 'Đang gửi...' : (existingReview ? 'Lưu thay đổi' : 'Gửi đánh giá')}
+            {isSubmitting ? 'Đang gửi...' : isUploading ? 'Đang tải ảnh...' : (existingReview ? 'Lưu thay đổi' : 'Gửi đánh giá')}
           </button>
         </div>
       </div>

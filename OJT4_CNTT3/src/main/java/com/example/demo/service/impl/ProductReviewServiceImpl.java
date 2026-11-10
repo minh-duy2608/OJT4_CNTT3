@@ -20,6 +20,7 @@ import com.example.demo.repository.ProductReviewRepository;
 import com.example.demo.repository.ShopRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.service.ProductReviewService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -43,6 +44,19 @@ public class ProductReviewServiceImpl implements ProductReviewService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final ShopRepository shopRepository;
+    private final ObjectMapper objectMapper;
+
+    private String serializeImageUrls(List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(imageUrls);
+        } catch (Exception e) {
+            log.warn("Lỗi serialize imageUrls review: {}", e.getMessage());
+            return String.join(",", imageUrls);
+        }
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -177,6 +191,7 @@ public class ProductReviewServiceImpl implements ProductReviewService {
                 .rating(request.getRating())
                 .title(request.getTitle() != null ? request.getTitle().trim() : null)
                 .content(request.getContent().trim())
+                .imageUrls(serializeImageUrls(request.getImageUrls()))
                 .isBuyer(true)
                 .build();
 
@@ -207,6 +222,9 @@ public class ProductReviewServiceImpl implements ProductReviewService {
             review.setTitle(request.getTitle().trim());
         }
         review.setContent(request.getContent().trim());
+        if (request.getImageUrls() != null) {
+            review.setImageUrls(serializeImageUrls(request.getImageUrls()));
+        }
 
         ProductReview saved = productReviewRepository.save(review);
         return ProductReviewResponse.fromEntity(saved, user.getId());

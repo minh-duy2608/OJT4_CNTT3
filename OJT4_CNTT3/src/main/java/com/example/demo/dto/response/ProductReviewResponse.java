@@ -9,6 +9,11 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Getter
 @Setter
@@ -25,6 +30,7 @@ public class ProductReviewResponse {
     private Integer rating;
     private String title;
     private String content;
+    private List<String> imageUrls;
     private Boolean isBuyer;
 
     private String sellerReply;
@@ -48,6 +54,23 @@ public class ProductReviewResponse {
                     : review.getUser().getUsername())
                 : "Khách hàng";
 
+        List<String> imageUrls = new ArrayList<>();
+        if (review.getImageUrls() != null && !review.getImageUrls().isBlank()) {
+            try {
+                if (review.getImageUrls().trim().startsWith("[")) {
+                    ObjectMapper mapper = new ObjectMapper();
+                    imageUrls = mapper.readValue(review.getImageUrls(), new TypeReference<List<String>>() {});
+                } else {
+                    imageUrls = Arrays.stream(review.getImageUrls().split(","))
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty())
+                            .toList();
+                }
+            } catch (Exception e) {
+                imageUrls = List.of(review.getImageUrls());
+            }
+        }
+
         return ProductReviewResponse.builder()
                 .id(review.getId())
                 .productId(review.getProduct() != null ? review.getProduct().getId() : null)
@@ -57,6 +80,7 @@ public class ProductReviewResponse {
                 .rating(review.getRating())
                 .title(review.getTitle())
                 .content(review.getContent())
+                .imageUrls(imageUrls)
                 .isBuyer(review.getIsBuyer() != null ? review.getIsBuyer() : false)
                 .sellerReply(review.getSellerReply())
                 .sellerReplyAt(review.getSellerReplyAt())
