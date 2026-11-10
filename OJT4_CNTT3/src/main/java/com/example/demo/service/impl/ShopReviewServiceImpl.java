@@ -325,9 +325,8 @@ public class ShopReviewServiceImpl implements ShopReviewService {
     private User verifyShopPermission(Long shopId, String currentUsername) {
         User user = getCurrentUser(currentUsername);
         boolean isShopManager = isUserShopManager(user, shopId);
-        boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN;
-        if (!isShopManager && !isAdmin) {
-            throw new ForbiddenException("Bạn không có quyền quản lý đánh giá của cửa hàng #" + shopId);
+        if (!isShopManager) {
+            throw new ForbiddenException("Chỉ chủ cửa hàng của đơn hàng này mới có quyền phản hồi đánh giá của khách hàng.");
         }
         return user;
     }

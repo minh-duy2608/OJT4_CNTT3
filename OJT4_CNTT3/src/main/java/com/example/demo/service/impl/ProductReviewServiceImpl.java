@@ -130,8 +130,8 @@ public class ProductReviewServiceImpl implements ProductReviewService {
             // Chỉ khi đã mua hàng và chưa từng đánh giá thì mới được phép viết đánh giá
             canReview = hasPurchased && !hasReviewed;
 
-            // Kiểm tra xem người dùng hiện tại có phải là chủ shop của sản phẩm này không
-            isShopOwnerOfProduct = isUserShopOwner(currentUser, product.getShopId()) || isUserAdmin(currentUser);
+            // CHỈ CHỦ SHOP BÁN SẢN PHẨM NÀY MỚI CÓ QUYỀN PHẢN HỒI ĐÁNH GIÁ
+            isShopOwnerOfProduct = isUserShopOwner(currentUser, product.getShopId());
         }
 
         return ProductReviewSummaryResponse.builder()
@@ -264,15 +264,14 @@ public class ProductReviewServiceImpl implements ProductReviewService {
             throw new ResourceNotFoundException("Đánh giá không thuộc sản phẩm này");
         }
 
-        // RÀNG BUỘC NGƯỜI BÁN: Khách mua của shop nào thì CHỈ SHOP ĐÓ mới được phản hồi đánh giá
-        boolean isAdmin = isUserAdmin(user);
+        // RÀNG BUỘC NGƯỜI BÁN: Khách mua của shop nào thì CHỈ CHỦ SHOP BÁN SẢN PHẨM ĐÓ mới được phản hồi đánh giá
         boolean isShopOwnerOfThisProduct = isUserShopOwner(user, product.getShopId());
 
-        if (!isAdmin && !isShopOwnerOfThisProduct) {
-            throw new ForbiddenException("Chỉ người bán sở hữu sản phẩm này hoặc Quản trị viên mới có thể phản hồi đánh giá");
+        if (!isShopOwnerOfThisProduct) {
+            throw new ForbiddenException("Chỉ chủ cửa hàng sở hữu và bán sản phẩm này mới có quyền phản hồi đánh giá của khách hàng.");
         }
 
-        String shopName = "Người bán chính thức";
+        String shopName = "Cửa hàng chính thức";
         if (product.getShopId() != null) {
             Optional<Shop> shopOpt = shopRepository.findById(product.getShopId());
             if (shopOpt.isPresent()) {
@@ -282,7 +281,7 @@ public class ProductReviewServiceImpl implements ProductReviewService {
 
         review.setSellerReply(request.getReply().trim());
         review.setSellerReplyAt(LocalDateTime.now());
-        review.setSellerReplierName(shopName + " (Phản hồi từ Người bán)");
+        review.setSellerReplierName(shopName);
 
         ProductReview saved = productReviewRepository.save(review);
         log.info("Review {} replied by Shop {} (User {}) for product {}", reviewId, shopName, user.getUsername(), productId);
@@ -302,11 +301,10 @@ public class ProductReviewServiceImpl implements ProductReviewService {
             throw new ResourceNotFoundException("Đánh giá không thuộc sản phẩm này");
         }
 
-        boolean isAdmin = isUserAdmin(user);
         boolean isShopOwnerOfThisProduct = isUserShopOwner(user, product.getShopId());
 
-        if (!isAdmin && !isShopOwnerOfThisProduct) {
-            throw new ForbiddenException("Bạn không có quyền xóa phản hồi của sản phẩm này");
+        if (!isShopOwnerOfThisProduct) {
+            throw new ForbiddenException("Chỉ chủ cửa hàng bán sản phẩm này mới có quyền xóa phản hồi");
         }
 
         review.setSellerReply(null);

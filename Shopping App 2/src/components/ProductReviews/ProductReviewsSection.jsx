@@ -43,22 +43,13 @@ export const ProductReviewsSection = ({ product, onSummaryLoaded }) => {
   const [replyText, setReplyText] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
 
-  // Quyền phản hồi: CHỈ CHỦ SHOP CỦA SẢN PHẨM NÀY HOẶC ADMIN MỚI ĐƯỢC PHẢN HỒI
+  // Quyền phản hồi: CHỈ CHỦ SHOP SỞ HỮU VÀ BÁN SẢN PHẨM NÀY MỚI ĐƯỢC PHẢN HỒI
   const isSellerOfThisProduct = useMemo(() => {
     if (!user) return false;
-    // 1. Kiểm tra trực tiếp từ Backend đã verify quyền sở hữu
+    // 1. Kiểm tra trực tiếp từ Backend đã verify quyền sở hữu cửa hàng bán sản phẩm này
     if (summaryData?.isShopOwnerOfProduct) return true;
 
-    // 2. Kiểm tra quyền Admin
-    const roleStr = String(user.role || '').toUpperCase();
-    const hasAdminRole = roleStr.includes('ADMIN') || 
-      (Array.isArray(user.roles) && user.roles.some(r => {
-        const code = typeof r === 'string' ? r : r.code;
-        return String(code).toUpperCase().includes('ADMIN');
-      }));
-    if (hasAdminRole) return true;
-
-    // 3. Kiểm tra Shop Owner ID trùng khớp với Product Shop
+    // 2. Kiểm tra Shop Owner ID trùng khớp với Product Shop
     if (product?.shopId && (user.id === product?.shop?.ownerId || user.shopId === product?.shopId)) {
       return true;
     }
