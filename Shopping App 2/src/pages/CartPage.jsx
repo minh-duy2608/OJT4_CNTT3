@@ -117,22 +117,24 @@ export const CartPage = () => {
               <tbody>
                 {cartItems.map((item) => {
                   const isSelected = selectedItemIds.includes(item.id);
+                  const isItemOutOfStock = item.inStock === false || item.stockQuantity === 0 || (item.availableQuantity !== undefined && item.availableQuantity <= 0);
                   return (
                     <tr 
                       key={item.id} 
                       style={{ 
                         borderBottom: '1px solid #f1f5f9',
                         backgroundColor: isSelected ? 'rgba(0, 0, 0, 0.015)' : 'transparent',
-                        opacity: isSelected ? 1 : 0.6,
+                        opacity: isItemOutOfStock ? 0.45 : (isSelected ? 1 : 0.7),
                         transition: 'all 0.15s ease'
                       }}
                     >
                       <td style={{ padding: '1.25rem 0', textAlign: 'center' }}>
                         <input 
                           type="checkbox"
-                          checked={isSelected}
+                          checked={isSelected && !isItemOutOfStock}
+                          disabled={isItemOutOfStock}
                           onChange={() => toggleSelectItem(item.id)}
-                          style={{ width: '18px', height: '18px', accentColor: '#000000', cursor: 'pointer', verticalAlign: 'middle' }}
+                          style={{ width: '18px', height: '18px', accentColor: '#000000', cursor: isItemOutOfStock ? 'not-allowed' : 'pointer', verticalAlign: 'middle' }}
                           aria-label={`Chọn sản phẩm ${item.name} để thanh toán`}
                         />
                       </td>
@@ -146,7 +148,14 @@ export const CartPage = () => {
                             />
                           )}
                           <div>
-                            <div style={{ color: isSelected ? '#000000' : '#71717a' }}>{item.name}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ color: isSelected ? '#000000' : '#71717a' }}>{item.name}</span>
+                              {isItemOutOfStock && (
+                                <span style={{ background: '#fee2e2', color: '#dc2626', fontSize: '0.72rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px' }}>
+                                  Hết hàng
+                                </span>
+                              )}
+                            </div>
                             {item.selectedStorage && (
                               <span style={{ fontSize: '0.75rem', color: '#71717a' }}>
                                 {item.selectedColor} • {item.selectedStorage}
@@ -224,7 +233,14 @@ export const CartPage = () => {
                   type="button"
                   className="btn"
                   disabled={selectedCount === 0}
-                  onClick={() => setShowCheckoutConfirmModal(true)}
+                  onClick={() => {
+                    const hasOutOfStockSelected = cartItems.some(it => selectedItemIds.includes(it.id) && (it.inStock === false || (it.availableQuantity !== undefined && it.availableQuantity <= 0)));
+                    if (hasOutOfStockSelected) {
+                      showToast('Có sản phẩm đã hết hàng trong danh sách đã chọn. Vui lòng bỏ chọn để thanh toán!', 'error');
+                      return;
+                    }
+                    setShowCheckoutConfirmModal(true);
+                  }}
                   style={{ 
                     display: 'inline-flex', 
                     alignItems: 'center', 

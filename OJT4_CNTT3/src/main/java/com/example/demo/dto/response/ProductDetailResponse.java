@@ -39,6 +39,8 @@ public class ProductDetailResponse {
 
     private BigDecimal minPrice;
     private BigDecimal maxPrice;
+    private Boolean inStock;
+    private Integer totalStockQuantity;
 
     @Builder.Default
     private List<ProductVariantResponse> variants = new ArrayList<>();
@@ -60,6 +62,13 @@ public class ProductDetailResponse {
             BigDecimal maxPrice
     ) {
         if (product == null) return null;
+        List<ProductVariantResponse> safeVariants = variants != null ? variants : new ArrayList<>();
+        int totalStock = safeVariants.stream()
+                .mapToInt(v -> v.getAvailableQuantity() != null ? v.getAvailableQuantity() : (v.getStockQuantity() != null ? v.getStockQuantity() : 0))
+                .sum();
+        boolean inStock = safeVariants.isEmpty() ? (product.getStatus() == ProductStatus.ACTIVE) : safeVariants.stream()
+                .anyMatch(v -> (v.getAvailableQuantity() != null && v.getAvailableQuantity() > 0) || (v.getStockQuantity() != null && v.getStockQuantity() > 0));
+
         return ProductDetailResponse.builder()
                 .id(product.getId())
                 .shopId(product.getShopId())
@@ -77,7 +86,9 @@ public class ProductDetailResponse {
                 .status(product.getStatus())
                 .minPrice(minPrice)
                 .maxPrice(maxPrice)
-                .variants(variants != null ? variants : new ArrayList<>())
+                .inStock(inStock)
+                .totalStockQuantity(totalStock)
+                .variants(safeVariants)
                 .images(images != null ? images : new ArrayList<>())
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())

@@ -19,6 +19,7 @@ export const ProductCard = ({ product }) => {
   // Base price (minPrice or price)
   const basePrice = Number(product.minPrice ?? product.price ?? 0);
   const displayFormattedPrice = basePrice > 0 ? formatVND(basePrice) : 'Liên hệ';
+  const isOutOfStock = product.inStock === false || product.totalStockQuantity === 0;
 
   const handleCardClick = () => {
     navigate(`/products/${product.id}`);
@@ -26,7 +27,7 @@ export const ProductCard = ({ product }) => {
 
   return (
     <article
-      className="cyber-product-card"
+      className={`cyber-product-card ${isOutOfStock ? 'is-out-of-stock' : ''}`}
       onClick={handleCardClick}
       role="button"
       tabIndex={0}
@@ -36,12 +37,30 @@ export const ProductCard = ({ product }) => {
       }}
     >
       {/* Ảnh sản phẩm */}
-      <div className="product-img-wrapper">
+      <div className="product-img-wrapper" style={{ position: 'relative' }}>
+        {isOutOfStock && (
+          <span style={{
+            position: 'absolute',
+            top: '8px',
+            left: '8px',
+            background: '#dc2626',
+            color: '#ffffff',
+            fontSize: '0.7rem',
+            fontWeight: 700,
+            padding: '2px 8px',
+            borderRadius: '4px',
+            zIndex: 2,
+            boxShadow: '0 2px 4px rgba(220, 38, 38, 0.3)'
+          }}>
+            Hết hàng
+          </span>
+        )}
         <img
           src={displayImage}
           alt={product.name}
           className="product-card-img"
           loading="lazy"
+          style={isOutOfStock ? { filter: 'grayscale(35%)', opacity: 0.85 } : {}}
           onError={(e) => {
             e.target.onerror = null;
             e.target.src = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80';
@@ -69,11 +88,12 @@ export const ProductCard = ({ product }) => {
         {/* Nút Mua hàng / Xem chi tiết */}
         <button
           type="button"
-          className="product-buy-btn"
+          className={`product-buy-btn ${isOutOfStock ? 'is-out-of-stock-btn' : ''}`}
           onClick={handleCardClick}
+          style={isOutOfStock ? { backgroundColor: '#f1f5f9', color: '#64748b', borderColor: '#cbd5e1' } : {}}
         >
           <ShoppingBag size={16} />
-          <span>Xem chi tiết & Mua</span>
+          <span>{isOutOfStock ? 'Hết hàng • Xem chi tiết' : 'Xem chi tiết & Mua'}</span>
         </button>
       </div>
     </article>

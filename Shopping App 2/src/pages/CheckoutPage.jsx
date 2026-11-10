@@ -340,9 +340,17 @@ export const CheckoutPage = () => {
   };
 
   // Mở Model Box xác nhận đặt hàng
+  const hasOutOfStockItems = itemsToCheckout.some((it) => it.inStock === false || (it.availableQuantity !== undefined && it.availableQuantity <= 0));
+
   const handlePlaceOrder = () => {
     if (itemsToCheckout.length === 0) {
       showToast('Chưa có sản phẩm nào được chọn để thanh toán!', 'warning');
+      return;
+    }
+
+    const outOfStockItem = itemsToCheckout.find((it) => it.inStock === false || (it.availableQuantity !== undefined && it.availableQuantity <= 0));
+    if (outOfStockItem) {
+      showToast(`Sản phẩm "${outOfStockItem.name}" hiện đã hết hàng trong kho! Không thể đặt hàng.`, 'error');
       return;
     }
 
@@ -360,6 +368,12 @@ export const CheckoutPage = () => {
     setShowConfirmOrderModal(false);
     const selectedAddr = addresses.find((a) => a.id === selectedAddressId);
     if (!selectedAddr) return;
+
+    const outOfStockItem = itemsToCheckout.find((it) => it.inStock === false || (it.availableQuantity !== undefined && it.availableQuantity <= 0));
+    if (outOfStockItem) {
+      showToast(`Sản phẩm "${outOfStockItem.name}" hiện đã hết hàng trong kho! Không thể đặt hàng.`, 'error');
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -769,22 +783,32 @@ export const CheckoutPage = () => {
 
             {/* Danh sách món hàng */}
             <div className="summary-items-list">
-              {itemsToCheckout.map((item) => (
-                <div key={item.id} className="summary-item-row">
-                  <img src={item.image} alt={item.name} className="summary-item-img" />
-                  <div className="summary-item-details">
-                    <div className="summary-item-name" title={item.name}>{item.name}</div>
-                    <div className="summary-item-qty">
-                      {item.selectedColor && <span>{item.selectedColor} • </span>}
-                      {item.selectedStorage && <span>{item.selectedStorage} • </span>}
-                      Số lượng: {item.quantity}
+              {itemsToCheckout.map((item) => {
+                const isOutOfStock = item.inStock === false || (item.availableQuantity !== undefined && item.availableQuantity <= 0);
+                return (
+                  <div key={item.id} className="summary-item-row" style={isOutOfStock ? { background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '8px' } : {}}>
+                    <img src={item.image} alt={item.name} className="summary-item-img" />
+                    <div className="summary-item-details">
+                      <div className="summary-item-name" title={item.name}>
+                        {item.name}
+                        {isOutOfStock && (
+                          <span style={{ marginLeft: '6px', color: '#dc2626', fontSize: '0.72rem', fontWeight: 700, background: '#fee2e2', padding: '1px 6px', borderRadius: '4px', display: 'inline-block' }}>
+                            Hết hàng
+                          </span>
+                        )}
+                      </div>
+                      <div className="summary-item-qty">
+                        {item.selectedColor && <span>{item.selectedColor} • </span>}
+                        {item.selectedStorage && <span>{item.selectedStorage} • </span>}
+                        Số lượng: {item.quantity}
+                      </div>
+                    </div>
+                    <div className="summary-item-price">
+                      {formatVND((item.price || 0) * item.quantity)}
                     </div>
                   </div>
-                  <div className="summary-item-price">
-                    {formatVND((item.price || 0) * item.quantity)}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* VOUCHER / MÃ GIẢM GIÁ */}
@@ -960,12 +984,20 @@ export const CheckoutPage = () => {
               </div>
             </div>
 
+            {hasOutOfStockItems && (
+              <div style={{ color: '#dc2626', background: '#fee2e2', border: '1px solid #fca5a5', padding: '10px 12px', borderRadius: '8px', fontSize: '0.8rem', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>Trong đơn có sản phẩm đã hết hàng trong kho. Vui lòng quay lại giỏ hàng để bỏ chọn trước khi đặt hàng!</span>
+              </div>
+            )}
+
             {/* NÚT XÁC NHẬN ĐẶT HÀNG */}
             <button
               type="button"
               className="checkout-submit-btn"
               onClick={handlePlaceOrder}
-              disabled={isSubmitting || addresses.length === 0}
+              disabled={isSubmitting || addresses.length === 0 || hasOutOfStockItems}
+              style={hasOutOfStockItems ? { opacity: 0.5, cursor: 'not-allowed', background: '#9ca3af' } : {}}
             >
               {isSubmitting ? 'Đang tạo đơn hàng...' : (
                 <>

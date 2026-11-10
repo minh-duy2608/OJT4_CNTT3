@@ -34,12 +34,14 @@ public class ProductSummaryResponse {
     private String primaryImageUrl;
     private BigDecimal minPrice;
     private BigDecimal maxPrice;
+    private Boolean inStock;
+    private Integer totalStockQuantity;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdAt;
 
     public static ProductSummaryResponse fromEntity(Product product) {
-        return fromEntity(product, null, null, null);
+        return fromEntity(product, null, null, null, null, null);
     }
 
     public static ProductSummaryResponse fromEntity(
@@ -47,6 +49,17 @@ public class ProductSummaryResponse {
             BigDecimal minPrice,
             BigDecimal maxPrice,
             String primaryImageUrl
+    ) {
+        return fromEntity(product, minPrice, maxPrice, primaryImageUrl, null, null);
+    }
+
+    public static ProductSummaryResponse fromEntity(
+            Product product,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            String primaryImageUrl,
+            Boolean inStock,
+            Integer totalStockQuantity
     ) {
         if (product == null) return null;
         String resolvedImage = primaryImageUrl != null
@@ -69,6 +82,8 @@ public class ProductSummaryResponse {
                 .primaryImageUrl(resolvedImage)
                 .minPrice(minPrice)
                 .maxPrice(maxPrice)
+                .inStock(inStock != null ? inStock : (product.getStatus() == ProductStatus.ACTIVE))
+                .totalStockQuantity(totalStockQuantity)
                 .createdAt(product.getCreatedAt())
                 .build();
     }

@@ -284,6 +284,12 @@ export const ProductDetailPage = () => {
           const realPrice = variantWithSale ? Number(variantWithSale.salePrice) : minP;
           const realOriginalPrice = variantWithSale ? Number(variantWithSale.price) : (maxP > minP ? maxP : null);
 
+          // Tính toán tồn kho thực tế từ danh sách biến thể
+          const hasAnyStock = rawVariants.length > 0
+            ? rawVariants.some(v => (v.availableQuantity != null ? v.availableQuantity > 0 : (v.stockQuantity != null ? v.stockQuantity > 0 : true)))
+            : (data.inStock !== false);
+          const totalStock = rawVariants.reduce((sum, v) => sum + (v.availableQuantity ?? v.stockQuantity ?? 0), 0);
+
           const liveProduct = {
             id: data.id,
             name: data.name,
@@ -304,7 +310,8 @@ export const ProductDetailPage = () => {
             brandLogo: data.brand?.logoUrl,
             shopId: resolvedShopId,
             shop: data.shopName || data.shop?.name || 'Cyber Flagship Store',
-            inStock: data.inStock !== false,
+            inStock: data.inStock !== false && hasAnyStock,
+            totalStockQuantity: data.totalStockQuantity ?? (rawVariants.length > 0 ? totalStock : (hasAnyStock ? 100 : 0)),
             warrantyMonths: data.warrantyMonths || 12
           };
 
@@ -503,7 +510,40 @@ export const ProductDetailPage = () => {
     return null;
   }, [originalPrice, currentPrice]);
 
-  const stockQuantity = matchedVariant?.stockQuantity ?? (product?.inStock ? 100 : 0);
+  // Tồn kho khả dụng thực tế của biến thể hoặc sản phẩm
+  const stockQuantity = useMemo(() => {
+    if (matchedVariant) {
+      return matchedVariant.availableQuantity !== undefined
+        ? matchedVariant.availableQuantity
+        : (matchedVariant.stockQuantity ?? 0);
+    }
+    if (product?.totalStockQuantity !== undefined) {
+      return product.totalStockQuantity;
+    }
+    if (Array.isArray(product?.variants) && product.variants.length > 0) {
+      return product.variants.reduce((sum, v) => sum + (v.availableQuantity ?? v.stockQuantity ?? 0), 0);
+    }
+    return product?.inStock ? 100 : 0;
+  }, [product, matchedVariant]);
+
+  // Kiểm tra tình trạng hết hàng
+  const isOutOfStock = useMemo(() => {
+    if (!product) return false;
+    if (product.inStock === false) return true;
+    if (matchedVariant) {
+      const avail = matchedVariant.availableQuantity !== undefined
+        ? matchedVariant.availableQuantity
+        : matchedVariant.stockQuantity;
+      return avail !== undefined && avail !== null && avail <= 0;
+    }
+    if (Array.isArray(product.variants) && product.variants.length > 0) {
+      return product.variants.every((v) => {
+        const avail = v.availableQuantity !== undefined ? v.availableQuantity : v.stockQuantity;
+        return avail !== undefined && avail !== null && avail <= 0;
+      });
+    }
+    return false;
+  }, [product, matchedVariant]);
 
   // Xử lý Thêm vào giỏ hàng trực tiếp từ trang chi tiết (Yêu cầu phải chọn phiên bản & màu sắc)
   const handleAddToCart = () => {
@@ -512,9 +552,19 @@ export const ProductDetailPage = () => {
       return;
     }
 
+    if (isOutOfStock) {
+      showToast('Sản phẩm hoặc phiên bản này hiện đã hết hàng, không thể thêm vào giỏ!', 'error');
+      return;
+    }
+
     if (!selectedStorage || !selectedColor) {
       setAttemptedAction(true);
       showToast('Vui lòng chọn Phiên bản và Màu sắc sản phẩm trước khi thêm vào giỏ hàng!', 'warning');
+      return;
+    }
+
+    if (stockQuantity > 0 && quantity > stockQuantity) {
+      showToast(`Số lượng yêu cầu (${quantity}) vượt quá tồn kho khả dụng (${stockQuantity})!`, 'warning');
       return;
     }
 
@@ -545,9 +595,19 @@ export const ProductDetailPage = () => {
       return;
     }
 
+    if (isOutOfStock) {
+      showToast('Sản phẩm hoặc phiên bản này hiện đã hết hàng, không thể đặt mua!', 'error');
+      return;
+    }
+
     if (!selectedStorage || !selectedColor) {
       setAttemptedAction(true);
       showToast('Vui lòng chọn Phiên bản và Màu sắc sản phẩm trước khi mua ngay!', 'warning');
+      return;
+    }
+
+    if (stockQuantity > 0 && quantity > stockQuantity) {
+      showToast(`Số lượng yêu cầu (${quantity}) vượt quá tồn kho khả dụng (${stockQuantity})!`, 'warning');
       return;
     }
 
@@ -821,8 +881,8 @@ export const ProductDetailPage = () => {
             </span>
           </div>
 
-          {/* Hộp Giá Tiền Tương Ứng (Tự động cập nhật theo Phiên bản & Màu sắc) */}
-          <div className="detail-price-box">
+          {/* Hộp Giá Tiền Tương Ứng & Trạng thái tồn kho */}
+          <div className="detail-price-box" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
             <span className="detail-current-price">{formatVND(currentPrice)}</span>
             {originalPrice && originalPrice > currentPrice && (
               <span className="detail-original-price">{formatVND(originalPrice)}</span>
@@ -830,6 +890,40 @@ export const ProductDetailPage = () => {
             {discountPercent && (
               <span className="detail-discount-pill">-{discountPercent}% OFF</span>
             )}
+
+            {/* Trạng thái tồn kho */}
+            {isOutOfStock ? (
+              <span style={{
+                background: '#fee2e2',
+                color: '#dc2626',
+                border: '1px solid #fecaca',
+                padding: '3px 10px',
+                borderRadius: '6px',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                <AlertCircle size={14} /> Hết hàng
+              </span>
+            ) : (
+              <span style={{
+                background: '#f0fdf4',
+                color: '#166534',
+                border: '1px solid #bbf7d0',
+                padding: '3px 10px',
+                borderRadius: '6px',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                <Check size={14} /> Còn hàng ({stockQuantity > 0 ? stockQuantity : 'Sẵn sàng'})
+              </span>
+            )}
+
             {(!selectedStorage || !selectedColor) && (
               <span style={{ fontSize: '0.8125rem', color: '#64748b', fontWeight: 500 }}>
                 (Giá dự kiến theo phiên bản)
@@ -1040,24 +1134,46 @@ export const ProductDetailPage = () => {
             </div>
           )}
 
+          {/* Cảnh báo hết hàng nếu sản phẩm hoặc phiên bản đã chọn không còn tồn kho */}
+          {isOutOfStock && (
+            <div style={{
+              backgroundColor: '#fef2f2',
+              border: '1px solid #fecaca',
+              color: '#dc2626',
+              padding: '0.85rem 1rem',
+              borderRadius: '10px',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              marginBottom: '1rem'
+            }}>
+              <AlertCircle size={20} style={{ flexShrink: 0 }} />
+              <span>Sản phẩm / Phiên bản này hiện đã hết hàng trong kho. Quý khách vui lòng chọn cấu hình khác hoặc quay lại sau!</span>
+            </div>
+          )}
+
           {/* =================================================================== */}
-          {/* 4. SỐ LƯỢNG & TÁC VỤ MUA HÀNG (TRỰC TIẾP TRÊN TRANG CHI TIẾT) */}
+          {/* 4. SỐ LƯỢNG & TÁC VỤ MUA HÀNG (TRỰC TIẾP TRỰC TUYẾN) */}
           {/* =================================================================== */}
           <div className="detail-actions-row">
             {/* Bộ điều khiển số lượng */}
-            <div className="quantity-control">
+            <div className="quantity-control" style={isOutOfStock ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
               <button
                 type="button"
                 className="quantity-btn"
+                disabled={isOutOfStock || quantity <= 1}
                 onClick={() => setQuantity(Math.max(1, quantity - 1))}
                 aria-label="Giảm số lượng"
               >
                 -
               </button>
-              <span className="quantity-value">{quantity}</span>
+              <span className="quantity-value">{isOutOfStock ? 0 : quantity}</span>
               <button
                 type="button"
                 className="quantity-btn"
+                disabled={isOutOfStock || (stockQuantity > 0 && quantity >= stockQuantity)}
                 onClick={() => setQuantity(quantity + 1)}
                 aria-label="Tăng số lượng"
               >
@@ -1068,21 +1184,27 @@ export const ProductDetailPage = () => {
             {/* Nút Thêm vào giỏ hàng */}
             <button 
               type="button" 
-              className="detail-btn-cart"
+              className={`detail-btn-cart ${isOutOfStock ? 'is-disabled' : ''}`}
               onClick={handleAddToCart}
+              disabled={isOutOfStock}
+              style={isOutOfStock ? { opacity: 0.55, cursor: 'not-allowed', backgroundColor: '#e2e8f0', color: '#64748b', borderColor: '#cbd5e1' } : {}}
+              title={isOutOfStock ? 'Sản phẩm này hiện đã hết hàng trong kho' : 'Thêm vào giỏ hàng'}
             >
               <ShoppingCart size={18} />
-              <span>Thêm vào giỏ hàng</span>
+              <span>{isOutOfStock ? 'Hết hàng' : 'Thêm vào giỏ hàng'}</span>
             </button>
 
             {/* Nút Mua ngay */}
             <button 
               type="button" 
-              className="detail-btn-buy"
+              className={`detail-btn-buy ${isOutOfStock ? 'is-disabled' : ''}`}
               onClick={handleBuyNow}
+              disabled={isOutOfStock}
+              style={isOutOfStock ? { opacity: 0.55, cursor: 'not-allowed', backgroundColor: '#94a3b8' } : {}}
+              title={isOutOfStock ? 'Sản phẩm này hiện đã hết hàng trong kho' : 'Mua ngay'}
             >
               <Zap size={18} />
-              <span>Mua ngay</span>
+              <span>{isOutOfStock ? 'Tạm hết hàng' : 'Mua ngay'}</span>
             </button>
           </div>
 

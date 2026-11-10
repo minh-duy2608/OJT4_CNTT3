@@ -170,52 +170,61 @@ public class OrderServiceImpl implements OrderService {
             }
 
             int qty = itemReq.getQuantity() != null && itemReq.getQuantity() > 0 ? itemReq.getQuantity() : 1;
-            BigDecimal unitPrice;
-
             String prodName = itemReq.getProductName();
-            String varName = itemReq.getVariantName();
-            String sku = itemReq.getSku();
-            String imgUrl = itemReq.getImageUrl();
-
-            if (variant != null) {
-                if (prodName == null || prodName.isBlank()) {
-                    prodName = variant.getProduct() != null ? variant.getProduct().getName() : "Sản phẩm Cyber";
-                }
-                if (varName == null || varName.isBlank()) {
-                    varName = variant.getVariantName() != null ? variant.getVariantName() : "Tiêu chuẩn";
-                }
-                if (sku == null || sku.isBlank()) {
-                    sku = variant.getSku() != null ? variant.getSku() : "SKU-" + variant.getId();
-                }
-
-                unitPrice = variant.getSalePrice() != null ? variant.getSalePrice() : variant.getPrice();
-                if (unitPrice == null && itemReq.getPrice() != null) {
-                    unitPrice = itemReq.getPrice();
-                }
-
-                // Kiểm tra và trừ tồn kho
-                Inventory inv = inventoryRepository.findById(variant.getId()).orElse(null);
-                if (inv != null) {
-                    if (inv.getAvailableQuantity() < qty) {
-                        throw new BadRequestException("Sản phẩm '" + prodName + " (" + varName + ")' chỉ còn " + inv.getAvailableQuantity() + " sản phẩm trong kho!");
-                    }
-                    inv.setQuantity(Math.max(0, inv.getQuantity() - qty));
-                    inventoryRepository.save(inv);
-                    log.info("Deducted {} from variant #{} stock. Remaining: {}", qty, variant.getId(), inv.getQuantity());
-                }
-            } else {
-                unitPrice = itemReq.getPrice() != null ? itemReq.getPrice() : BigDecimal.ZERO;
-                if (prodName == null || prodName.isBlank()) prodName = "Thiết bị điện tử";
-                if (varName == null || varName.isBlank()) varName = "Mặc định";
-                if (sku == null || sku.isBlank()) sku = "SKU-" + System.currentTimeMillis();
+            if (prodName == null || prodName.isBlank()) {
+                prodName = product != null ? product.getName() : "Sản phẩm Cyber";
             }
+            String varName = itemReq.getVariantName();
+            if (varName == null || varName.isBlank()) {
+                varName = variant != null && variant.getVariantName() != null ? variant.getVariantName() : "Tiêu chuẩn";
+            }
+
+            // Kiểm tra trạng thái sản phẩm
+            if (product != null && (product.getStatus() != ProductStatus.ACTIVE || product.getDeletedAt() != null)) {
+                throw new BadRequestException("Sản phẩm '" + product.getName() + "' hiện đã ngừng kinh doanh hoặc không còn tồn tại trên hệ thống!");
+            }
+
+            // Bắt buộc phải có biến thể hợp lệ
+            if (variant == null) {
+                throw new BadRequestException("Không tìm thấy phiên bản hợp lệ cho sản phẩm '" + prodName + "'!");
+            }
+            if (variant.getStatus() != ProductVariantStatus.ACTIVE) {
+                throw new BadRequestException("Phiên bản '" + varName + "' của sản phẩm '" + prodName + "' hiện đã ngừng kinh doanh!");
+            }
+
+            String sku = itemReq.getSku();
+            if (sku == null || sku.isBlank()) {
+                sku = variant.getSku() != null ? variant.getSku() : "SKU-" + variant.getId();
+            }
+            String imgUrl = itemReq.getImageUrl();
+            if (imgUrl == null || imgUrl.isBlank()) {
+                imgUrl = product != null ? product.getPrimaryImageUrl() : null;
+            }
+
+            BigDecimal unitPrice = variant.getSalePrice() != null ? variant.getSalePrice() : variant.getPrice();
+            if (unitPrice == null && itemReq.getPrice() != null) {
+                unitPrice = itemReq.getPrice();
+            }
+
+            // Kiểm tra và trừ tồn kho (BẮT BUỘC KIỂM TRA TỒN KHO - KHÔNG CHO PHÉP MUA KHI HẾT HÀNG)
+            Inventory inv = inventoryRepository.findById(variant.getId()).orElse(null);
+            if (inv == null || inv.getAvailableQuantity() <= 0) {
+                throw new BadRequestException("Sản phẩm '" + prodName + " (" + varName + ")' hiện đã hết hàng trong kho. Không thể đặt mua!");
+            }
+            if (inv.getAvailableQuantity() < qty) {
+                throw new BadRequestException("Sản phẩm '" + prodName + " (" + varName + ")' chỉ còn " + inv.getAvailableQuantity() + " sản phẩm trong kho (bạn đang đặt " + qty + ")!");
+            }
+
+            inv.setQuantity(Math.max(0, inv.getQuantity() - qty));
+            inventoryRepository.save(inv);
+            log.info("Deducted {} from variant #{} stock. Remaining: {}", qty, variant.getId(), inv.getQuantity());
 
             if (unitPrice == null) unitPrice = BigDecimal.ZERO;
             BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(qty));
             subtotal = subtotal.add(lineTotal);
 
             OrderItem orderItem = OrderItem.builder()
-                    .variantId(variant != null ? variant.getId() : null)
+                    .variantId(variant.getId())
                     .productName(prodName)
                     .variantName(varName)
                     .sku(sku)

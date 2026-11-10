@@ -37,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -288,7 +289,24 @@ public class ProductServiceImpl implements ProductService {
                 .findFirst()
                 .orElse(images.isEmpty() ? null : images.get(0).getImageUrl());
 
-        return ProductSummaryResponse.fromEntity(product, minPrice, maxPrice, primaryImage);
+        List<Long> varIds = variants.stream().map(ProductVariant::getId).collect(Collectors.toList());
+        Map<Long, Inventory> invMap = varIds.isEmpty() ? Collections.emptyMap() :
+                inventoryRepository.findByVariantIdIn(varIds).stream()
+                        .collect(Collectors.toMap(Inventory::getVariantId, i -> i, (a, b) -> a));
+
+        int totalStock = variants.stream()
+                .mapToInt(v -> {
+                    Inventory inv = invMap.get(v.getId());
+                    return inv != null ? inv.getAvailableQuantity() : 0;
+                }).sum();
+
+        boolean inStock = product.getStatus() == ProductStatus.ACTIVE && !variants.isEmpty() &&
+                variants.stream().anyMatch(v -> {
+                    Inventory inv = invMap.get(v.getId());
+                    return inv != null && inv.getAvailableQuantity() > 0;
+                });
+
+        return ProductSummaryResponse.fromEntity(product, minPrice, maxPrice, primaryImage, inStock, totalStock);
     }
 
     @Override

@@ -3,11 +3,13 @@
    ========================================================================== */
 
 .cyber-header-wrapper {
-  position: relative;
+  position: sticky;
+  top: 0;
   background-color: #ffffff;
   width: 100%;
-  z-index: 100;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  z-index: 1000;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 /* --------------------------------------------------------------------------
@@ -335,6 +337,7 @@
 [data-theme='dark'] .cyber-header-wrapper,
 [class*='dark'] .cyber-header-wrapper {
   background-color: #0f172a;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
 }
 
 .dark .cyber-main-header,

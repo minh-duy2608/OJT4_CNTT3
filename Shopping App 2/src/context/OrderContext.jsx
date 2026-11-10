@@ -111,43 +111,39 @@ export const OrderProvider = ({ children }) => {
   // Tạo đơn hàng mới: Gửi trực tiếp lên Backend Database
   const createOrder = async (orderData) => {
     let createdBackendOrder = null;
-    try {
-      if (isAuthenticated) {
-        // Chuyển đổi định dạng payload gửi về Backend
-        const payload = {
-          addressId: orderData.shippingAddress?.id || null,
-          recipientName: orderData.shippingAddress?.fullName || orderData.shippingAddress?.recipientName || user?.fullName || 'Khách hàng',
-          recipientPhone: orderData.shippingAddress?.phone || orderData.shippingAddress?.phoneNumber || '0362490374',
-          shippingAddress: orderData.shippingAddress?.detailAddress 
-            ? `${orderData.shippingAddress.detailAddress}${orderData.shippingAddress.ward ? `, ${orderData.shippingAddress.ward}` : ''}${orderData.shippingAddress.district ? `, ${orderData.shippingAddress.district}` : ''}${orderData.shippingAddress.city ? `, ${orderData.shippingAddress.city}` : ''}`
-            : (typeof orderData.shippingAddress === 'string' ? orderData.shippingAddress : 'Địa chỉ giao hàng'),
-          shopId: orderData.shopId || (orderData.items && orderData.items[0]?.shopId) || null,
-          items: (orderData.items || []).map(it => ({
-            variantId: it.variantId || (typeof it.id === 'number' ? it.id : null),
-            productId: it.productId || null,
-            productName: it.name,
-            variantName: it.selectedStorage || it.selectedColor || 'Tiêu chuẩn',
-            sku: it.sku || `SKU-${Date.now()}`,
-            imageUrl: it.image,
-            price: Number(it.price || 0),
-            quantity: Number(it.quantity || 1),
-            selectedColor: it.selectedColor,
-            selectedStorage: it.selectedStorage
-          })),
-          voucherCode: orderData.voucherCode || null,
-          discountAmount: Number(orderData.discountAmount || 0),
-          shippingFee: Number(orderData.shippingFee || 0),
-          subtotal: Number(orderData.subtotal || 0),
-          totalAmount: Number(orderData.totalPayment || orderData.totalAmount || 0),
-          paymentMethod: orderData.paymentMethod || 'COD',
-          notes: orderData.notes || (orderData.voucherCode ? `Voucher: ${orderData.voucherCode}` : '')
-        };
+    if (isAuthenticated) {
+      // Chuyển đổi định dạng payload gửi về Backend
+      const payload = {
+        addressId: orderData.shippingAddress?.id || null,
+        recipientName: orderData.shippingAddress?.fullName || orderData.shippingAddress?.recipientName || user?.fullName || 'Khách hàng',
+        recipientPhone: orderData.shippingAddress?.phone || orderData.shippingAddress?.phoneNumber || '0362490374',
+        shippingAddress: orderData.shippingAddress?.detailAddress 
+          ? `${orderData.shippingAddress.detailAddress}${orderData.shippingAddress.ward ? `, ${orderData.shippingAddress.ward}` : ''}${orderData.shippingAddress.district ? `, ${orderData.shippingAddress.district}` : ''}${orderData.shippingAddress.city ? `, ${orderData.shippingAddress.city}` : ''}`
+          : (typeof orderData.shippingAddress === 'string' ? orderData.shippingAddress : 'Địa chỉ giao hàng'),
+        shopId: orderData.shopId || (orderData.items && orderData.items[0]?.shopId) || null,
+        items: (orderData.items || []).map(it => ({
+          variantId: it.variantId || (typeof it.id === 'number' ? it.id : null),
+          productId: it.productId || null,
+          productName: it.name,
+          variantName: it.selectedStorage || it.selectedColor || 'Tiêu chuẩn',
+          sku: it.sku || `SKU-${Date.now()}`,
+          imageUrl: it.image,
+          price: Number(it.price || 0),
+          quantity: Number(it.quantity || 1),
+          selectedColor: it.selectedColor,
+          selectedStorage: it.selectedStorage
+        })),
+        voucherCode: orderData.voucherCode || null,
+        discountAmount: Number(orderData.discountAmount || 0),
+        shippingFee: Number(orderData.shippingFee || 0),
+        subtotal: Number(orderData.subtotal || 0),
+        totalAmount: Number(orderData.totalPayment || orderData.totalAmount || 0),
+        paymentMethod: orderData.paymentMethod || 'COD',
+        notes: orderData.notes || (orderData.voucherCode ? `Voucher: ${orderData.voucherCode}` : '')
+      };
 
-        const res = await orderApi.createOrder(payload);
-        createdBackendOrder = res;
-      }
-    } catch (err) {
-      console.warn('Backend order creation failed, fallback to local tracking:', err);
+      const res = await orderApi.createOrder(payload);
+      createdBackendOrder = res;
     }
 
     const newOrder = {
