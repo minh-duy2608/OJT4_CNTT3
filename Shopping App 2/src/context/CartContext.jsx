@@ -49,6 +49,8 @@ export const CartProvider = ({ children }) => {
             backendItemId: it.id,
             variantId: it.variantId,
             productId: it.productId,
+            shopId: it.shopId,
+            shopName: it.shopName,
             name: `${it.productName}${it.variantName ? ` (${it.variantName})` : ''}`,
             price: Number(it.salePrice || it.price || 0),
             quantity: it.quantity,

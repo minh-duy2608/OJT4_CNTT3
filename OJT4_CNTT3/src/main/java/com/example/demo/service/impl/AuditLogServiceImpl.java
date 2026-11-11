@@ -23,6 +23,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
@@ -62,7 +63,7 @@ public class AuditLogServiceImpl implements AuditLogService {
     }
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void log(Long actorUserId, String action, String entityType, String entityId, Long shopId, String details, HttpServletRequest request) {
         String ipAddress = null;
         String userAgent = null;
@@ -90,7 +91,7 @@ public class AuditLogServiceImpl implements AuditLogService {
                     .details(jsonDetails)
                     .build();
 
-            auditLogRepository.save(logEntry);
+            auditLogRepository.saveAndFlush(logEntry);
             log.info("[AUDIT] Action: {}, Entity: {} #{}, Shop: #{}, Actor: #{}", action, entityType, entityId, shopId, actorUserId);
         } catch (Exception e) {
             log.warn("[AUDIT] Không thể lưu audit log: {}", e.getMessage());
@@ -98,7 +99,7 @@ public class AuditLogServiceImpl implements AuditLogService {
     }
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void log(Long actorUserId, String action, String entityType, String entityId, Long shopId, String details) {
         log(actorUserId, action, entityType, entityId, shopId, details, null);
     }

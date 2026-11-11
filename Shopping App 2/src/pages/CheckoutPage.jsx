@@ -100,8 +100,9 @@ export const CheckoutPage = () => {
   // Tự động nhận diện Shop ID từ các sản phẩm đang được thanh toán
   const detectedShopId = useMemo(() => {
     for (const item of itemsToCheckout) {
-      if (item.shopId) return item.shopId;
-      if (item.shop?.id) return item.shop.id;
+      if (item.shopId) return Number(item.shopId);
+      if (item.shop?.id) return Number(item.shop.id);
+      if (item.product?.shopId) return Number(item.product.shopId);
     }
     return null;
   }, [itemsToCheckout]);
@@ -120,11 +121,11 @@ export const CheckoutPage = () => {
     const fetchRealCoupons = async () => {
       setLoadingCoupons(true);
       try {
-        const promises = [
-          couponApi.getStorefrontCoupons(detectedShopId || undefined)
-        ];
+        const promises = [];
         if (detectedShopId) {
           promises.push(couponApi.getShopCoupons(detectedShopId));
+        } else {
+          promises.push(couponApi.getStorefrontCoupons());
         }
         if (isAuthenticated) {
           promises.push(couponApi.getUserWalletCoupons());
@@ -151,6 +152,11 @@ export const CheckoutPage = () => {
           }
         });
 
+        const currentProductIds = itemsToCheckout.map((it) => {
+          const rawId = it.productId || it.product?.id || (typeof it.id === 'string' && it.id.includes('-') ? it.id.split('-')[0] : it.id);
+          return Number(rawId);
+        }).filter(Boolean);
+
         const now = new Date();
         const activeRealCoupons = Array.from(couponMap.values()).filter((c) => {
           // Phải có trạng thái ACTIVE
@@ -172,18 +178,16 @@ export const CheckoutPage = () => {
             return false;
           }
 
-          // Nghiệp vụ cốt lõi: Khi chọn mã giảm giá chỉ render ra những mã áp dụng cho sản phẩm trong đơn
+          // Nghiệp vụ cốt lõi: Khi mua sản phẩm chỉ render ra những mã giảm giá thuộc về sản phẩm đó (sản phẩm có thể add mã đó)
           const isSpecific = c.applicableToAllProducts === false || (Array.isArray(c.productIds) && c.productIds.length > 0);
           if (isSpecific) {
-            const currentProductIds = itemsToCheckout.map((it) => {
-              const rawId = it.productId || it.product?.id || (typeof it.id === 'string' && it.id.includes('-') ? it.id.split('-')[0] : it.id);
-              return Number(rawId);
-            }).filter(Boolean);
-
             const applicableProductIds = Array.isArray(c.productIds) ? c.productIds.map(Number) : [];
+            if (applicableProductIds.length === 0) {
+              return false; // Mã chỉ định cụ thể nhưng không có sản phẩm nào hợp lệ -> không render
+            }
             const hasMatchingProduct = currentProductIds.some((pid) => applicableProductIds.includes(pid));
             if (!hasMatchingProduct) {
-              return false;
+              return false; // Không có sản phẩm nào trong giỏ thanh toán khớp với mã này -> không render
             }
           }
 

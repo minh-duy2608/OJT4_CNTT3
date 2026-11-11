@@ -205,6 +205,11 @@ public class CartServiceImpl implements CartService {
             Product product = variant.getProduct();
             String prodName = product != null ? product.getName() : "Sản phẩm Cyber";
             Long prodId = product != null ? product.getId() : null;
+            Long itemShopId = product != null ? product.getShopId() : null;
+            String itemShopName = null;
+            if (itemShopId != null) {
+                itemShopName = shopRepository.findById(itemShopId).map(Shop::getName).orElse(null);
+            }
 
             BigDecimal price = variant.getPrice();
             BigDecimal salePrice = variant.getSalePrice();
@@ -232,6 +237,8 @@ public class CartServiceImpl implements CartService {
                     .id(ci.getId())
                     .variantId(variant.getId())
                     .productId(prodId)
+                    .shopId(itemShopId)
+                    .shopName(itemShopName)
                     .productName(prodName)
                     .variantName(variant.getVariantName())
                     .sku(variant.getSku())

@@ -318,26 +318,31 @@ export const ProductDetailPage = () => {
           setProduct(liveProduct);
           setSelectedImage(primaryImg);
 
-          // Tải mã giảm giá áp dụng THẬT cho sản phẩm này từ API (chỉ hiện mã thật của shop và sản phẩm này)
+          // Tải mã giảm giá áp dụng THẬT cho sản phẩm này từ API (chỉ render mã thực sự áp dụng được cho sản phẩm này)
           couponApi.getProductCoupons(data.id)
             .then((coupons) => {
               if (isMounted && Array.isArray(coupons)) {
-                setShopCoupons(coupons);
-                const savedIds = new Set(coupons.filter(c => c.isSaved).map(c => c.id));
+                const now = new Date();
+                const strictlyApplicable = coupons.filter((c) => {
+                  if (c.status && c.status !== 'ACTIVE') return false;
+                  if (c.startAt && new Date(c.startAt) > now) return false;
+                  if (c.endAt && new Date(c.endAt) < now) return false;
+                  if (c.shopId && resolvedShopId && Number(c.shopId) !== Number(resolvedShopId)) return false;
+                  if (c.applicableToAllProducts) return true;
+                  if (Array.isArray(c.productIds) && c.productIds.length > 0) {
+                    return c.productIds.map(Number).includes(Number(data.id));
+                  }
+                  return false;
+                });
+                setShopCoupons(strictlyApplicable);
+                const savedIds = new Set(strictlyApplicable.filter(c => c.isSaved).map(c => c.id));
                 setSavedCouponIds(savedIds);
               }
             })
             .catch(() => {
-              if (resolvedShopId) {
-                couponApi.getShopCoupons(resolvedShopId)
-                  .then((coupons) => {
-                    if (isMounted && Array.isArray(coupons)) {
-                      setShopCoupons(coupons);
-                      const savedIds = new Set(coupons.filter(c => c.isSaved).map(c => c.id));
-                      setSavedCouponIds(savedIds);
-                    }
-                  })
-                  .catch(() => {});
+              if (isMounted) {
+                setShopCoupons([]);
+                setSavedCouponIds(new Set());
               }
             });
 
