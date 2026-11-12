@@ -118,6 +118,8 @@ export const CartPage = () => {
                 {cartItems.map((item) => {
                   const isSelected = selectedItemIds.includes(item.id);
                   const isItemOutOfStock = item.inStock === false || item.stockQuantity === 0 || (item.availableQuantity !== undefined && item.availableQuantity <= 0);
+                  const maxStock = item.availableQuantity ?? item.stockQuantity;
+                  const canIncrease = !isItemOutOfStock && (maxStock === undefined || maxStock === null || item.quantity < maxStock);
                   return (
                     <tr 
                       key={item.id} 
@@ -170,7 +172,16 @@ export const CartPage = () => {
                           <button
                             type="button"
                             onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                            style={{ padding: '2px 8px', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer' }}
+                            disabled={item.quantity <= 1}
+                            style={{ 
+                              padding: '2px 8px', 
+                              border: '1px solid #cbd5e1', 
+                              borderRadius: '4px', 
+                              cursor: item.quantity <= 1 ? 'not-allowed' : 'pointer',
+                              opacity: item.quantity <= 1 ? 0.45 : 1,
+                              backgroundColor: item.quantity <= 1 ? '#f8fafc' : 'transparent'
+                            }}
+                            title="Giảm số lượng"
                           >
                             -
                           </button>
@@ -178,7 +189,16 @@ export const CartPage = () => {
                           <button
                             type="button"
                             onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                            style={{ padding: '2px 8px', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer' }}
+                            disabled={!canIncrease}
+                            style={{ 
+                              padding: '2px 8px', 
+                              border: '1px solid #cbd5e1', 
+                              borderRadius: '4px', 
+                              cursor: canIncrease ? 'pointer' : 'not-allowed',
+                              opacity: canIncrease ? 1 : 0.45,
+                              backgroundColor: canIncrease ? 'transparent' : '#f1f5f9'
+                            }}
+                            title={isItemOutOfStock ? 'Sản phẩm đã hết hàng trong kho' : (!canIncrease ? `Đã đạt giới hạn tồn kho (${maxStock})` : 'Tăng số lượng')}
                           >
                             +
                           </button>

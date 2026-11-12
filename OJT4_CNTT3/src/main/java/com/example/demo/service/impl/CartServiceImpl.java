@@ -117,6 +117,9 @@ public class CartServiceImpl implements CartService {
         } else {
             Inventory inventory = inventoryRepository.findById(item.getVariantId()).orElse(null);
             int availableStock = inventory != null ? inventory.getAvailableQuantity() : 0;
+            if (availableStock <= 0) {
+                throw new BadRequestException("Sản phẩm này hiện đã hết hàng trong kho. Không thể tăng số lượng!");
+            }
             if (quantity > availableStock) {
                 throw new BadRequestException("Số lượng vượt quá tồn kho khả dụng (chỉ còn " + availableStock + " sản phẩm)");
             }
