@@ -1,0 +1,60 @@
+name: SonarQube & Code Quality Analysis
+
+on:
+  push:
+    branches:
+      - main
+      - HoangSon
+    paths:
+      - 'OJT4_CNTT3/**'
+      - '.github/workflows/sonar.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'OJT4_CNTT3/**'
+  workflow_dispatch:
+
+jobs:
+  code-quality:
+    name: Test, JaCoCo Coverage & SonarQube Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run Unit Tests & Generate JaCoCo Report
+        working-directory: ./OJT4_CNTT3
+        run: |
+          chmod +x gradlew
+          ./gradlew test jacocoTestReport --no-daemon
+
+      - name: Upload JaCoCo Coverage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-coverage-report
+          path: OJT4_CNTT3/build/reports/jacoco/test/
+          retention-days: 7
+
+      - name: Run SonarQube Analysis
+        if: env.SONAR_TOKEN != ''
+        working-directory: ./OJT4_CNTT3
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL || 'http://localhost:9000' }}
+        run: |
+          ./gradlew sonar \
+            -Dsonar.host.url="${SONAR_HOST_URL}" \
+            -Dsonar.token="${SONAR_TOKEN}" \
+            --no-daemon

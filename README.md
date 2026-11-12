@@ -1,4 +1,4 @@
-﻿# Dự án OJT4 - Fullstack (Frontend & Backend & Database)
+# Dự án OJT4 - Fullstack (Frontend & Backend & Database)
 
 Dự án tích hợp đầy đủ hệ thống bao gồm:
 - **Frontend**: Ứng dụng React + Vite (Shopping App) đóng gói qua Nginx.
@@ -99,4 +99,34 @@ Vào GitHub repository: **Settings** -> **Secrets and variables** -> **Actions**
 | `VPS_USERNAME` | `root` | User SSH |
 | `VPS_PASSWORD` | `Mbmbjk12@` | Mật khẩu SSH (hoặc dùng `VPS_SSH_KEY`) |
 | `VPS_PORT` | `22` | Cổng SSH (mặc định 22) |
+| `SONAR_HOST_URL` | `http://localhost:9000` | URL của SonarQube Server hoặc SonarCloud |
+| `SONAR_TOKEN` | `sqa_...` | Token phân tích mã nguồn SonarQube |
+
+---
+
+## 🔍 KIỂM THỬ VÀ ĐO ĐỘ BAO PHỦ MÃ NGUỒN (SONARQUBE & JACOCO)
+
+Hệ thống tích hợp sẵn JaCoCo `0.8.12` và SonarQube Gradle plugin `5.1.0.4882` cho Backend Java 21:
+
+1. **Khởi động SonarQube độc lập bằng Docker Compose:**
+   ```bash
+   docker compose -f docker-compose.sonar.yml up -d
+   ```
+   Truy cập SonarQube Dashboard: [http://localhost:9000](http://localhost:9000) (tài khoản `admin`/`admin`).
+
+2. **Chạy Unit Tests và xuất báo cáo JaCoCo (XML & HTML):**
+   ```bash
+   cd OJT4_CNTT3
+   ./gradlew test jacocoTestReport --no-daemon
+   ```
+   * File XML cho SonarQube: `OJT4_CNTT3/build/reports/jacoco/test/jacocoTestReport.xml`
+   * Báo cáo HTML trực quan: `OJT4_CNTT3/build/reports/jacoco/test/html/index.html`
+
+3. **Thực hiện quét SonarQube:**
+   ```bash
+   cd OJT4_CNTT3
+   ./gradlew sonar -Dsonar.host.url=http://localhost:9000 -Dsonar.token=<YOUR_TOKEN> --no-daemon
+   ```
+
+Chi tiết hướng dẫn xem tại: [docs/SONARQUBE_GUIDE.md](file:///Users/boizi/Desktop/OJT-KY4/docs/SONARQUBE_GUIDE.md).
 

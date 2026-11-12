@@ -2,6 +2,8 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '4.1.2'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'jacoco'
+    id 'org.sonarqube' version '5.1.0.4882'
 }
 
 group = 'com'
@@ -51,4 +53,49 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    finalizedBy tasks.named('jacocoTestReport')
+}
+
+jacoco {
+    toolVersion = "0.8.12"
+}
+
+tasks.named('jacocoTestReport') {
+    dependsOn tasks.named('test')
+    reports {
+        xml.required = true
+        csv.required = false
+        html.required = true
+        xml.outputLocation = layout.buildDirectory.file('reports/jacoco/test/jacocoTestReport.xml')
+        html.outputLocation = layout.buildDirectory.dir('reports/jacoco/test/html')
+    }
+    classDirectories.setFrom(
+        fileTree(dir: layout.buildDirectory.dir('classes/java/main'), exclude: [
+            '**/DemoApplication.class',
+            '**/config/**',
+            '**/dto/**',
+            '**/entity/**',
+            '**/exception/**',
+            '**/event/**'
+        ])
+    )
+}
+
+sonar {
+    properties {
+        property "sonar.projectKey", "ojt4-backend"
+        property "sonar.projectName", "OJT4 E-Commerce Backend"
+        property "sonar.projectVersion", project.version.toString()
+        property "sonar.host.url", System.getenv("SONAR_HOST_URL") ?: "http://localhost:9000"
+        if (System.getenv("SONAR_TOKEN")) {
+            property "sonar.token", System.getenv("SONAR_TOKEN")
+        }
+        property "sonar.sourceEncoding", "UTF-8"
+        property "sonar.sources", "src/main/java"
+        property "sonar.tests", "src/test/java"
+        property "sonar.java.binaries", layout.buildDirectory.dir("classes/java/main").get().asFile.absolutePath
+        property "sonar.coverage.jacoco.xmlReportPaths", layout.buildDirectory.file("reports/jacoco/test/jacocoTestReport.xml").get().asFile.absolutePath
+        property "sonar.exclusions", "**/DemoApplication.java,**/config/**,**/dto/**,**/entity/**,**/exception/**,**/event/**"
+        property "sonar.coverage.exclusions", "**/DemoApplication.java,**/config/**,**/dto/**,**/entity/**,**/exception/**,**/event/**"
+    }
 }

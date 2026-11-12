@@ -17,6 +17,7 @@ import org.mockito.Mock;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -288,10 +289,9 @@ class OrderServiceTest extends BaseUnitTest {
     }
 
     @Test
-    @DisplayName("Chống xác nhận lặp: Đơn hàng đã DELIVERED -> Bị từ chối 400 BadRequestException")
+    @DisplayName("Đơn hàng ở trạng thái CANCELLED -> Bị từ chối 400 BadRequestException")
     void testConfirmOrderDelivery_BadRequest_DuplicateConfirmation() {
-        order.setStatus(OrderStatus.DELIVERED);
-        order.setDeliveredAt(LocalDateTime.now().minusHours(2));
+        order.setStatus(OrderStatus.CANCELLED);
 
         when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
         when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
@@ -299,7 +299,7 @@ class OrderServiceTest extends BaseUnitTest {
         BadRequestException ex = assertThrows(BadRequestException.class, () ->
                 orderService.confirmOrderDelivery(100L, "customer"));
 
-        assertTrue(ex.getMessage().contains("đã được xác nhận giao thành công trước đó"));
+        assertTrue(ex.getMessage().contains("Chỉ có thể xác nhận nhận hàng"));
         verify(orderRepository, never()).save(any());
     }
 
@@ -327,6 +327,8 @@ class OrderServiceTest extends BaseUnitTest {
     void testGetOrderDetail_Success_Owner() {
         order.setStatus(OrderStatus.DELIVERED);
         order.setDeliveredAt(LocalDateTime.now().minusDays(1));
+        order.setBuyerConfirmedDelivery(true);
+        order.setItems(new ArrayList<>());
 
         when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
         when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
@@ -446,6 +448,8 @@ class OrderServiceTest extends BaseUnitTest {
     void testGetOrderDetail_CanReturn_Within3Days_True() {
         order.setStatus(OrderStatus.DELIVERED);
         order.setDeliveredAt(LocalDateTime.now().minusDays(1));
+        order.setBuyerConfirmedDelivery(true);
+        order.setItems(new ArrayList<>());
 
         when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
         when(orderRepository.findById(100L)).thenReturn(Optional.of(order));

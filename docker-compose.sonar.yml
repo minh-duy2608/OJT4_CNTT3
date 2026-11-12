@@ -1,0 +1,36 @@
+services:
+  # ============================================================================
+  # SonarQube Community Edition Service (Code Quality & Security Analysis)
+  # ============================================================================
+  sonarqube:
+    image: sonarqube:10-community
+    container_name: ojt4_sonarqube
+    restart: unless-stopped
+    ports:
+      - "${SONAR_PORT:-9000}:9000"
+    environment:
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+      - TZ=Asia/Ho_Chi_Minh
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    networks:
+      - sonar_network
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+volumes:
+  sonarqube_data:
+    name: ojt4_sonarqube_data
+  sonarqube_extensions:
+    name: ojt4_sonarqube_extensions
+  sonarqube_logs:
+    name: ojt4_sonarqube_logs
+
+networks:
+  sonar_network:
+    name: ojt4_sonar_network
+    driver: bridge
