@@ -535,6 +535,7 @@ export const ProductDetailPage = () => {
   const isOutOfStock = useMemo(() => {
     if (!product) return false;
     if (product.inStock === false) return true;
+    if (stockQuantity <= 0) return true;
     if (matchedVariant) {
       const avail = matchedVariant.availableQuantity !== undefined
         ? matchedVariant.availableQuantity
@@ -548,7 +549,7 @@ export const ProductDetailPage = () => {
       });
     }
     return false;
-  }, [product, matchedVariant]);
+  }, [product, matchedVariant, stockQuantity]);
 
   // Xử lý Thêm vào giỏ hàng trực tiếp từ trang chi tiết (Yêu cầu phải chọn phiên bản & màu sắc)
   const handleAddToCart = () => {
@@ -557,7 +558,7 @@ export const ProductDetailPage = () => {
       return;
     }
 
-    if (isOutOfStock) {
+    if (isOutOfStock || stockQuantity <= 0) {
       showToast('Sản phẩm hoặc phiên bản này hiện đã hết hàng, không thể thêm vào giỏ!', 'error');
       return;
     }
@@ -568,7 +569,7 @@ export const ProductDetailPage = () => {
       return;
     }
 
-    if (stockQuantity > 0 && quantity > stockQuantity) {
+    if (quantity > stockQuantity) {
       showToast(`Số lượng yêu cầu (${quantity}) vượt quá tồn kho khả dụng (${stockQuantity})!`, 'warning');
       return;
     }
@@ -578,6 +579,8 @@ export const ProductDetailPage = () => {
       id: matchedVariant ? `${product.id}-${matchedVariant.id}` : `${product.id}-${selectedColor}-${selectedStorage}`,
       productId: product.id,
       variantId: matchedVariant?.id,
+      stockQuantity,
+      inStock: !isOutOfStock && stockQuantity > 0,
       name: `${product.name} (${selectedColor}, ${selectedStorage})`,
       price: currentPrice,
       formattedPrice: formatVND(currentPrice),
@@ -600,7 +603,7 @@ export const ProductDetailPage = () => {
       return;
     }
 
-    if (isOutOfStock) {
+    if (isOutOfStock || stockQuantity <= 0) {
       showToast('Sản phẩm hoặc phiên bản này hiện đã hết hàng, không thể đặt mua!', 'error');
       return;
     }
@@ -611,7 +614,7 @@ export const ProductDetailPage = () => {
       return;
     }
 
-    if (stockQuantity > 0 && quantity > stockQuantity) {
+    if (quantity > stockQuantity) {
       showToast(`Số lượng yêu cầu (${quantity}) vượt quá tồn kho khả dụng (${stockQuantity})!`, 'warning');
       return;
     }
@@ -620,6 +623,8 @@ export const ProductDetailPage = () => {
       id: matchedVariant ? `${product.id}-${matchedVariant.id}` : `${product.id}-${selectedColor}-${selectedStorage}`,
       productId: product.id,
       variantId: matchedVariant?.id,
+      stockQuantity,
+      inStock: !isOutOfStock && stockQuantity > 0,
       name: `${product.name} (${selectedColor}, ${selectedStorage})`,
       price: currentPrice,
       formattedPrice: formatVND(currentPrice),
