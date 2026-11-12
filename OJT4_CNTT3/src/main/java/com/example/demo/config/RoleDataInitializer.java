@@ -13,6 +13,7 @@ import com.example.demo.repository.RoleRepository;
 import com.example.demo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -40,6 +41,12 @@ public class RoleDataInitializer implements CommandLineRunner {
     private final com.example.demo.repository.ProductImageRepository productImageRepository;
     private final com.example.demo.repository.InventoryRepository inventoryRepository;
     private final PasswordEncoder passwordEncoder;
+
+    @Value("${application.seed.admin-password:Admin@123456}")
+    private String seedAdminPassword;
+
+    @Value("${application.seed.son-password:Hoangson06}")
+    private String seedSonPassword;
 
     // 44 Standard Permissions extracted from 01-init.sql
     private static final List<String[]> PERMISSION_DEFINITIONS = List.of(
@@ -225,7 +232,7 @@ public class RoleDataInitializer implements CommandLineRunner {
         if (user2Opt.isPresent()) {
             User u2 = user2Opt.get();
             u2.setRole(Role.ROLE_ADMIN);
-            u2.setPassword(passwordEncoder.encode("Hoangson06"));
+            u2.setPassword(passwordEncoder.encode(seedSonPassword));
             u2.setStatus(UserStatus.ACTIVE);
             if (u2.getEmailVerifiedAt() == null) {
                 u2.setEmailVerifiedAt(LocalDateTime.now());
@@ -237,20 +244,20 @@ public class RoleDataInitializer implements CommandLineRunner {
                 u2.getRoles().add(adminRole);
             }
             userRepository.save(u2);
-            log.info("Updated admin account son666727@gmail.com with password Hoangson06");
+            log.info("Updated admin account son666727@gmail.com");
         } else {
             User u2 = User.builder()
                     .username("son666727")
                     .email("son666727@gmail.com")
                     .fullName("Hoàng Sơn")
-                    .password(passwordEncoder.encode("Hoangson06"))
+                    .password(passwordEncoder.encode(seedSonPassword))
                     .role(Role.ROLE_ADMIN)
                     .status(UserStatus.ACTIVE)
                     .emailVerifiedAt(LocalDateTime.now())
                     .roles(adminRole != null ? new HashSet<>(Set.of(adminRole)) : new HashSet<>())
                     .build();
             userRepository.save(u2);
-            log.info("Created new admin account son666727@gmail.com with password Hoangson06");
+            log.info("Created new admin account son666727@gmail.com");
         }
 
         // 3. Đảm bảo tài khoản quản trị hệ thống mặc định (admin@gmail.com) có mật khẩu Admin@123456 và quyền ADMIN
@@ -258,7 +265,7 @@ public class RoleDataInitializer implements CommandLineRunner {
         if (adminOpt.isPresent()) {
             User adminUser = adminOpt.get();
             adminUser.setRole(Role.ROLE_ADMIN);
-            adminUser.setPassword(passwordEncoder.encode("Admin@123456"));
+            adminUser.setPassword(passwordEncoder.encode(seedAdminPassword));
             adminUser.setStatus(UserStatus.ACTIVE);
             if (adminUser.getEmailVerifiedAt() == null) {
                 adminUser.setEmailVerifiedAt(LocalDateTime.now());
@@ -270,20 +277,20 @@ public class RoleDataInitializer implements CommandLineRunner {
                 adminUser.getRoles().add(adminRole);
             }
             userRepository.save(adminUser);
-            log.info("Updated admin account admin@gmail.com with password Admin@123456");
+            log.info("Updated admin account admin@gmail.com");
         } else {
             User adminUser = User.builder()
                     .username("admin")
                     .email("admin@gmail.com")
                     .fullName("Quản Trị Viên Cyber")
-                    .password(passwordEncoder.encode("Admin@123456"))
+                    .password(passwordEncoder.encode(seedAdminPassword))
                     .role(Role.ROLE_ADMIN)
                     .status(UserStatus.ACTIVE)
                     .emailVerifiedAt(LocalDateTime.now())
                     .roles(adminRole != null ? new HashSet<>(Set.of(adminRole)) : new HashSet<>())
                     .build();
             userRepository.save(adminUser);
-            log.info("Created default admin account admin@gmail.com with password Admin@123456");
+            log.info("Created default admin account admin@gmail.com");
         }
     }
 
