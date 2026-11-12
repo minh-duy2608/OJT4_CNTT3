@@ -181,7 +181,7 @@ public class BrandServiceImpl implements BrandService {
         String nowhitespace = WHITESPACE.matcher(text.toLowerCase(Locale.ROOT)).replaceAll("-");
         String normalized = Normalizer.normalize(nowhitespace, Normalizer.Form.NFD);
         String slug = NON_LATIN.matcher(normalized).replaceAll("");
-        return slug.replaceAll("-+", "-").replaceAll("^-|-$", "");
+        return slug.replaceAll("-+", "-").replaceAll("(^-)|(-$)", "");
     }
 }
 

@@ -213,7 +213,7 @@ public class CategoryServiceImpl implements CategoryService {
         String nowhitespace = WHITESPACE.matcher(text.toLowerCase(Locale.ROOT)).replaceAll("-");
         String normalized = Normalizer.normalize(nowhitespace, Normalizer.Form.NFD);
         String slug = NON_LATIN.matcher(normalized).replaceAll("");
-        slug = slug.replaceAll("-+", "-").replaceAll("^-|-$", "");
+        slug = slug.replaceAll("-+", "-").replaceAll("(^-)|(-$)", "");
         return slug.isEmpty() ? "category-" + System.currentTimeMillis() : slug;
     }
 }

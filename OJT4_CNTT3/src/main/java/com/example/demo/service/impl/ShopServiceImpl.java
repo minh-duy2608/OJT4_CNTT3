@@ -372,7 +372,7 @@ public class ShopServiceImpl implements ShopService {
                 .replaceAll("[^a-z0-9\\s-]", "")
                 .replaceAll("\\s+", "-")
                 .replaceAll("-+", "-")
-                .replaceAll("^-|-$", "");
+                .replaceAll("(^-)|(-$)", "");
         return slug.isBlank() ? "shop-" + System.currentTimeMillis() : slug;
     }
 

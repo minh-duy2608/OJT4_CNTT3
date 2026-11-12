@@ -1090,7 +1090,7 @@ public class ProductServiceImpl implements ProductService {
                 .replaceAll("[^a-z0-9\\s-]", "")
                 .replaceAll("\\s+", "-")
                 .replaceAll("-+", "-")
-                .replaceAll("^-|-$", "");
+                .replaceAll("(^-)|(-$)", "");
         return slug.isBlank() ? "product-" + System.currentTimeMillis() : slug;
     }
 }
