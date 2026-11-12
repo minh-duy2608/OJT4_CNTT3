@@ -56,6 +56,7 @@ export const CartProvider = ({ children }) => {
             quantity: it.quantity,
             image: it.imageUrl,
             stockQuantity: it.stockQuantity,
+            availableQuantity: it.stockQuantity,
             inStock: it.stockQuantity != null ? it.stockQuantity > 0 : true
           }));
           setCartItems(beMapped);
@@ -263,15 +264,33 @@ export const CartProvider = ({ children }) => {
 
     if (target?.backendItemId) {
       try {
-        await cartApi.updateQuantity(target.backendItemId, quantity);
+        const res = await cartApi.updateQuantity(target.backendItemId, quantity);
+        if (res && res.items) {
+          const updatedTarget = res.items.find((i) => i.id === target.backendItemId);
+          if (updatedTarget) {
+            setCartItems((prev) =>
+              prev.map((it) =>
+                it.id === id
+                  ? {
+                      ...it,
+                      quantity: updatedTarget.quantity,
+                      stockQuantity: updatedTarget.stockQuantity,
+                      availableQuantity: updatedTarget.stockQuantity,
+                      inStock: updatedTarget.stockQuantity > 0
+                    }
+                  : it
+              )
+            );
+          }
+        }
       } catch (err) {
         console.warn('Could not update quantity on backend cart:', err);
         // Rollback lại số lượng cũ nếu backend từ chối
         setCartItems((prev) =>
           prev.map((item) => (item.id === id ? { ...item, quantity: target.quantity } : item))
         );
-        const errMsg = err.response?.data?.message || 'Không thể cập nhật số lượng do lỗi tồn kho';
-        showToast(errMsg, 'error');
+        const errMsg = err.message || err.response?.data?.message || err.data?.message || 'Không thể cập nhật số lượng do lỗi tồn kho';
+        showToast(errMsg, 'warning');
       }
     }
   };
