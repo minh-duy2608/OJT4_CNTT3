@@ -72,6 +72,10 @@ public class CartServiceImpl implements CartService {
         Inventory inventory = inventoryRepository.findById(variant.getId()).orElse(null);
         int availableStock = inventory != null ? inventory.getAvailableQuantity() : 0;
 
+        if (availableStock <= 0) {
+            throw new BadRequestException("Sản phẩm '" + product.getName() + " (" + variant.getVariantName() + ")' hiện đã hết hàng");
+        }
+
         Optional<CartItem> existingOpt = cartItemRepository.findByCartIdAndVariantId(cart.getId(), variant.getId());
         int currentInCart = existingOpt.map(CartItem::getQuantity).orElse(0);
 
@@ -169,7 +173,14 @@ public class CartServiceImpl implements CartService {
     }
 
     private void syncSingleItem(Cart cart, AddToCartRequest req, ProductVariant variant) {
+        Inventory inventory = inventoryRepository.findById(variant.getId()).orElse(null);
+        int availableStock = inventory != null ? inventory.getAvailableQuantity() : 0;
+        if (availableStock <= 0) {
+            return;
+        }
+
         int qty = req.getQuantity() != null && req.getQuantity() > 0 ? req.getQuantity() : 1;
+        qty = Math.min(qty, availableStock);
         Optional<CartItem> existing = cartItemRepository.findByCartIdAndVariantId(cart.getId(), variant.getId());
         if (existing.isPresent()) {
             CartItem ci = existing.get();

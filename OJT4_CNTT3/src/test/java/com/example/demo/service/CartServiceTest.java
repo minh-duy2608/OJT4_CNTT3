@@ -191,6 +191,24 @@ class CartServiceTest extends BaseUnitTest {
     }
 
     @Test
+    @DisplayName("addToCart: out of stock throws BadRequestException")
+    void addToCart_outOfStock() {
+        product.setDeletedAt(null);
+        variant.setStatus(ProductVariantStatus.ACTIVE);
+        shop.setStatus(ShopStatus.ACTIVE);
+
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
+        when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
+        when(productVariantRepository.findById(200L)).thenReturn(Optional.of(variant));
+        when(shopRepository.findById(20L)).thenReturn(Optional.of(shop));
+        when(inventoryRepository.findById(200L)).thenReturn(Optional.of(Inventory.builder().variantId(200L).quantity(0).reservedQuantity(0).build()));
+
+        AddToCartRequest req = AddToCartRequest.builder().variantId(200L).quantity(1).build();
+        BadRequestException ex = assertThrows(BadRequestException.class, () -> cartService.addToCart(req, "testuser"));
+        assertTrue(ex.getMessage().contains("hết hàng"));
+    }
+
+    @Test
     @DisplayName("addToCart: insufficient stock throws BadRequestException")
     void addToCart_insufficientStock() {
         product.setDeletedAt(null);
@@ -367,6 +385,7 @@ class CartServiceTest extends BaseUnitTest {
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
         when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
         when(productVariantRepository.findById(200L)).thenReturn(Optional.of(variant));
+        when(inventoryRepository.findById(200L)).thenReturn(Optional.of(Inventory.builder().variantId(200L).quantity(10).reservedQuantity(0).build()));
         when(cartItemRepository.findByCartIdAndVariantId(10L, 200L)).thenReturn(Optional.empty());
         when(cartItemRepository.findByCartId(10L)).thenReturn(Collections.emptyList());
 

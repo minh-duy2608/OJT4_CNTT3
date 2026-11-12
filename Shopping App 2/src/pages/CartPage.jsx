@@ -234,7 +234,7 @@ export const CartPage = () => {
                   className="btn"
                   disabled={selectedCount === 0}
                   onClick={() => {
-                    const hasOutOfStockSelected = cartItems.some(it => selectedItemIds.includes(it.id) && (it.inStock === false || (it.availableQuantity !== undefined && it.availableQuantity <= 0)));
+                    const hasOutOfStockSelected = cartItems.some(it => selectedItemIds.includes(it.id) && (it.inStock === false || it.stockQuantity === 0 || (it.availableQuantity !== undefined && it.availableQuantity <= 0)));
                     if (hasOutOfStockSelected) {
                       showToast('Có sản phẩm đã hết hàng trong danh sách đã chọn. Vui lòng bỏ chọn để thanh toán!', 'error');
                       return;

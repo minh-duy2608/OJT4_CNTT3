@@ -344,7 +344,8 @@ export const CheckoutPage = () => {
   };
 
   // Mở Model Box xác nhận đặt hàng
-  const hasOutOfStockItems = itemsToCheckout.some((it) => it.inStock === false || (it.availableQuantity !== undefined && it.availableQuantity <= 0));
+  const isItemOutOfStock = (it) => it.inStock === false || it.stockQuantity === 0 || (it.availableQuantity !== undefined && it.availableQuantity <= 0);
+  const hasOutOfStockItems = itemsToCheckout.some(isItemOutOfStock);
 
   const handlePlaceOrder = () => {
     if (itemsToCheckout.length === 0) {
@@ -352,7 +353,7 @@ export const CheckoutPage = () => {
       return;
     }
 
-    const outOfStockItem = itemsToCheckout.find((it) => it.inStock === false || (it.availableQuantity !== undefined && it.availableQuantity <= 0));
+    const outOfStockItem = itemsToCheckout.find(isItemOutOfStock);
     if (outOfStockItem) {
       showToast(`Sản phẩm "${outOfStockItem.name}" hiện đã hết hàng trong kho! Không thể đặt hàng.`, 'error');
       return;
@@ -373,7 +374,7 @@ export const CheckoutPage = () => {
     const selectedAddr = addresses.find((a) => a.id === selectedAddressId);
     if (!selectedAddr) return;
 
-    const outOfStockItem = itemsToCheckout.find((it) => it.inStock === false || (it.availableQuantity !== undefined && it.availableQuantity <= 0));
+    const outOfStockItem = itemsToCheckout.find(isItemOutOfStock);
     if (outOfStockItem) {
       showToast(`Sản phẩm "${outOfStockItem.name}" hiện đã hết hàng trong kho! Không thể đặt hàng.`, 'error');
       return;
@@ -788,7 +789,7 @@ export const CheckoutPage = () => {
             {/* Danh sách món hàng */}
             <div className="summary-items-list">
               {itemsToCheckout.map((item) => {
-                const isOutOfStock = item.inStock === false || (item.availableQuantity !== undefined && item.availableQuantity <= 0);
+                const isOutOfStock = isItemOutOfStock(item);
                 return (
                   <div key={item.id} className="summary-item-row" style={isOutOfStock ? { background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '8px' } : {}}>
                     <img src={item.image} alt={item.name} className="summary-item-img" />

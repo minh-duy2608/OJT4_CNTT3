@@ -165,6 +165,12 @@ export const CartProvider = ({ children }) => {
       return { success: false, requireAuth: true };
     }
 
+    const isOutOfStock = product.inStock === false || product.stockQuantity === 0 || (product.availableQuantity !== undefined && product.availableQuantity <= 0);
+    if (isOutOfStock) {
+      showToast('Sản phẩm này hiện đã hết hàng trong kho, không thể thêm vào giỏ hàng!', 'error');
+      return { success: false, error: 'out_of_stock' };
+    }
+
     setCartItems((prevItems) => {
       const existing = prevItems.find((item) => item.id === product.id);
       if (existing) {
@@ -188,8 +194,25 @@ export const CartProvider = ({ children }) => {
     if (varId) {
       try {
         await cartApi.addToCart(varId, quantity);
+        syncWithBackendCart();
       } catch (err) {
         console.warn('Could not sync addToCart with backend:', err);
+        // Rollback lại giỏ hàng local nếu backend từ chối (vd hết hàng)
+        setCartItems((prevItems) => {
+          const existing = prevItems.find((item) => item.id === product.id);
+          if (existing) {
+            if (existing.quantity <= quantity) {
+              return prevItems.filter((item) => item.id !== product.id);
+            }
+            return prevItems.map((item) =>
+              item.id === product.id ? { ...item, quantity: item.quantity - quantity } : item
+            );
+          }
+          return prevItems;
+        });
+        const errMessage = err.response?.data?.message || 'Không thể thêm sản phẩm vào giỏ hàng do lỗi kho';
+        showToast(errMessage, 'error');
+        return { success: false, error: errMessage };
       }
     }
 
