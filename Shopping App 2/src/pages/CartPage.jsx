@@ -21,7 +21,8 @@ export const CartPage = () => {
     isAllSelected,
     toggleSelectItem,
     selectAllItems,
-    deselectAllItems
+    deselectAllItems,
+    showToast
   } = useCart();
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
@@ -37,6 +38,31 @@ export const CartPage = () => {
   const [showCheckoutConfirmModal, setShowCheckoutConfirmModal] = useState(false);
   const [showClearCartConfirmModal, setShowClearCartConfirmModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
+
+  const handleIncreaseQuantity = (item) => {
+    const isItemOutOfStock = item.inStock === false || item.stockQuantity === 0 || (item.availableQuantity !== undefined && item.availableQuantity <= 0);
+    const maxStock = item.availableQuantity ?? item.stockQuantity;
+
+    if (isItemOutOfStock) {
+      showToast(`Sản phẩm "${item.name}" hiện đã hết hàng trong kho!`, 'error');
+      return;
+    }
+
+    if (maxStock !== undefined && maxStock !== null && item.quantity >= maxStock) {
+      showToast(`Không thể cộng thêm số lượng! Kho hàng chỉ còn tối đa ${maxStock} sản phẩm.`, 'warning');
+      return;
+    }
+
+    updateQuantity(item.id, item.quantity + 1);
+  };
+
+  const handleDecreaseQuantity = (item) => {
+    if (item.quantity <= 1) {
+      showToast('Số lượng tối thiểu là 1. Nếu muốn xóa sản phẩm, vui lòng bấm biểu tượng thùng rác!', 'info');
+      return;
+    }
+    updateQuantity(item.id, item.quantity - 1);
+  };
 
   if (!isAuthenticated) {
     return (
@@ -168,40 +194,51 @@ export const CartPage = () => {
                       </td>
                       <td style={{ padding: '1.25rem 0' }}>{formatVND(item.price)}</td>
                       <td style={{ padding: '1.25rem 0' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <button
-                            type="button"
-                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                            disabled={item.quantity <= 1}
-                            style={{ 
-                              padding: '2px 8px', 
-                              border: '1px solid #cbd5e1', 
-                              borderRadius: '4px', 
-                              cursor: item.quantity <= 1 ? 'not-allowed' : 'pointer',
-                              opacity: item.quantity <= 1 ? 0.45 : 1,
-                              backgroundColor: item.quantity <= 1 ? '#f8fafc' : 'transparent'
-                            }}
-                            title="Giảm số lượng"
-                          >
-                            -
-                          </button>
-                          <span style={{ minWidth: '24px', textAlign: 'center', fontWeight: 600 }}>{item.quantity}</span>
-                          <button
-                            type="button"
-                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                            disabled={!canIncrease}
-                            style={{ 
-                              padding: '2px 8px', 
-                              border: '1px solid #cbd5e1', 
-                              borderRadius: '4px', 
-                              cursor: canIncrease ? 'pointer' : 'not-allowed',
-                              opacity: canIncrease ? 1 : 0.45,
-                              backgroundColor: canIncrease ? 'transparent' : '#f1f5f9'
-                            }}
-                            title={isItemOutOfStock ? 'Sản phẩm đã hết hàng trong kho' : (!canIncrease ? `Đã đạt giới hạn tồn kho (${maxStock})` : 'Tăng số lượng')}
-                          >
-                            +
-                          </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleDecreaseQuantity(item)}
+                              style={{ 
+                                padding: '2px 8px', 
+                                border: '1px solid #cbd5e1', 
+                                borderRadius: '4px', 
+                                cursor: item.quantity <= 1 ? 'not-allowed' : 'pointer',
+                                opacity: item.quantity <= 1 ? 0.45 : 1,
+                                backgroundColor: item.quantity <= 1 ? '#f8fafc' : 'transparent',
+                                userSelect: 'none'
+                              }}
+                              title={item.quantity <= 1 ? 'Số lượng tối thiểu là 1' : 'Giảm số lượng'}
+                            >
+                              -
+                            </button>
+                            <span style={{ minWidth: '24px', textAlign: 'center', fontWeight: 600 }}>{item.quantity}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleIncreaseQuantity(item)}
+                              style={{ 
+                                padding: '2px 8px', 
+                                border: '1px solid #cbd5e1', 
+                                borderRadius: '4px', 
+                                cursor: canIncrease ? 'pointer' : 'not-allowed',
+                                opacity: canIncrease ? 1 : 0.45,
+                                backgroundColor: canIncrease ? 'transparent' : '#f1f5f9',
+                                userSelect: 'none'
+                              }}
+                              title={isItemOutOfStock ? 'Sản phẩm đã hết hàng trong kho' : (!canIncrease ? `Đã đạt giới hạn tồn kho (${maxStock})` : 'Tăng số lượng')}
+                            >
+                              +
+                            </button>
+                          </div>
+                          {maxStock !== undefined && maxStock !== null && (
+                            <div style={{ fontSize: '0.72rem', color: isItemOutOfStock ? '#dc2626' : (!canIncrease ? '#ea580c' : '#64748b'), fontWeight: 500 }}>
+                              {isItemOutOfStock 
+                                ? 'Hết hàng trong kho' 
+                                : (!canIncrease 
+                                    ? `Đã đạt tối đa (${maxStock} trong kho)` 
+                                    : `Còn ${maxStock} sản phẩm`)}
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td style={{ padding: '1.25rem 0', fontWeight: 700, color: '#000000' }}>
