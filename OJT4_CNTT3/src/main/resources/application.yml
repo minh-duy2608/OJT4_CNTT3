@@ -48,6 +48,9 @@ application:
     reset-password-expiration-ms: ${JWT_RESET_PASSWORD_EXPIRATION_MS:900000}
     # Email verification token expiration (24 hours = 86400000 ms)
     email-verification-expiration-ms: ${JWT_EMAIL_VERIFICATION_EXPIRATION_MS:86400000}
+  seed:
+    admin-password: ${SEED_ADMIN_PASSWORD:Admin@123456}
+    son-password: ${SEED_SON_PASSWORD:Hoangson06}
 
 logging:
   level:
