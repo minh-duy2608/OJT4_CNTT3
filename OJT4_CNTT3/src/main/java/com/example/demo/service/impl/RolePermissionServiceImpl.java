@@ -50,7 +50,7 @@ public class RolePermissionServiceImpl implements RolePermissionService {
                 .sorted(Comparator.comparing(RoleEntity::isSystem).reversed()
                         .thenComparing(RoleEntity::getCode))
                 .map(r -> RoleResponse.fromEntity(r, false))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
@@ -131,17 +131,21 @@ public class RolePermissionServiceImpl implements RolePermissionService {
         return permissionRepository.findAll().stream()
                 .sorted(Comparator.comparing(PermissionEntity::getCode))
                 .map(PermissionResponse::fromEntity)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<PermissionResponse> getRolePermissions(Long roleId) {
         RoleEntity role = findRoleById(roleId);
+        return doGetRolePermissions(role);
+    }
+
+    private List<PermissionResponse> doGetRolePermissions(RoleEntity role) {
         return role.getPermissions().stream()
                 .sorted(Comparator.comparing(PermissionEntity::getCode))
                 .map(PermissionResponse::fromEntity)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
@@ -165,10 +169,10 @@ public class RolePermissionServiceImpl implements RolePermissionService {
         List<PermissionEntity> matched = permissionRepository.findByCodeIn(requestedCodes);
         role.setPermissions(new HashSet<>(matched));
 
-        roleRepository.save(role);
+        RoleEntity saved = roleRepository.save(role);
         log.info("Updated permissions for role {}: {} permissions assigned", role.getCode(), matched.size());
 
-        return getRolePermissions(roleId);
+        return doGetRolePermissions(saved);
     }
 
     @Override
@@ -177,28 +181,35 @@ public class RolePermissionServiceImpl implements RolePermissionService {
         User user = userRepository.findByUsernameOrEmail(username, username)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng: " + username));
 
-        // Nếu là ADMIN, cấp toàn bộ quyền
-        if (user.getRole() == Role.ROLE_ADMIN || user.getRole() == Role.ADMIN) {
+        if (isUserAdmin(user)) {
             return permissionRepository.findAll().stream()
                     .map(PermissionEntity::getCode)
                     .collect(Collectors.toSet());
         }
 
+        return resolveUserPermissions(user);
+    }
+
+    private boolean isUserAdmin(User user) {
+        if (user.getRole() == Role.ROLE_ADMIN || user.getRole() == Role.ADMIN) {
+            return true;
+        }
+        if (user.getRoles() != null) {
+            return user.getRoles().stream().anyMatch(r -> "ADMIN".equalsIgnoreCase(r.getCode()));
+        }
+        return false;
+    }
+
+    private Set<String> resolveUserPermissions(User user) {
         Set<String> permissions = new HashSet<>();
         if (user.getRoles() != null) {
             for (RoleEntity r : user.getRoles()) {
-                if ("ADMIN".equalsIgnoreCase(r.getCode())) {
-                    return permissionRepository.findAll().stream()
-                            .map(PermissionEntity::getCode)
-                            .collect(Collectors.toSet());
-                }
                 if (r.getPermissions() != null) {
                     r.getPermissions().forEach(p -> permissions.add(p.getCode()));
                 }
             }
         }
 
-        // Nếu chưa có trong user_roles, fallback tìm role theo primary role
         if (permissions.isEmpty() && user.getRole() != null) {
             String primaryCode = user.getRole().name();
             if (primaryCode.startsWith("ROLE_")) {
@@ -212,7 +223,6 @@ public class RolePermissionServiceImpl implements RolePermissionService {
                 fallbackRole.getPermissions().forEach(p -> permissions.add(p.getCode()));
             }
         }
-
         return permissions;
     }
 

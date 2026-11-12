@@ -26,18 +26,29 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final String ROLE_ADMIN_STR = "ADMIN";
+    private static final String ROLE_ROLE_ADMIN_STR = "ROLE_ADMIN";
+    private static final String ENTITY_ORDER = "ORDER";
+    private static final String REQ_LOGIN = "Yêu cầu đăng nhập";
+
+    private static final String DEFAULT_RETURN_INSTRUCTIONS = """
+            1. Quý khách có thể gửi yêu cầu Trả hàng / Hoàn tiền trong vòng 3 ngày kể từ khi nhận hàng thành công.
+            2. Sản phẩm đổi trả phải còn nguyên tem niêm phong, phụ kiện, hộp đóng gói và chưa qua sửa chữa hoặc can thiệp kỹ thuật.
+            3. Vui lòng quay video lúc mở kiện hàng và chụp ảnh chi tiết lỗi để Shop đối soát và xử lý hoàn tiền nhanh nhất.""";
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
@@ -52,21 +63,9 @@ public class OrderServiceImpl implements OrderService {
     private final ProductReviewRepository productReviewRepository;
     private final AuditLogService auditLogService;
 
-    @Override
-    @Transactional
-    public OrderResponse createOrder(CreateOrderRequest request, String currentUsername) {
-        if (currentUsername == null || currentUsername.isBlank()) {
-            throw new UnauthorizedException("Yêu cầu đăng nhập để tạo đơn hàng");
-        }
+    private record RecipientInfo(String name, String phone, String address, Long addressId) {}
 
-        User user = userRepository.findByUsername(currentUsername)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin tài khoản: " + currentUsername));
-
-        if (request.getItems() == null || request.getItems().isEmpty()) {
-            throw new BadRequestException("Đơn hàng phải có ít nhất một sản phẩm");
-        }
-
-        // 1. Snapshot địa chỉ nhận hàng
+    private RecipientInfo resolveRecipientInfo(CreateOrderRequest request, User user) {
         String recipientName = request.getRecipientName();
         String recipientPhone = request.getRecipientPhone();
         String shippingAddress = request.getShippingAddress();
@@ -93,23 +92,27 @@ public class OrderServiceImpl implements OrderService {
         if (shippingAddress == null || shippingAddress.isBlank()) {
             shippingAddress = "Địa chỉ nhận hàng mặc định";
         }
+        return new RecipientInfo(recipientName, recipientPhone, shippingAddress, addressId);
+    }
 
-        // 2. Xác định chính xác shopId từ các sản phẩm được mua
+    private Product resolveProductForItem(CreateOrderItemRequest itemReq) {
+        if (itemReq.getVariantId() != null) {
+            ProductVariant v = productVariantRepository.findById(itemReq.getVariantId()).orElse(null);
+            if (v != null) {
+                return v.getProduct();
+            }
+        }
+        if (itemReq.getProductId() != null) {
+            return productRepository.findById(itemReq.getProductId()).orElse(null);
+        }
+        return null;
+    }
+
+    private Long resolveShopId(CreateOrderRequest request) {
         Long resolvedShopId = request.getShopId();
-
         if (request.getItems() != null && !request.getItems().isEmpty()) {
             for (CreateOrderItemRequest itemReq : request.getItems()) {
-                Product prod = null;
-                if (itemReq.getVariantId() != null) {
-                    ProductVariant v = productVariantRepository.findById(itemReq.getVariantId()).orElse(null);
-                    if (v != null) {
-                        prod = v.getProduct();
-                    }
-                }
-                if (prod == null && itemReq.getProductId() != null) {
-                    prod = productRepository.findById(itemReq.getProductId()).orElse(null);
-                }
-
+                Product prod = resolveProductForItem(itemReq);
                 if (prod != null && prod.getShopId() != null) {
                     if (resolvedShopId == null) {
                         resolvedShopId = prod.getShopId();
@@ -119,30 +122,123 @@ public class OrderServiceImpl implements OrderService {
                 }
             }
         }
-
         if (resolvedShopId == null) {
             resolvedShopId = shopRepository.findAll().stream().findFirst().map(Shop::getId).orElse(1L);
         }
+        return resolvedShopId;
+    }
 
-        final Long finalShopId = resolvedShopId;
+    private OrderItem buildOrderItemAndDeductInventory(CreateOrderItemRequest itemReq) {
+        ProductVariant variant = null;
+        if (itemReq.getVariantId() != null) {
+            variant = productVariantRepository.findById(itemReq.getVariantId()).orElse(null);
+        }
+
+        Product product = null;
+        if (variant != null) {
+            product = variant.getProduct();
+        } else if (itemReq.getProductId() != null) {
+            product = productRepository.findById(itemReq.getProductId()).orElse(null);
+            if (product != null && product.getVariants() != null && !product.getVariants().isEmpty()) {
+                variant = product.getVariants().get(0);
+            }
+        }
+
+        int qty = itemReq.getQuantity() != null && itemReq.getQuantity() > 0 ? itemReq.getQuantity() : 1;
+        String prodName = (itemReq.getProductName() != null && !itemReq.getProductName().isBlank())
+                ? itemReq.getProductName()
+                : (product != null ? product.getName() : "Sản phẩm Cyber");
+        String varName = (itemReq.getVariantName() != null && !itemReq.getVariantName().isBlank())
+                ? itemReq.getVariantName()
+                : (variant != null && variant.getVariantName() != null ? variant.getVariantName() : "Tiêu chuẩn");
+
+        if (product != null && (product.getStatus() != ProductStatus.ACTIVE || product.getDeletedAt() != null)) {
+            throw new BadRequestException("Sản phẩm '" + product.getName() + "' hiện đã ngừng kinh doanh hoặc không còn tồn tại trên hệ thống!");
+        }
+
+        if (variant == null) {
+            throw new BadRequestException("Không tìm thấy phiên bản hợp lệ cho sản phẩm '" + prodName + "'!");
+        }
+        if (variant.getStatus() != ProductVariantStatus.ACTIVE) {
+            throw new BadRequestException("Phiên bản '" + varName + "' của sản phẩm '" + prodName + "' hiện đã ngừng kinh doanh!");
+        }
+
+        String sku = (itemReq.getSku() != null && !itemReq.getSku().isBlank())
+                ? itemReq.getSku()
+                : (variant.getSku() != null ? variant.getSku() : "SKU-" + variant.getId());
+        String imgUrl = (itemReq.getImageUrl() != null && !itemReq.getImageUrl().isBlank())
+                ? itemReq.getImageUrl()
+                : (product != null ? product.getPrimaryImageUrl() : null);
+
+        BigDecimal unitPrice = variant.getSalePrice() != null ? variant.getSalePrice() : variant.getPrice();
+        if (unitPrice == null && itemReq.getPrice() != null) {
+            unitPrice = itemReq.getPrice();
+        }
+        if (unitPrice == null) {
+            unitPrice = BigDecimal.ZERO;
+        }
+
+        Inventory inv = inventoryRepository.findById(variant.getId()).orElse(null);
+        if (inv == null || inv.getAvailableQuantity() <= 0) {
+            throw new BadRequestException("Sản phẩm '" + prodName + " (" + varName + ")' hiện đã hết hàng trong kho. Không thể đặt mua!");
+        }
+        if (inv.getAvailableQuantity() < qty) {
+            throw new BadRequestException("Sản phẩm '" + prodName + " (" + varName + ")' chỉ còn " + inv.getAvailableQuantity() + " sản phẩm trong kho (bạn đang đặt " + qty + ")!");
+        }
+
+        inv.setQuantity(Math.max(0, inv.getQuantity() - qty));
+        inventoryRepository.save(inv);
+        log.info("Deducted {} from variant #{} stock. Remaining: {}", qty, variant.getId(), inv.getQuantity());
+
+        BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(qty));
+
+        return OrderItem.builder()
+                .variantId(variant.getId())
+                .productName(prodName)
+                .variantName(varName)
+                .sku(sku)
+                .productImageUrl(imgUrl)
+                .unitPrice(unitPrice)
+                .quantity(qty)
+                .discountAmount(BigDecimal.ZERO)
+                .lineTotal(lineTotal)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse createOrder(CreateOrderRequest request, String currentUsername) {
+        if (currentUsername == null || currentUsername.isBlank()) {
+            throw new UnauthorizedException("Yêu cầu đăng nhập để tạo đơn hàng");
+        }
+
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin tài khoản: " + currentUsername));
+
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            throw new BadRequestException("Đơn hàng phải có ít nhất một sản phẩm");
+        }
+
+        RecipientInfo recipient = resolveRecipientInfo(request, user);
+        Long finalShopId = resolveShopId(request);
+
         Shop shop = shopRepository.findById(finalShopId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + finalShopId));
         if (shop.getStatus() != ShopStatus.ACTIVE) {
             throw new BadRequestException("Cửa hàng '" + shop.getName() + "' hiện đang tạm ngừng hoạt động (" + shop.getStatus() + "). Không thể tạo đơn hàng mới.");
         }
 
-        // 3. Khởi tạo mã đơn hàng duy nhất
-        String orderCode = "CYBER-" + (System.currentTimeMillis() % 1000000) + "-" + ThreadLocalRandom.current().nextInt(100, 999);
+        String orderCode = "CYBER-" + (System.currentTimeMillis() % 1000000) + "-" + (100 + SECURE_RANDOM.nextInt(900));
 
         Order order = Order.builder()
                 .orderCode(orderCode)
                 .userId(user.getId())
                 .shopId(shop.getId())
                 .shop(shop)
-                .addressId(addressId)
-                .recipientName(recipientName)
-                .recipientPhone(recipientPhone)
-                .shippingAddress(shippingAddress)
+                .addressId(recipient.addressId())
+                .recipientName(recipient.name())
+                .recipientPhone(recipient.phone())
+                .shippingAddress(recipient.address())
                 .status(OrderStatus.PENDING)
                 .paymentStatus(PaymentStatus.UNPAID)
                 .paymentMethod(request.getPaymentMethod() != null ? request.getPaymentMethod() : "COD")
@@ -151,90 +247,9 @@ public class OrderServiceImpl implements OrderService {
                 .build();
 
         BigDecimal subtotal = BigDecimal.ZERO;
-
-        // 4. Duyệt các sản phẩm và cập nhật tồn kho
         for (CreateOrderItemRequest itemReq : request.getItems()) {
-            ProductVariant variant = null;
-            if (itemReq.getVariantId() != null) {
-                variant = productVariantRepository.findById(itemReq.getVariantId()).orElse(null);
-            }
-
-            Product product = null;
-            if (variant != null) {
-                product = variant.getProduct();
-            } else if (itemReq.getProductId() != null) {
-                product = productRepository.findById(itemReq.getProductId()).orElse(null);
-                if (product != null && product.getVariants() != null && !product.getVariants().isEmpty()) {
-                    variant = product.getVariants().get(0);
-                }
-            }
-
-            int qty = itemReq.getQuantity() != null && itemReq.getQuantity() > 0 ? itemReq.getQuantity() : 1;
-            String prodName = itemReq.getProductName();
-            if (prodName == null || prodName.isBlank()) {
-                prodName = product != null ? product.getName() : "Sản phẩm Cyber";
-            }
-            String varName = itemReq.getVariantName();
-            if (varName == null || varName.isBlank()) {
-                varName = variant != null && variant.getVariantName() != null ? variant.getVariantName() : "Tiêu chuẩn";
-            }
-
-            // Kiểm tra trạng thái sản phẩm
-            if (product != null && (product.getStatus() != ProductStatus.ACTIVE || product.getDeletedAt() != null)) {
-                throw new BadRequestException("Sản phẩm '" + product.getName() + "' hiện đã ngừng kinh doanh hoặc không còn tồn tại trên hệ thống!");
-            }
-
-            // Bắt buộc phải có biến thể hợp lệ
-            if (variant == null) {
-                throw new BadRequestException("Không tìm thấy phiên bản hợp lệ cho sản phẩm '" + prodName + "'!");
-            }
-            if (variant.getStatus() != ProductVariantStatus.ACTIVE) {
-                throw new BadRequestException("Phiên bản '" + varName + "' của sản phẩm '" + prodName + "' hiện đã ngừng kinh doanh!");
-            }
-
-            String sku = itemReq.getSku();
-            if (sku == null || sku.isBlank()) {
-                sku = variant.getSku() != null ? variant.getSku() : "SKU-" + variant.getId();
-            }
-            String imgUrl = itemReq.getImageUrl();
-            if (imgUrl == null || imgUrl.isBlank()) {
-                imgUrl = product != null ? product.getPrimaryImageUrl() : null;
-            }
-
-            BigDecimal unitPrice = variant.getSalePrice() != null ? variant.getSalePrice() : variant.getPrice();
-            if (unitPrice == null && itemReq.getPrice() != null) {
-                unitPrice = itemReq.getPrice();
-            }
-
-            // Kiểm tra và trừ tồn kho (BẮT BUỘC KIỂM TRA TỒN KHO - KHÔNG CHO PHÉP MUA KHI HẾT HÀNG)
-            Inventory inv = inventoryRepository.findById(variant.getId()).orElse(null);
-            if (inv == null || inv.getAvailableQuantity() <= 0) {
-                throw new BadRequestException("Sản phẩm '" + prodName + " (" + varName + ")' hiện đã hết hàng trong kho. Không thể đặt mua!");
-            }
-            if (inv.getAvailableQuantity() < qty) {
-                throw new BadRequestException("Sản phẩm '" + prodName + " (" + varName + ")' chỉ còn " + inv.getAvailableQuantity() + " sản phẩm trong kho (bạn đang đặt " + qty + ")!");
-            }
-
-            inv.setQuantity(Math.max(0, inv.getQuantity() - qty));
-            inventoryRepository.save(inv);
-            log.info("Deducted {} from variant #{} stock. Remaining: {}", qty, variant.getId(), inv.getQuantity());
-
-            if (unitPrice == null) unitPrice = BigDecimal.ZERO;
-            BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(qty));
-            subtotal = subtotal.add(lineTotal);
-
-            OrderItem orderItem = OrderItem.builder()
-                    .variantId(variant.getId())
-                    .productName(prodName)
-                    .variantName(varName)
-                    .sku(sku)
-                    .productImageUrl(imgUrl)
-                    .unitPrice(unitPrice)
-                    .quantity(qty)
-                    .discountAmount(BigDecimal.ZERO)
-                    .lineTotal(lineTotal)
-                    .build();
-
+            OrderItem orderItem = buildOrderItemAndDeductInventory(itemReq);
+            subtotal = subtotal.add(orderItem.getLineTotal());
             order.addItem(orderItem);
         }
 
@@ -290,6 +305,32 @@ public class OrderServiceImpl implements OrderService {
                 .build();
     }
 
+    private boolean isUserAdmin(User user) {
+        if (user == null) {
+            return false;
+        }
+        if (user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN) {
+            return true;
+        }
+        return user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
+                ROLE_ADMIN_STR.equalsIgnoreCase(r.getCode()) || ROLE_ROLE_ADMIN_STR.equalsIgnoreCase(r.getCode()));
+    }
+
+    private void restoreInventory(Order order) {
+        if (order.getItems() == null) {
+            return;
+        }
+        for (OrderItem item : order.getItems()) {
+            if (item.getVariantId() != null) {
+                inventoryRepository.findById(item.getVariantId()).ifPresent(inv -> {
+                    inv.setQuantity(inv.getQuantity() + item.getQuantity());
+                    inventoryRepository.save(inv);
+                    log.info("Restored {} items back to inventory variant #{}", item.getQuantity(), item.getVariantId());
+                });
+            }
+        }
+    }
+
     @Override
     @Transactional(readOnly = true)
     public OrderResponse getOrderDetail(Long orderId, String currentUsername) {
@@ -303,9 +344,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
 
         boolean isBuyer = Objects.equals(order.getUserId(), user.getId());
-        boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN ||
-                (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
-                        "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
+        boolean isAdmin = isUserAdmin(user);
         boolean isShopManager = isUserShopManagerForOrder(user, order);
         if (!isBuyer && !isAdmin && !isShopManager) {
             log.warn("Access denied for user '{}' (ID #{}) to order #{}", currentUsername, user.getId(), orderId);
@@ -384,9 +423,7 @@ public class OrderServiceImpl implements OrderService {
             User user = userRepository.findByUsername(currentUsername).orElse(null);
             if (user != null) {
                 boolean isBuyer = Objects.equals(order.getUserId(), user.getId());
-                boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN ||
-                        (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
-                                "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
+                boolean isAdmin = isUserAdmin(user);
                 boolean isShopManager = isUserShopManagerForOrder(user, order);
                 if (!isBuyer && !isAdmin && !isShopManager) {
                     throw new ForbiddenException("Bạn không có quyền theo dõi đơn hàng này");
@@ -449,7 +486,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
 
         boolean isOwner = Objects.equals(order.getUserId(), user.getId());
-        boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN;
+        boolean isAdmin = isUserAdmin(user);
         if (!isOwner && !isAdmin) {
             throw new ForbiddenException("Bạn không có quyền hủy đơn hàng này");
         }
@@ -463,17 +500,7 @@ public class OrderServiceImpl implements OrderService {
         order.setCancellationReason(reason != null && !reason.isBlank() ? reason : "Người mua yêu cầu hủy đơn");
 
         // Hoàn lại số lượng tồn kho
-        if (order.getItems() != null) {
-            for (OrderItem item : order.getItems()) {
-                if (item.getVariantId() != null) {
-                    inventoryRepository.findById(item.getVariantId()).ifPresent(inv -> {
-                        inv.setQuantity(inv.getQuantity() + item.getQuantity());
-                        inventoryRepository.save(inv);
-                        log.info("Restored {} items back to inventory variant #{}", item.getQuantity(), item.getVariantId());
-                    });
-                }
-            }
-        }
+        restoreInventory(order);
 
         Order saved = orderRepository.save(order);
         return mapToResponse(saved);
@@ -484,9 +511,7 @@ public class OrderServiceImpl implements OrderService {
     public PageResponse<OrderResponse> getAdminOrders(Long shopId, OrderStatus status, int page, int size, String currentUsername) {
         User user = verifyAdminOrShopAccess(currentUsername);
 
-        boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN ||
-                (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
-                        "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
+        boolean isAdmin = isUserAdmin(user);
 
         // Lấy danh sách ID các shop mà user có quyền quản lý (chủ shop hoặc thành viên active)
         List<Long> manageableShopIds = new ArrayList<>();
@@ -551,7 +576,7 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public OrderResponse updateOrderStatus(Long orderId, UpdateOrderStatusRequest request, String currentUsername) {
         if (currentUsername == null || currentUsername.isBlank()) {
-            throw new UnauthorizedException("Yêu cầu đăng nhập");
+            throw new UnauthorizedException(REQ_LOGIN);
         }
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin tài khoản: " + currentUsername));
@@ -577,9 +602,7 @@ public class OrderServiceImpl implements OrderService {
         // NGHIỆP VỤ CỐT LÕI: Khi người mua hàng mua của shop nào thì CHỈ shop đó (chủ cửa hàng hoặc nhân viên active) mới có quyền chuyển trạng thái đơn hàng.
         // Đối với Quản trị viên hệ thống (Admin): Cho phép can thiệp theo chính sách quản trị, kiểm soát luồng trạng thái hợp lệ và bắt buộc ghi nhật ký thao tác (Audit Log).
         boolean isShopManager = isUserShopManagerForOrder(user, order);
-        boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN ||
-                (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
-                        "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
+        boolean isAdmin = isUserAdmin(user);
 
         if (!isShopManager && !isAdmin) {
             throw new ForbiddenException("Bạn không có quyền chuyển trạng thái đơn hàng này. Chỉ chủ cửa hàng hoặc nhân viên của cửa hàng '" + shop.getName() + "' (Mã shop: #" + orderShopId + ") hoặc Quản trị viên hệ thống mới có quyền thao tác!");
@@ -612,7 +635,7 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public OrderResponse updateShopOrderStatus(Long shopId, Long orderId, UpdateOrderStatusRequest request, String currentUsername) {
         if (currentUsername == null || currentUsername.isBlank()) {
-            throw new UnauthorizedException("Yêu cầu đăng nhập");
+            throw new UnauthorizedException(REQ_LOGIN);
         }
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin tài khoản: " + currentUsername));
@@ -636,15 +659,61 @@ public class OrderServiceImpl implements OrderService {
 
         boolean isOwner = Objects.equals(shop.getOwnerId(), user.getId());
         boolean isMember = shopMemberRepository.existsByIdShopIdAndIdUserIdAndStatus(shopId, user.getId(), ShopMemberStatus.ACTIVE);
-        boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN ||
-                (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
-                        "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
+        boolean isAdmin = isUserAdmin(user);
 
         if (!isOwner && !isMember && !isAdmin) {
             throw new ForbiddenException("Bạn không có quyền cập nhật trạng thái đơn hàng của cửa hàng #" + shopId + ". Chỉ chủ sở hữu (Owner) của cửa hàng mới có quyền thao tác!");
         }
 
         return processStatusUpdate(order, shop, request, user, isAdmin, isOwner || isMember);
+    }
+
+    private void handleStatusConfirmed(Order order, Shop shop, User user, LocalDateTime now) {
+        if (order.getConfirmedAt() == null) {
+            order.setConfirmedAt(now);
+        }
+        log.info("Xác nhận đơn hàng #{} ({}) của Shop #{} ('{}') vào lúc: {}. Người thực hiện: '{}'",
+                order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), order.getConfirmedAt(), user.getUsername());
+    }
+
+    private void handleStatusShipped(Order order, Shop shop, User user, LocalDateTime now) {
+        if (order.getShippedAt() == null) {
+            order.setShippedAt(now);
+        }
+        log.info("Bắt đầu giao đơn hàng #{} ({}) của Shop #{} ('{}') (SHIPPED) vào lúc: {}. Người thực hiện: '{}'",
+                order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), order.getShippedAt(), user.getUsername());
+    }
+
+    private void handleStatusDelivered(Order order, Shop shop, User user, LocalDateTime now) {
+        order.setDeliveredAt(now);
+        order.setPaymentStatus(PaymentStatus.PAID);
+        log.info("Xác nhận GIAO THÀNH CÔNG (DELIVERED) cho đơn hàng #{} ({}) của Shop #{} ('{}') vào thời điểm: {}. Người thực hiện: '{}'",
+                order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), order.getDeliveredAt(), user.getUsername());
+        auditLogService.log(
+                user.getId(),
+                "ORDER_DELIVERED",
+                ENTITY_ORDER,
+                String.valueOf(order.getId()),
+                shop.getId(),
+                String.format("Giao thành công đơn hàng #%s vào thời điểm %s bởi %s", order.getOrderCode(), order.getDeliveredAt(), user.getUsername())
+        );
+    }
+
+    private String resolveCancellationReason(UpdateOrderStatusRequest request, boolean isAdmin) {
+        if (request.getCancellationReason() != null && !request.getCancellationReason().isBlank()) {
+            return request.getCancellationReason();
+        }
+        return isAdmin ? "Hủy bởi Quản trị viên" : "Hủy bởi cửa hàng";
+    }
+
+    private void handleStatusCancelled(Order order, Shop shop, UpdateOrderStatusRequest request, User user, boolean isAdmin, LocalDateTime now, OrderStatus oldStatus) {
+        order.setCancelledAt(now);
+        order.setCancellationReason(resolveCancellationReason(request, isAdmin));
+        log.info("Đơn hàng #{} ({}) của Shop #{} bị HỦY (CANCELLED) vào lúc: {}. Lý do: '{}'. Người thực hiện: '{}'",
+                order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), order.getCancelledAt(), order.getCancellationReason(), user.getUsername());
+        if (oldStatus == OrderStatus.PENDING || oldStatus == OrderStatus.CONFIRMED || oldStatus == OrderStatus.PROCESSING) {
+            restoreInventory(order);
+        }
     }
 
     private OrderResponse processStatusUpdate(Order order, Shop shop, UpdateOrderStatusRequest request, User user, boolean isAdmin, boolean isShopManager) {
@@ -656,56 +725,16 @@ public class OrderServiceImpl implements OrderService {
             order.setStatus(newStatus);
             LocalDateTime now = LocalDateTime.now();
 
-            if (newStatus == OrderStatus.CONFIRMED) {
-                if (order.getConfirmedAt() == null) {
-                    order.setConfirmedAt(now);
-                }
-                log.info("Xác nhận đơn hàng #{} ({}) của Shop #{} ('{}') vào lúc: {}. Người thực hiện: '{}'",
-                        order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), order.getConfirmedAt(), user.getUsername());
-            } else if (newStatus == OrderStatus.PROCESSING) {
-                log.info("Đơn hàng #{} ({}) của Shop #{} đang được chuẩn bị hàng (PROCESSING) vào lúc: {}. Người thực hiện: '{}'",
+            switch (newStatus) {
+                case CONFIRMED -> handleStatusConfirmed(order, shop, user, now);
+                case PROCESSING -> log.info("Đơn hàng #{} ({}) của Shop #{} đang được chuẩn bị hàng (PROCESSING) vào lúc: {}. Người thực hiện: '{}'",
                         order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), now, user.getUsername());
-            } else if (newStatus == OrderStatus.SHIPPED) {
-                if (order.getShippedAt() == null) {
-                    order.setShippedAt(now);
-                }
-                log.info("Bắt đầu giao đơn hàng #{} ({}) của Shop #{} ('{}') (SHIPPED) vào lúc: {}. Người thực hiện: '{}'",
-                        order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), order.getShippedAt(), user.getUsername());
-            } else if (newStatus == OrderStatus.DELIVERED) {
-                order.setDeliveredAt(now);
-                order.setPaymentStatus(PaymentStatus.PAID);
-                log.info("Xác nhận GIAO THÀNH CÔNG (DELIVERED) cho đơn hàng #{} ({}) của Shop #{} ('{}') vào thời điểm: {}. Người thực hiện: '{}'",
-                        order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), order.getDeliveredAt(), user.getUsername());
-                auditLogService.log(
-                        user.getId(),
-                        "ORDER_DELIVERED",
-                        "ORDER",
-                        String.valueOf(order.getId()),
-                        shop.getId(),
-                        String.format("Giao thành công đơn hàng #%s vào thời điểm %s bởi %s", order.getOrderCode(), order.getDeliveredAt(), user.getUsername())
-                );
-            } else if (newStatus == OrderStatus.CANCELLED) {
-                order.setCancelledAt(now);
-                order.setCancellationReason(request.getCancellationReason() != null ? request.getCancellationReason() : (isAdmin ? "Hủy bởi Quản trị viên" : "Hủy bởi cửa hàng"));
-                log.info("Đơn hàng #{} ({}) của Shop #{} bị HỦY (CANCELLED) vào lúc: {}. Lý do: '{}'. Người thực hiện: '{}'",
-                        order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), order.getCancelledAt(), order.getCancellationReason(), user.getUsername());
-                // Hoàn lại tồn kho nếu hủy từ trạng thái chưa giao
-                if (oldStatus == OrderStatus.PENDING || oldStatus == OrderStatus.CONFIRMED || oldStatus == OrderStatus.PROCESSING) {
-                    if (order.getItems() != null) {
-                        for (OrderItem item : order.getItems()) {
-                            if (item.getVariantId() != null) {
-                                inventoryRepository.findById(item.getVariantId()).ifPresent(inv -> {
-                                    inv.setQuantity(inv.getQuantity() + item.getQuantity());
-                                    inventoryRepository.save(inv);
-                                    log.info("Restored {} items back to inventory variant #{}", item.getQuantity(), item.getVariantId());
-                                });
-                            }
-                        }
-                    }
-                }
-            } else if (newStatus == OrderStatus.RETURNED) {
-                log.info("Đơn hàng #{} ({}) của Shop #{} ghi nhận TRẢ HÀNG (RETURNED) vào lúc: {}. Người thực hiện: '{}'",
+                case SHIPPED -> handleStatusShipped(order, shop, user, now);
+                case DELIVERED -> handleStatusDelivered(order, shop, user, now);
+                case CANCELLED -> handleStatusCancelled(order, shop, request, user, isAdmin, now, oldStatus);
+                case RETURNED -> log.info("Đơn hàng #{} ({}) của Shop #{} ghi nhận TRẢ HÀNG (RETURNED) vào lúc: {}. Người thực hiện: '{}'",
                         order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), now, user.getUsername());
+                default -> { /* PENDING or other unhandled */ }
             }
         }
 
@@ -720,7 +749,7 @@ public class OrderServiceImpl implements OrderService {
             auditLogService.log(
                     user.getId(),
                     "ADMIN_OVERRIDE_ORDER_STATUS",
-                    "ORDER",
+                    ENTITY_ORDER,
                     String.valueOf(order.getId()),
                     shop.getId(),
                     String.format("Admin '%s' can thiệp trạng thái đơn hàng #%s từ %s sang %s. Lý do/Ghi chú: %s",
@@ -736,7 +765,7 @@ public class OrderServiceImpl implements OrderService {
 
     private Shop verifyShopOrderAccess(Long shopId, String currentUsername) {
         if (currentUsername == null || currentUsername.isBlank()) {
-            throw new UnauthorizedException("Yêu cầu đăng nhập");
+            throw new UnauthorizedException(REQ_LOGIN);
         }
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin tài khoản: " + currentUsername));
@@ -786,14 +815,13 @@ public class OrderServiceImpl implements OrderService {
 
     private User verifyAdminOrShopAccess(String currentUsername) {
         if (currentUsername == null || currentUsername.isBlank()) {
-            throw new UnauthorizedException("Yêu cầu đăng nhập");
+            throw new UnauthorizedException(REQ_LOGIN);
         }
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản: " + currentUsername));
 
-        boolean hasAccess = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN ||
+        boolean hasAccess = isUserAdmin(user) ||
                 (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
-                        "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode()) ||
                         "SHOP_MANAGER".equalsIgnoreCase(r.getCode()) || "ROLE_SHOP_MANAGER".equalsIgnoreCase(r.getCode()) ||
                         "SHOP_OWNER".equalsIgnoreCase(r.getCode())));
 
@@ -803,10 +831,15 @@ public class OrderServiceImpl implements OrderService {
         return user;
     }
 
-    private static final String DEFAULT_RETURN_INSTRUCTIONS =
-            "1. Quý khách có thể gửi yêu cầu Trả hàng / Hoàn tiền trong vòng 3 ngày kể từ khi nhận hàng thành công.\n" +
-            "2. Sản phẩm đổi trả phải còn nguyên tem niêm phong, phụ kiện, hộp đóng gói và chưa qua sửa chữa hoặc can thiệp kỹ thuật.\n" +
-            "3. Vui lòng quay video lúc mở kiện hàng và chụp ảnh chi tiết lỗi để Shop đối soát và xử lý hoàn tiền nhanh nhất.";
+    private String resolveTimelineCancelDescription(Order order) {
+        if (order.getCancellationReason() != null && !order.getCancellationReason().isBlank()) {
+            return "Lý do: " + order.getCancellationReason();
+        }
+        if (order.getNote() != null && !order.getNote().isBlank()) {
+            return order.getNote();
+        }
+        return "";
+    }
 
     private List<OrderTrackingResponse.TrackingTimelineEvent> buildOrderTimeline(Order order, String shopName) {
         List<OrderTrackingResponse.TrackingTimelineEvent> timeline = new ArrayList<>();
@@ -868,7 +901,7 @@ public class OrderServiceImpl implements OrderService {
             timeline.add(OrderTrackingResponse.TrackingTimelineEvent.builder()
                     .step("CANCELLED")
                     .title("Đơn hàng đã hủy")
-                    .description("Đơn hàng đã bị hủy. " + (order.getCancellationReason() != null ? "Lý do: " + order.getCancellationReason() : (order.getNote() != null ? order.getNote() : "")))
+                    .description("Đơn hàng đã bị hủy. " + resolveTimelineCancelDescription(order))
                     .timestamp(order.getCancelledAt() != null ? order.getCancelledAt() : order.getUpdatedAt())
                     .completed(true)
                     .current(true)
@@ -960,7 +993,8 @@ public class OrderServiceImpl implements OrderService {
                         productId = it.getVariant().getProduct().getId();
                     } else if (it.getVariantId() != null) {
                         productId = productVariantRepository.findById(it.getVariantId())
-                                .map(v -> v.getProduct() != null ? v.getProduct().getId() : null)
+                                .map(ProductVariant::getProduct)
+                                .map(Product::getId)
                                 .orElse(null);
                     }
 

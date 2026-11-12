@@ -50,15 +50,67 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final AddressRepository addressRepository;
     private final com.example.demo.repository.ShopRepository shopRepository;
 
+    private static final String ROLE_ADMIN_CODE = "ADMIN";
+    private static final String ROLE_CLIENT_CODE = "CLIENT";
+    private static final String ROLE_SHOP_MANAGER_CODE = "SHOP_MANAGER";
+
     private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
             "id", "username", "email", "fullName", "role", "status", "createdAt", "updatedAt"
     );
 
     private static final Map<String, String> DEFAULT_ROLE_NAMES = Map.of(
-            "ADMIN", "Quản trị viên",
-            "CLIENT", "Khách hàng",
-            "SHOP_MANAGER", "Quản lý shop"
+            ROLE_ADMIN_CODE, "Quản trị viên",
+            ROLE_CLIENT_CODE, "Khách hàng",
+            ROLE_SHOP_MANAGER_CODE, "Quản lý shop"
     );
+
+    private Predicate buildRolePredicate(jakarta.persistence.criteria.Root<User> root, jakarta.persistence.criteria.CriteriaBuilder cb, String role) {
+        String normalizedRole = normalizeRoleCode(role.trim());
+        List<Predicate> rolePredicates = new ArrayList<>();
+        try {
+            Role roleEnum = Role.valueOf(normalizedRole);
+            rolePredicates.add(cb.equal(root.get("role"), roleEnum));
+        } catch (IllegalArgumentException e) {
+            log.debug("Role enum not found for: {}", normalizedRole);
+        }
+        try {
+            Role roleEnumPrefixed = Role.valueOf("ROLE_" + normalizedRole);
+            rolePredicates.add(cb.equal(root.get("role"), roleEnumPrefixed));
+        } catch (IllegalArgumentException e) {
+            log.debug("Prefixed role enum not found for: {}", normalizedRole);
+        }
+
+        jakarta.persistence.criteria.Join<User, RoleEntity> rolesJoin = root.join("roles", jakarta.persistence.criteria.JoinType.LEFT);
+        rolePredicates.add(cb.equal(cb.upper(rolesJoin.get("code")), normalizedRole));
+
+        return cb.or(rolePredicates.toArray(new Predicate[0]));
+    }
+
+    private Specification<User> buildUserSpecification(String keyword, String role, UserStatus status) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (keyword != null && !keyword.trim().isEmpty()) {
+                String pattern = "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
+                Predicate usernameMatch = cb.like(cb.lower(root.get("username")), pattern);
+                Predicate emailMatch = cb.like(cb.lower(root.get("email")), pattern);
+                Predicate nameMatch = cb.like(cb.lower(root.get("fullName")), pattern);
+                Predicate phoneMatch = cb.like(root.get("phone"), pattern);
+                predicates.add(cb.or(usernameMatch, emailMatch, nameMatch, phoneMatch));
+            }
+
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), status));
+            }
+
+            if (role != null && !role.trim().isEmpty()) {
+                predicates.add(buildRolePredicate(root, cb, role));
+            }
+
+            query.distinct(true);
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -75,47 +127,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         Sort.Direction direction = "asc".equalsIgnoreCase(sortDir) ? Sort.Direction.ASC : Sort.Direction.DESC;
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size), Sort.by(direction, cleanSortBy));
 
-        Specification<User> spec = (root, query, cb) -> {
-            List<Predicate> predicates = new ArrayList<>();
-
-            // 1. Tìm kiếm theo từ khóa (username, email, fullName, phone)
-            if (keyword != null && !keyword.trim().isEmpty()) {
-                String pattern = "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
-                Predicate usernameMatch = cb.like(cb.lower(root.get("username")), pattern);
-                Predicate emailMatch = cb.like(cb.lower(root.get("email")), pattern);
-                Predicate nameMatch = cb.like(cb.lower(root.get("fullName")), pattern);
-                Predicate phoneMatch = cb.like(root.get("phone"), pattern);
-                predicates.add(cb.or(usernameMatch, emailMatch, nameMatch, phoneMatch));
-            }
-
-            // 2. Lọc theo trạng thái tài khoản
-            if (status != null) {
-                predicates.add(cb.equal(root.get("status"), status));
-            }
-
-            // 3. Lọc theo vai trò (role)
-            if (role != null && !role.trim().isEmpty()) {
-                String normalizedRole = normalizeRoleCode(role.trim());
-                List<Predicate> rolePredicates = new ArrayList<>();
-                try {
-                    Role roleEnum = Role.valueOf(normalizedRole);
-                    rolePredicates.add(cb.equal(root.get("role"), roleEnum));
-                } catch (IllegalArgumentException ignored) {}
-                try {
-                    Role roleEnumPrefixed = Role.valueOf("ROLE_" + normalizedRole);
-                    rolePredicates.add(cb.equal(root.get("role"), roleEnumPrefixed));
-                } catch (IllegalArgumentException ignored) {}
-
-                jakarta.persistence.criteria.Join<User, RoleEntity> rolesJoin = root.join("roles", jakarta.persistence.criteria.JoinType.LEFT);
-                rolePredicates.add(cb.equal(cb.upper(rolesJoin.get("code")), normalizedRole));
-
-                predicates.add(cb.or(rolePredicates.toArray(new Predicate[0])));
-            }
-
-            query.distinct(true);
-            return cb.and(predicates.toArray(new Predicate[0]));
-        };
-
+        Specification<User> spec = buildUserSpecification(keyword, role, status);
         Page<User> userPage = userRepository.findAll(spec, pageable);
         List<Long> userIds = userPage.getContent().stream().map(User::getId).toList();
         Map<Long, com.example.demo.entity.Shop> shopByOwner = shopRepository.findByOwnerIdIn(userIds).stream()
@@ -142,11 +154,11 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Transactional(readOnly = true)
     public UserDetailResponse getUserById(Long userId) {
         User user = findUserById(userId);
-        List<RoleResponse> roles = getUserRoles(userId);
+        List<RoleResponse> roles = doGetUserRoles(user);
         List<AddressResponse> addresses = addressRepository.findByUserOrderByIsDefaultDescCreatedAtDesc(user)
                 .stream()
                 .map(AddressResponse::fromEntity)
-                .collect(Collectors.toList());
+                .toList();
 
         com.example.demo.entity.Shop shop = shopRepository.findFirstByOwnerIdOrderByIdDesc(userId)
                 .filter(s -> s.getStatus() != com.example.demo.entity.ShopStatus.REJECTED)
@@ -222,8 +234,11 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Transactional(readOnly = true)
     public List<RoleResponse> getUserRoles(Long userId) {
         User user = findUserById(userId);
-        List<RoleResponse> result = new ArrayList<>();
+        return doGetUserRoles(user);
+    }
 
+    private List<RoleResponse> doGetUserRoles(User user) {
+        List<RoleResponse> result = new ArrayList<>();
         Set<String> processedCodes = new HashSet<>();
 
         // 1. Lấy từ danh sách user_roles nếu đã được gán
@@ -252,6 +267,46 @@ public class AdminUserServiceImpl implements AdminUserService {
         return result;
     }
 
+    private void validateRoleAssignment(User user, String currentAdminUsername, Set<String> requestedCodes, boolean currentlyIsAdmin, boolean willHaveAdmin) {
+        if (user.getUsername().equalsIgnoreCase(currentAdminUsername) && currentlyIsAdmin && !willHaveAdmin) {
+            throw new BadRequestException("Bạn không thể tự tước quyền Quản trị viên (ADMIN) của chính tài khoản đang đăng nhập!");
+        }
+
+        if (currentlyIsAdmin && !willHaveAdmin && user.getStatus() == UserStatus.ACTIVE) {
+            long activeAdmins = userRepository.countActiveAdmins(UserStatus.ACTIVE, Role.ROLE_ADMIN, Role.ADMIN);
+            if (activeAdmins <= 1) {
+                throw new BadRequestException("Hệ thống phải có ít nhất 1 Quản trị viên (ADMIN) hoạt động. Không thể loại bỏ quyền của Quản trị viên cuối cùng!");
+            }
+        }
+
+        java.util.Optional<com.example.demo.entity.Shop> ownedShopOpt = shopRepository.findFirstByOwnerIdOrderByIdDesc(user.getId())
+                .filter(s -> s.getStatus() != com.example.demo.entity.ShopStatus.REJECTED);
+        if (ownedShopOpt.isPresent() && !requestedCodes.contains(ROLE_SHOP_MANAGER_CODE)) {
+            com.example.demo.entity.Shop shop = ownedShopOpt.get();
+            throw new BadRequestException("Người dùng @" + user.getUsername() + " đang sở hữu cửa hàng '" + shop.getName() + "'. Không thể thu hồi quyền Quản lý shop (SHOP_MANAGER) của chủ cửa hàng!");
+        }
+    }
+
+    private Set<RoleEntity> resolveRoleEntities(Set<String> requestedCodes) {
+        Set<RoleEntity> newRoles = new HashSet<>();
+        for (String code : requestedCodes) {
+            RoleEntity roleEntity = roleRepository.findByCode(code)
+                    .orElseGet(() -> {
+                        if (DEFAULT_ROLE_NAMES.containsKey(code)) {
+                            return roleRepository.save(RoleEntity.builder()
+                                    .code(code)
+                                    .name(DEFAULT_ROLE_NAMES.get(code))
+                                    .description("Vai trò hệ thống " + code)
+                                    .isSystem(true)
+                                    .build());
+                        }
+                        throw new BadRequestException("Vai trò không hợp lệ trong hệ thống: " + code);
+                    });
+            newRoles.add(roleEntity);
+        }
+        return newRoles;
+    }
+
     @Override
     @Transactional
     public List<RoleResponse> assignUserRoles(String currentAdminUsername, Long userId, AdminAssignRolesRequest request) {
@@ -266,48 +321,12 @@ public class AdminUserServiceImpl implements AdminUserService {
                 .map(this::normalizeRoleCode)
                 .collect(Collectors.toSet());
 
-        boolean willHaveAdmin = requestedCodes.contains("ADMIN");
+        boolean willHaveAdmin = requestedCodes.contains(ROLE_ADMIN_CODE);
         boolean currentlyIsAdmin = isUserAdmin(user);
 
-        // QUY TẮC BẢO VỆ 1: Admin không thể tự loại bỏ quyền ADMIN của chính mình
-        if (user.getUsername().equalsIgnoreCase(currentAdminUsername) && currentlyIsAdmin && !willHaveAdmin) {
-            throw new BadRequestException("Bạn không thể tự tước quyền Quản trị viên (ADMIN) của chính tài khoản đang đăng nhập!");
-        }
+        validateRoleAssignment(user, currentAdminUsername, requestedCodes, currentlyIsAdmin, willHaveAdmin);
 
-        // QUY TẮC BẢO VỆ 2: Không được loại bỏ quyền của ADMIN duy nhất còn hoạt động
-        if (currentlyIsAdmin && !willHaveAdmin && user.getStatus() == UserStatus.ACTIVE) {
-            long activeAdmins = userRepository.countActiveAdmins(UserStatus.ACTIVE, Role.ROLE_ADMIN, Role.ADMIN);
-            if (activeAdmins <= 1) {
-                throw new BadRequestException("Hệ thống phải có ít nhất 1 Quản trị viên (ADMIN) hoạt động. Không thể loại bỏ quyền của Quản trị viên cuối cùng!");
-            }
-        }
-
-        // QUY TẮC BẢO VỆ 3: Không được loại bỏ quyền SHOP_MANAGER của người dùng đã đăng ký và đang sở hữu cửa hàng
-        java.util.Optional<com.example.demo.entity.Shop> ownedShopOpt = shopRepository.findFirstByOwnerIdOrderByIdDesc(user.getId())
-                .filter(s -> s.getStatus() != com.example.demo.entity.ShopStatus.REJECTED);
-        if (ownedShopOpt.isPresent() && !requestedCodes.contains("SHOP_MANAGER")) {
-            com.example.demo.entity.Shop shop = ownedShopOpt.get();
-            throw new BadRequestException("Người dùng @" + user.getUsername() + " đang sở hữu cửa hàng '" + shop.getName() + "'. Không thể thu hồi quyền Quản lý shop (SHOP_MANAGER) của chủ cửa hàng!");
-        }
-
-        // Tìm và gán các RoleEntity tương ứng
-        Set<RoleEntity> newRoles = new HashSet<>();
-        for (String code : requestedCodes) {
-            RoleEntity roleEntity = roleRepository.findByCode(code)
-                    .orElseGet(() -> {
-                        // Tự động tạo RoleEntity nếu là vai trò hệ thống hợp lệ
-                        if (DEFAULT_ROLE_NAMES.containsKey(code)) {
-                            return roleRepository.save(RoleEntity.builder()
-                                    .code(code)
-                                    .name(DEFAULT_ROLE_NAMES.get(code))
-                                    .description("Vai trò hệ thống " + code)
-                                    .isSystem(true)
-                                    .build());
-                        }
-                        throw new BadRequestException("Vai trò không hợp lệ trong hệ thống: " + code);
-                    });
-            newRoles.add(roleEntity);
-        }
+        Set<RoleEntity> newRoles = resolveRoleEntities(requestedCodes);
 
         // Cập nhật tập roles an toàn trên Hibernate PersistentCollection
         if (user.getRoles() == null) {
@@ -320,16 +339,16 @@ public class AdminUserServiceImpl implements AdminUserService {
         // Đồng bộ thuộc tính role chính (primary role) trên User
         if (willHaveAdmin) {
             user.setRole(Role.ROLE_ADMIN);
-        } else if (requestedCodes.contains("SHOP_MANAGER")) {
+        } else if (requestedCodes.contains(ROLE_SHOP_MANAGER_CODE)) {
             user.setRole(Role.SHOP_MANAGER);
         } else {
             user.setRole(Role.CLIENT);
         }
 
-        userRepository.save(user);
+        User saved = userRepository.save(user);
         log.info("Admin updated roles for user ID {} to {}", userId, requestedCodes);
 
-        return getUserRoles(userId);
+        return doGetUserRoles(saved);
     }
 
     private User findUserById(Long userId) {

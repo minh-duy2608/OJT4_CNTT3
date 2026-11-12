@@ -12,6 +12,7 @@ import com.example.demo.entity.ProductImage;
 import com.example.demo.entity.ProductStatus;
 import com.example.demo.entity.ProductVariant;
 import com.example.demo.entity.ProductVariantStatus;
+import com.example.demo.entity.Shop;
 import com.example.demo.entity.ShopStatus;
 import com.example.demo.exception.BadRequestException;
 import com.example.demo.exception.ResourceNotFoundException;
@@ -36,6 +37,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -51,6 +53,16 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ProductServiceImpl implements ProductService {
 
+    private static final String SHOP_NOT_FOUND_PREFIX = "Không tìm thấy cửa hàng với ID: ";
+    private static final String PRODUCT_NOT_FOUND_ID_PREFIX = "Không tìm thấy sản phẩm với ID: ";
+    private static final String PRODUCT_NOT_FOUND_PREFIX = "Không tìm thấy sản phẩm #";
+    private static final String BELONGS_TO_SHOP_PREFIX = " thuộc cửa hàng #";
+    private static final String BELONGS_TO_PRODUCT_PREFIX = " thuộc sản phẩm #";
+    private static final String SORT_BY_CREATED_AT = "createdAt";
+    private static final String STATUS_FIELD = "status";
+    private static final String ENTITY_TYPE_PRODUCT = "product";
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
     private final ProductImageRepository productImageRepository;
@@ -60,26 +72,27 @@ public class ProductServiceImpl implements ProductService {
     private final com.example.demo.repository.CategoryRepository categoryRepository;
     private final com.example.demo.repository.BrandRepository brandRepository;
 
-    private static final Set<String> ALLOWED_SORT_FIELDS = Set.of("id", "name", "createdAt", "updatedAt");
+    private static final Set<String> ALLOWED_SORT_FIELDS = Set.of("id", "name", SORT_BY_CREATED_AT, "updatedAt");
 
     @Override
     @Transactional(readOnly = true)
     public PageResponse<ProductSummaryResponse> getProducts(ProductFilterCriteria criteria) {
-        if (criteria == null) {
-            criteria = ProductFilterCriteria.builder().build();
-        }
+        return executeProductQuery(criteria);
+    }
 
-        Specification<Product> spec = buildProductSpecification(criteria);
+    private PageResponse<ProductSummaryResponse> executeProductQuery(ProductFilterCriteria criteria) {
+        ProductFilterCriteria filter = criteria != null ? criteria : ProductFilterCriteria.builder().build();
+        Specification<Product> spec = buildProductSpecification(filter);
 
-        String sortBy = ALLOWED_SORT_FIELDS.contains(criteria.getSortBy()) ? criteria.getSortBy() : "createdAt";
-        Sort.Direction direction = "asc".equalsIgnoreCase(criteria.getSortDir()) ? Sort.Direction.ASC : Sort.Direction.DESC;
-        Pageable pageable = PageRequest.of(Math.max(0, criteria.getPage()), Math.max(1, criteria.getSize()), Sort.by(direction, sortBy));
+        String sortBy = ALLOWED_SORT_FIELDS.contains(filter.getSortBy()) ? filter.getSortBy() : SORT_BY_CREATED_AT;
+        Sort.Direction direction = "asc".equalsIgnoreCase(filter.getSortDir()) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        Pageable pageable = PageRequest.of(Math.max(0, filter.getPage()), Math.max(1, filter.getSize()), Sort.by(direction, sortBy));
 
         Page<Product> productPage = productRepository.findAll(spec, pageable);
 
         List<ProductSummaryResponse> content = productPage.getContent().stream()
                 .map(this::toSummaryResponse)
-                .collect(Collectors.toList());
+                .toList();
 
         return PageResponse.<ProductSummaryResponse>builder()
                 .content(content)
@@ -98,21 +111,25 @@ public class ProductServiceImpl implements ProductService {
         List<Product> products = productRepository.findTop5Bestsellers();
         return products.stream()
                 .map(this::toSummaryResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public ProductDetailResponse getProductById(Long productId) {
+        return findProductDetailById(productId);
+    }
+
+    private ProductDetailResponse findProductDetailById(Long productId) {
         Product product = productRepository.findByIdAndStatusAndDeletedAtIsNull(productId, ProductStatus.ACTIVE)
                 .or(() -> productRepository.findByIdAndDeletedAtIsNull(productId))
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + productId));
+                .orElseThrow(() -> new ResourceNotFoundException(PRODUCT_NOT_FOUND_ID_PREFIX + productId));
 
         List<ProductVariant> variantEntities = productVariantRepository.findByProductIdAndStatus(productId, ProductVariantStatus.ACTIVE);
         if (variantEntities.isEmpty()) {
             variantEntities = productVariantRepository.findByProductIdOrderByPriceAsc(productId);
         }
-        List<Long> variantIds = variantEntities.stream().map(ProductVariant::getId).collect(Collectors.toList());
+        List<Long> variantIds = variantEntities.stream().map(ProductVariant::getId).toList();
 
         Map<Long, Inventory> inventoryMap = inventoryRepository.findByVariantIdIn(variantIds).stream()
                 .collect(Collectors.toMap(Inventory::getVariantId, inv -> inv, (a, b) -> a));
@@ -124,11 +141,11 @@ public class ProductServiceImpl implements ProductService {
                     int avail = inv != null ? inv.getAvailableQuantity() : 0;
                     return ProductVariantResponse.fromEntity(v, stock, avail);
                 })
-                .collect(Collectors.toList());
+                .toList();
 
         List<ProductImageResponse> images = productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(productId).stream()
                 .map(ProductImageResponse::fromEntity)
-                .collect(Collectors.toList());
+                .toList();
 
         BigDecimal minPrice = null;
         BigDecimal maxPrice = null;
@@ -147,7 +164,7 @@ public class ProductServiceImpl implements ProductService {
         findActiveProductById(productId);
 
         List<ProductVariant> variants = productVariantRepository.findByProductIdAndStatus(productId, ProductVariantStatus.ACTIVE);
-        List<Long> variantIds = variants.stream().map(ProductVariant::getId).collect(Collectors.toList());
+        List<Long> variantIds = variants.stream().map(ProductVariant::getId).toList();
 
         Map<Long, Inventory> inventoryMap = inventoryRepository.findByVariantIdIn(variantIds).stream()
                 .collect(Collectors.toMap(Inventory::getVariantId, inv -> inv, (a, b) -> a));
@@ -159,7 +176,7 @@ public class ProductServiceImpl implements ProductService {
                     int avail = inv != null ? inv.getAvailableQuantity() : 0;
                     return ProductVariantResponse.fromEntity(v, stock, avail);
                 })
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
@@ -169,31 +186,29 @@ public class ProductServiceImpl implements ProductService {
 
         return productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(productId).stream()
                 .map(ProductImageResponse::fromEntity)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public PageResponse<ProductSummaryResponse> searchProducts(ProductFilterCriteria criteria) {
-        return getProducts(criteria);
+        return executeProductQuery(criteria);
     }
 
     @Override
     @Transactional(readOnly = true)
     public PageResponse<ProductSummaryResponse> getShopProducts(Long shopId, ProductFilterCriteria criteria) {
-        shopRepository.findById(shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng với ID: " + shopId));
+        Shop shop = shopRepository.findById(shopId)
+                .orElseThrow(() -> new ResourceNotFoundException(SHOP_NOT_FOUND_PREFIX + shopId));
 
-        if (criteria == null) {
-            criteria = ProductFilterCriteria.builder().build();
-        }
-        criteria.setShopId(shopId);
-        return getProducts(criteria);
+        ProductFilterCriteria filter = criteria != null ? criteria : ProductFilterCriteria.builder().build();
+        filter.setShopId(shop.getId());
+        return executeProductQuery(filter);
     }
 
     private Product findActiveProductById(Long productId) {
         return productRepository.findByIdAndStatusAndDeletedAtIsNull(productId, ProductStatus.ACTIVE)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + productId));
+                .orElseThrow(() -> new ResourceNotFoundException(PRODUCT_NOT_FOUND_ID_PREFIX + productId));
     }
 
     private Specification<Product> buildProductSpecification(ProductFilterCriteria criteria) {
@@ -201,7 +216,7 @@ public class ProductServiceImpl implements ProductService {
             List<Predicate> predicates = new ArrayList<>();
 
             // 1. Chỉ lấy sản phẩm ACTIVE và chưa xóa mềm
-            predicates.add(cb.equal(root.get("status"), ProductStatus.ACTIVE));
+            predicates.add(cb.equal(root.get(STATUS_FIELD), ProductStatus.ACTIVE));
             predicates.add(cb.isNull(root.get("deletedAt")));
 
             // 2. Lọc theo từ khóa (keyword)
@@ -228,47 +243,52 @@ public class ProductServiceImpl implements ProductService {
                 predicates.add(cb.equal(root.get("shopId"), criteria.getShopId()));
             }
 
-            // 6. Lọc theo Khoảng giá (minPrice, maxPrice)
-            if (criteria.getMinPrice() != null || criteria.getMaxPrice() != null) {
-                Subquery<Long> priceSubquery = query.subquery(Long.class);
-                Root<ProductVariant> variantRoot = priceSubquery.from(ProductVariant.class);
-                priceSubquery.select(variantRoot.get("product").get("id"));
-
-                List<Predicate> variantPreds = new ArrayList<>();
-                variantPreds.add(cb.equal(variantRoot.get("product").get("id"), root.get("id")));
-                variantPreds.add(cb.equal(variantRoot.get("status"), ProductVariantStatus.ACTIVE));
-
-                Expression<BigDecimal> effectivePrice = cb.coalesce(variantRoot.get("salePrice"), variantRoot.get("price"));
-
-                if (criteria.getMinPrice() != null) {
-                    variantPreds.add(cb.greaterThanOrEqualTo(effectivePrice, criteria.getMinPrice()));
-                }
-                if (criteria.getMaxPrice() != null) {
-                    variantPreds.add(cb.lessThanOrEqualTo(effectivePrice, criteria.getMaxPrice()));
-                }
-
-                priceSubquery.where(variantPreds.toArray(new Predicate[0]));
-                predicates.add(cb.exists(priceSubquery));
-            }
-
-            // 7. Lọc theo Tình trạng tồn kho (inStock)
-            if (Boolean.TRUE.equals(criteria.getInStock())) {
-                Subquery<Long> stockSubquery = query.subquery(Long.class);
-                Root<Inventory> invRoot = stockSubquery.from(Inventory.class);
-                Root<ProductVariant> varRoot = stockSubquery.from(ProductVariant.class);
-                stockSubquery.select(varRoot.get("product").get("id"));
-
-                List<Predicate> stockPreds = new ArrayList<>();
-                stockPreds.add(cb.equal(varRoot.get("product").get("id"), root.get("id")));
-                stockPreds.add(cb.equal(invRoot.get("variantId"), varRoot.get("id")));
-                stockPreds.add(cb.greaterThan(invRoot.get("quantity"), invRoot.get("reservedQuantity")));
-
-                stockSubquery.where(stockPreds.toArray(new Predicate[0]));
-                predicates.add(cb.exists(stockSubquery));
-            }
+            addPriceFilter(criteria, root, query, cb, predicates);
+            addStockFilter(criteria, root, query, cb, predicates);
 
             return cb.and(predicates.toArray(new Predicate[0]));
         };
+    }
+
+    private void addPriceFilter(ProductFilterCriteria criteria, Root<Product> root, jakarta.persistence.criteria.CriteriaQuery<?> query, jakarta.persistence.criteria.CriteriaBuilder cb, List<Predicate> predicates) {
+        if (criteria.getMinPrice() != null || criteria.getMaxPrice() != null) {
+            Subquery<Long> priceSubquery = query.subquery(Long.class);
+            Root<ProductVariant> variantRoot = priceSubquery.from(ProductVariant.class);
+            priceSubquery.select(variantRoot.get(ENTITY_TYPE_PRODUCT).get("id"));
+
+            List<Predicate> variantPreds = new ArrayList<>();
+            variantPreds.add(cb.equal(variantRoot.get(ENTITY_TYPE_PRODUCT).get("id"), root.get("id")));
+            variantPreds.add(cb.equal(variantRoot.get(STATUS_FIELD), ProductVariantStatus.ACTIVE));
+
+            Expression<BigDecimal> effectivePrice = cb.coalesce(variantRoot.get("salePrice"), variantRoot.get("price"));
+
+            if (criteria.getMinPrice() != null) {
+                variantPreds.add(cb.greaterThanOrEqualTo(effectivePrice, criteria.getMinPrice()));
+            }
+            if (criteria.getMaxPrice() != null) {
+                variantPreds.add(cb.lessThanOrEqualTo(effectivePrice, criteria.getMaxPrice()));
+            }
+
+            priceSubquery.where(variantPreds.toArray(new Predicate[0]));
+            predicates.add(cb.exists(priceSubquery));
+        }
+    }
+
+    private void addStockFilter(ProductFilterCriteria criteria, Root<Product> root, jakarta.persistence.criteria.CriteriaQuery<?> query, jakarta.persistence.criteria.CriteriaBuilder cb, List<Predicate> predicates) {
+        if (Boolean.TRUE.equals(criteria.getInStock())) {
+            Subquery<Long> stockSubquery = query.subquery(Long.class);
+            Root<Inventory> invRoot = stockSubquery.from(Inventory.class);
+            Root<ProductVariant> varRoot = stockSubquery.from(ProductVariant.class);
+            stockSubquery.select(varRoot.get(ENTITY_TYPE_PRODUCT).get("id"));
+
+            List<Predicate> stockPreds = new ArrayList<>();
+            stockPreds.add(cb.equal(varRoot.get(ENTITY_TYPE_PRODUCT).get("id"), root.get("id")));
+            stockPreds.add(cb.equal(invRoot.get("variantId"), varRoot.get("id")));
+            stockPreds.add(cb.greaterThan(invRoot.get("quantity"), invRoot.get("reservedQuantity")));
+
+            stockSubquery.where(stockPreds.toArray(new Predicate[0]));
+            predicates.add(cb.exists(stockSubquery));
+        }
     }
 
     private ProductSummaryResponse toSummaryResponse(Product product) {
@@ -312,6 +332,10 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public ProductDetailResponse createProduct(com.example.demo.dto.request.CreateProductRequest request) {
+        return doCreateProduct(request);
+    }
+
+    private ProductDetailResponse doCreateProduct(com.example.demo.dto.request.CreateProductRequest request) {
         com.example.demo.entity.Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Danh mục không tồn tại với ID: " + request.getCategoryId()));
 
@@ -330,7 +354,7 @@ public class ProductServiceImpl implements ProductService {
         final Long shopId = reqShopId;
 
         com.example.demo.entity.Shop targetShop = shopRepository.findById(shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng với ID: " + shopId));
+                .orElseThrow(() -> new ResourceNotFoundException(SHOP_NOT_FOUND_PREFIX + shopId));
         if (targetShop.getStatus() != ShopStatus.ACTIVE) {
             throw new BadRequestException("Cửa hàng '" + targetShop.getName() + "' đang ở trạng thái " + targetShop.getStatus() + ", không thể đăng bán sản phẩm mới.");
         }
@@ -360,13 +384,18 @@ public class ProductServiceImpl implements ProductService {
                 .build();
 
         Product savedProduct = productRepository.save(product);
+        saveCreatedVariants(savedProduct, request.getVariants());
+        saveCreatedImages(savedProduct, request.getImages());
 
-        // Process Variants
-        if (request.getVariants() != null && !request.getVariants().isEmpty()) {
-            for (com.example.demo.dto.request.CreateProductVariantRequest vReq : request.getVariants()) {
+        return findProductDetailById(savedProduct.getId());
+    }
+
+    private void saveCreatedVariants(Product savedProduct, List<com.example.demo.dto.request.CreateProductVariantRequest> variants) {
+        if (variants != null && !variants.isEmpty()) {
+            for (com.example.demo.dto.request.CreateProductVariantRequest vReq : variants) {
                 String sku = vReq.getSku();
                 if (sku == null || sku.isBlank()) {
-                    sku = "SKU-" + savedProduct.getId() + "-" + (System.currentTimeMillis() % 100000) + "-" + (int)(Math.random() * 1000);
+                    sku = "SKU-" + savedProduct.getId() + "-" + (System.currentTimeMillis() % 100000) + "-" + (100 + SECURE_RANDOM.nextInt(900));
                 }
 
                 String attributesJson = vReq.getAttributes();
@@ -413,12 +442,13 @@ public class ProductServiceImpl implements ProductService {
                     .reservedQuantity(0)
                     .build());
         }
+    }
 
-        // Process Images
-        if (request.getImages() != null && !request.getImages().isEmpty()) {
+    private void saveCreatedImages(Product savedProduct, List<com.example.demo.dto.request.CreateProductImageRequest> images) {
+        if (images != null && !images.isEmpty()) {
             boolean hasPrimary = false;
-            for (int i = 0; i < request.getImages().size(); i++) {
-                com.example.demo.dto.request.CreateProductImageRequest imgReq = request.getImages().get(i);
+            for (int i = 0; i < images.size(); i++) {
+                com.example.demo.dto.request.CreateProductImageRequest imgReq = images.get(i);
                 boolean isPrimary = Boolean.TRUE.equals(imgReq.getIsPrimary()) || (!hasPrimary && i == 0);
                 if (isPrimary) hasPrimary = true;
 
@@ -432,16 +462,33 @@ public class ProductServiceImpl implements ProductService {
                 productImageRepository.save(img);
             }
         }
-
-        return getProductById(savedProduct.getId());
     }
 
     @Override
     @Transactional
     public ProductDetailResponse updateProduct(Long productId, com.example.demo.dto.request.UpdateProductRequest request) {
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + productId));
+        return doUpdateProduct(productId, request);
+    }
 
+    private ProductDetailResponse doUpdateProduct(Long productId, com.example.demo.dto.request.UpdateProductRequest request) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException(PRODUCT_NOT_FOUND_ID_PREFIX + productId));
+
+        updateProductBasicFields(product, request);
+        Product savedProduct = productRepository.save(product);
+
+        if (request.getVariants() != null && !request.getVariants().isEmpty()) {
+            updateProductVariants(savedProduct, request.getVariants());
+        }
+
+        if (request.getImages() != null) {
+            updateProductImages(savedProduct, request.getImages());
+        }
+
+        return findProductDetailById(productId);
+    }
+
+    private void updateProductBasicFields(Product product, com.example.demo.dto.request.UpdateProductRequest request) {
         if (request.getName() != null && !request.getName().isBlank()) {
             product.setName(request.getName().trim());
         }
@@ -492,160 +539,160 @@ public class ProductServiceImpl implements ProductService {
         if (request.getStatus() != null) {
             product.setStatus(request.getStatus());
         }
+    }
 
-        Product savedProduct = productRepository.save(product);
+    private void updateProductVariants(Product savedProduct, List<com.example.demo.dto.request.CreateProductVariantRequest> variantRequests) {
+        Long productId = savedProduct.getId();
+        List<ProductVariant> existingVariants = productVariantRepository.findByProductIdOrderByPriceAsc(productId);
+        Map<Long, ProductVariant> existingById = existingVariants.stream()
+                .filter(v -> v.getId() != null)
+                .collect(Collectors.toMap(ProductVariant::getId, Function.identity(), (a, b) -> a));
+        Map<String, ProductVariant> existingBySku = existingVariants.stream()
+                .filter(v -> v.getSku() != null && !v.getSku().isBlank())
+                .collect(Collectors.toMap(v -> v.getSku().trim(), Function.identity(), (a, b) -> a));
 
-        if (request.getVariants() != null && !request.getVariants().isEmpty()) {
-            List<ProductVariant> existingVariants = productVariantRepository.findByProductIdOrderByPriceAsc(productId);
-            Map<Long, ProductVariant> existingById = existingVariants.stream()
-                    .filter(v -> v.getId() != null)
-                    .collect(Collectors.toMap(ProductVariant::getId, Function.identity(), (a, b) -> a));
-            Map<String, ProductVariant> existingBySku = existingVariants.stream()
-                    .filter(v -> v.getSku() != null && !v.getSku().isBlank())
-                    .collect(Collectors.toMap(v -> v.getSku().trim(), Function.identity(), (a, b) -> a));
+        Set<Long> processedVariantIds = new HashSet<>();
+        Set<String> usedSkusInBatch = new HashSet<>();
 
-            Set<Long> processedVariantIds = new HashSet<>();
-            Set<String> usedSkusInBatch = new HashSet<>();
+        for (int i = 0; i < variantRequests.size(); i++) {
+            com.example.demo.dto.request.CreateProductVariantRequest vReq = variantRequests.get(i);
 
-            for (int i = 0; i < request.getVariants().size(); i++) {
-                com.example.demo.dto.request.CreateProductVariantRequest vReq = request.getVariants().get(i);
+            ProductVariant variant = null;
+            if (vReq.getId() != null && existingById.containsKey(vReq.getId())) {
+                variant = existingById.get(vReq.getId());
+            } else if (vReq.getSku() != null && !vReq.getSku().isBlank() && existingBySku.containsKey(vReq.getSku().trim())) {
+                variant = existingBySku.get(vReq.getSku().trim());
+            } else if (i < existingVariants.size() && vReq.getId() == null && (vReq.getSku() == null || vReq.getSku().isBlank())) {
+                variant = existingVariants.get(i);
+            }
 
-                ProductVariant variant = null;
-                if (vReq.getId() != null && existingById.containsKey(vReq.getId())) {
-                    variant = existingById.get(vReq.getId());
-                } else if (vReq.getSku() != null && !vReq.getSku().isBlank() && existingBySku.containsKey(vReq.getSku().trim())) {
-                    variant = existingBySku.get(vReq.getSku().trim());
-                } else if (i < existingVariants.size() && vReq.getId() == null && (vReq.getSku() == null || vReq.getSku().isBlank())) {
-                    variant = existingVariants.get(i);
+            String attributesJson = vReq.getAttributes();
+            if (attributesJson == null && (vReq.getColor() != null || vReq.getStorage() != null)) {
+                attributesJson = String.format("{\"color\":\"%s\",\"storage\":\"%s\"}",
+                        vReq.getColor() != null ? vReq.getColor() : "",
+                        vReq.getStorage() != null ? vReq.getStorage() : "");
+            }
+
+            if (variant != null) {
+                // Cập nhật biến thể hiện có (in-place update - không gây duplicate SKU)
+                processedVariantIds.add(variant.getId());
+                variant.setVariantName(vReq.getVariantName());
+                variant.setPrice(vReq.getPrice());
+                variant.setSalePrice(vReq.getSalePrice());
+                variant.setWeightGrams(vReq.getWeightGrams());
+                variant.setAttributes(attributesJson);
+                if (vReq.getStatus() != null) {
+                    variant.setStatus(vReq.getStatus());
                 }
-
-                String attributesJson = vReq.getAttributes();
-                if (attributesJson == null && (vReq.getColor() != null || vReq.getStorage() != null)) {
-                    attributesJson = String.format("{\"color\":\"%s\",\"storage\":\"%s\"}",
-                            vReq.getColor() != null ? vReq.getColor() : "",
-                            vReq.getStorage() != null ? vReq.getStorage() : "");
-                }
-
-                if (variant != null) {
-                    // Cập nhật biến thể hiện có (in-place update - không gây duplicate SKU)
-                    processedVariantIds.add(variant.getId());
-                    variant.setVariantName(vReq.getVariantName());
-                    variant.setPrice(vReq.getPrice());
-                    variant.setSalePrice(vReq.getSalePrice());
-                    variant.setWeightGrams(vReq.getWeightGrams());
-                    variant.setAttributes(attributesJson);
-                    if (vReq.getStatus() != null) {
-                        variant.setStatus(vReq.getStatus());
-                    }
-                    if (vReq.getSku() != null && !vReq.getSku().isBlank()) {
-                        String newSku = vReq.getSku().trim();
-                        if (!newSku.equals(variant.getSku())) {
-                            if (!productVariantRepository.existsBySkuAndIdNot(newSku, variant.getId()) && !usedSkusInBatch.contains(newSku)) {
-                                variant.setSku(newSku);
-                                usedSkusInBatch.add(newSku);
-                            } else {
-                                String fallbackSku = "SKU-" + savedProduct.getId() + "-" + System.currentTimeMillis() + "-" + (i + 1);
-                                variant.setSku(fallbackSku);
-                                usedSkusInBatch.add(fallbackSku);
-                            }
+                if (vReq.getSku() != null && !vReq.getSku().isBlank()) {
+                    String newSku = vReq.getSku().trim();
+                    if (!newSku.equals(variant.getSku())) {
+                        if (!productVariantRepository.existsBySkuAndIdNot(newSku, variant.getId()) && !usedSkusInBatch.contains(newSku)) {
+                            variant.setSku(newSku);
+                            usedSkusInBatch.add(newSku);
                         } else {
-                            usedSkusInBatch.add(variant.getSku());
+                            String fallbackSku = "SKU-" + savedProduct.getId() + "-" + System.currentTimeMillis() + "-" + (i + 1);
+                            variant.setSku(fallbackSku);
+                            usedSkusInBatch.add(fallbackSku);
                         }
-                    } else if (variant.getSku() != null) {
+                    } else {
                         usedSkusInBatch.add(variant.getSku());
                     }
-                    ProductVariant savedVariant = productVariantRepository.save(variant);
+                } else if (variant.getSku() != null) {
+                    usedSkusInBatch.add(variant.getSku());
+                }
+                ProductVariant savedVariant = productVariantRepository.save(variant);
 
-                    int qty = vReq.getStockQuantity() != null ? vReq.getStockQuantity() : 100;
-                    inventoryRepository.findById(savedVariant.getId()).ifPresentOrElse(inv -> {
-                        inv.setQuantity(qty);
-                        inventoryRepository.save(inv);
-                    }, () -> {
-                        inventoryRepository.save(Inventory.builder()
-                                .variantId(savedVariant.getId())
-                                .quantity(qty)
-                                .reservedQuantity(0)
-                                .build());
-                    });
+                int qty = vReq.getStockQuantity() != null ? vReq.getStockQuantity() : 100;
+                inventoryRepository.findById(savedVariant.getId()).ifPresentOrElse(inv -> {
+                    inv.setQuantity(qty);
+                    inventoryRepository.save(inv);
+                }, () -> inventoryRepository.save(Inventory.builder()
+                        .variantId(savedVariant.getId())
+                        .quantity(qty)
+                        .reservedQuantity(0)
+                        .build()));
+            } else {
+                // Thêm mới biến thể
+                String sku = vReq.getSku();
+                if (sku == null || sku.isBlank() || productVariantRepository.existsBySku(sku.trim()) || usedSkusInBatch.contains(sku.trim())) {
+                    sku = "SKU-" + savedProduct.getId() + "-" + System.currentTimeMillis() + "-" + (i + 1);
                 } else {
-                    // Thêm mới biến thể
-                    String sku = vReq.getSku();
-                    if (sku == null || sku.isBlank() || productVariantRepository.existsBySku(sku.trim()) || usedSkusInBatch.contains(sku.trim())) {
-                        sku = "SKU-" + savedProduct.getId() + "-" + System.currentTimeMillis() + "-" + (i + 1);
-                    } else {
-                        sku = sku.trim();
-                    }
-                    usedSkusInBatch.add(sku);
-
-                    ProductVariant newVariant = ProductVariant.builder()
-                            .product(savedProduct)
-                            .variantName(vReq.getVariantName())
-                            .sku(sku)
-                            .price(vReq.getPrice())
-                            .salePrice(vReq.getSalePrice())
-                            .weightGrams(vReq.getWeightGrams())
-                            .attributes(attributesJson)
-                            .status(vReq.getStatus() != null ? vReq.getStatus() : ProductVariantStatus.ACTIVE)
-                            .build();
-
-                    ProductVariant savedVariant = productVariantRepository.save(newVariant);
-                    processedVariantIds.add(savedVariant.getId());
-
-                    int qty = vReq.getStockQuantity() != null ? vReq.getStockQuantity() : 100;
-                    inventoryRepository.save(Inventory.builder()
-                            .variantId(savedVariant.getId())
-                            .quantity(qty)
-                            .reservedQuantity(0)
-                            .build());
+                    sku = sku.trim();
                 }
-            }
+                usedSkusInBatch.add(sku);
 
-            // Xóa các biến thể cũ đã bị xóa khỏi danh sách
-            for (ProductVariant ev : existingVariants) {
-                if (!processedVariantIds.contains(ev.getId())) {
-                    try {
-                        inventoryRepository.deleteById(ev.getId());
-                        productVariantRepository.delete(ev);
-                        productVariantRepository.flush();
-                    } catch (Exception ex) {
-                        log.warn("Không thể xóa biến thể ID {} do có ràng buộc đơn hàng/giỏ hàng, chuyển trạng thái INACTIVE: {}", ev.getId(), ex.getMessage());
-                        ev.setStatus(ProductVariantStatus.INACTIVE);
-                        productVariantRepository.save(ev);
-                    }
-                }
-            }
-        }
-
-        if (request.getImages() != null) {
-            List<ProductImage> oldImages = productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(productId);
-            productImageRepository.deleteAll(oldImages);
-            productImageRepository.flush();
-
-            boolean hasPrimary = false;
-            for (int i = 0; i < request.getImages().size(); i++) {
-                com.example.demo.dto.request.CreateProductImageRequest imgReq = request.getImages().get(i);
-                boolean isPrimary = Boolean.TRUE.equals(imgReq.getIsPrimary()) || (!hasPrimary && i == 0);
-                if (isPrimary) hasPrimary = true;
-
-                ProductImage img = ProductImage.builder()
+                ProductVariant newVariant = ProductVariant.builder()
                         .product(savedProduct)
-                        .imageUrl(imgReq.getImageUrl())
-                        .altText(imgReq.getAltText() != null ? imgReq.getAltText() : savedProduct.getName())
-                        .isPrimary(isPrimary)
-                        .sortOrder(imgReq.getSortOrder() != null ? imgReq.getSortOrder() : i)
+                        .variantName(vReq.getVariantName())
+                        .sku(sku)
+                        .price(vReq.getPrice())
+                        .salePrice(vReq.getSalePrice())
+                        .weightGrams(vReq.getWeightGrams())
+                        .attributes(attributesJson)
+                        .status(vReq.getStatus() != null ? vReq.getStatus() : ProductVariantStatus.ACTIVE)
                         .build();
-                productImageRepository.save(img);
+
+                ProductVariant savedVariant = productVariantRepository.save(newVariant);
+                processedVariantIds.add(savedVariant.getId());
+
+                int qty = vReq.getStockQuantity() != null ? vReq.getStockQuantity() : 100;
+                inventoryRepository.save(Inventory.builder()
+                        .variantId(savedVariant.getId())
+                        .quantity(qty)
+                        .reservedQuantity(0)
+                        .build());
             }
         }
 
-        return getProductById(productId);
+        // Xóa các biến thể cũ đã bị xóa khỏi danh sách
+        for (ProductVariant ev : existingVariants) {
+            if (!processedVariantIds.contains(ev.getId())) {
+                try {
+                    inventoryRepository.deleteById(ev.getId());
+                    productVariantRepository.delete(ev);
+                    productVariantRepository.flush();
+                } catch (Exception ex) {
+                    log.warn("Không thể xóa biến thể ID {} do có ràng buộc đơn hàng/giỏ hàng, chuyển trạng thái INACTIVE: {}", ev.getId(), ex.getMessage());
+                    ev.setStatus(ProductVariantStatus.INACTIVE);
+                    productVariantRepository.save(ev);
+                }
+            }
+        }
+    }
+
+    private void updateProductImages(Product savedProduct, List<com.example.demo.dto.request.CreateProductImageRequest> imageRequests) {
+        Long productId = savedProduct.getId();
+        List<ProductImage> oldImages = productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(productId);
+        productImageRepository.deleteAll(oldImages);
+        productImageRepository.flush();
+
+        boolean hasPrimary = false;
+        for (int i = 0; i < imageRequests.size(); i++) {
+            com.example.demo.dto.request.CreateProductImageRequest imgReq = imageRequests.get(i);
+            boolean isPrimary = Boolean.TRUE.equals(imgReq.getIsPrimary()) || (!hasPrimary && i == 0);
+            if (isPrimary) hasPrimary = true;
+
+            ProductImage img = ProductImage.builder()
+                    .product(savedProduct)
+                    .imageUrl(imgReq.getImageUrl())
+                    .altText(imgReq.getAltText() != null ? imgReq.getAltText() : savedProduct.getName())
+                    .isPrimary(isPrimary)
+                    .sortOrder(imgReq.getSortOrder() != null ? imgReq.getSortOrder() : i)
+                    .build();
+            productImageRepository.save(img);
+        }
     }
 
     @Override
     @Transactional
     public void deleteProduct(Long productId, boolean force) {
+        doDeleteProduct(productId, force);
+    }
+
+    private void doDeleteProduct(Long productId, boolean force) {
         Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + productId));
+                .orElseThrow(() -> new ResourceNotFoundException(PRODUCT_NOT_FOUND_ID_PREFIX + productId));
 
         if (!force) {
             product.setStatus(ProductStatus.INACTIVE);
@@ -667,7 +714,7 @@ public class ProductServiceImpl implements ProductService {
 
     private ProductDetailResponse mapToDetailResponse(Product product) {
         List<ProductVariant> variantEntities = productVariantRepository.findByProductIdOrderByPriceAsc(product.getId());
-        List<Long> variantIds = variantEntities.stream().map(ProductVariant::getId).collect(Collectors.toList());
+        List<Long> variantIds = variantEntities.stream().map(ProductVariant::getId).toList();
 
         Map<Long, Inventory> inventoryMap = inventoryRepository.findByVariantIdIn(variantIds).stream()
                 .collect(Collectors.toMap(Inventory::getVariantId, inv -> inv, (a, b) -> a));
@@ -679,11 +726,11 @@ public class ProductServiceImpl implements ProductService {
                     int avail = inv != null ? inv.getAvailableQuantity() : 0;
                     return ProductVariantResponse.fromEntity(v, stock, avail);
                 })
-                .collect(Collectors.toList());
+                .toList();
 
         List<ProductImageResponse> images = productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(product.getId()).stream()
                 .map(ProductImageResponse::fromEntity)
-                .collect(Collectors.toList());
+                .toList();
 
         BigDecimal minPrice = null;
         BigDecimal maxPrice = null;
@@ -800,7 +847,7 @@ public class ProductServiceImpl implements ProductService {
     public ProductDetailResponse createShopProduct(Long shopId, com.example.demo.dto.request.CreateProductRequest request, String currentUsername) {
         verifyShopAccess(shopId, currentUsername);
         request.setShopId(shopId);
-        return createProduct(request);
+        return doCreateProduct(request);
     }
 
     @Override
@@ -808,7 +855,7 @@ public class ProductServiceImpl implements ProductService {
     public ProductDetailResponse getShopProductById(Long shopId, Long productId, String currentUsername) {
         verifyShopAccess(shopId, currentUsername);
         Product product = productRepository.findByIdAndShopId(productId, shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+                .orElseThrow(() -> new ResourceNotFoundException(PRODUCT_NOT_FOUND_PREFIX + productId + BELONGS_TO_SHOP_PREFIX + shopId));
         return mapToDetailResponse(product);
     }
 
@@ -816,9 +863,10 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public ProductDetailResponse updateShopProduct(Long shopId, Long productId, com.example.demo.dto.request.UpdateProductRequest request, String currentUsername) {
         verifyShopAccess(shopId, currentUsername);
-        Product product = productRepository.findByIdAndShopId(productId, shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
-        return updateProduct(productId, request);
+        if (!productRepository.existsByIdAndShopId(productId, shopId)) {
+            throw new ResourceNotFoundException(PRODUCT_NOT_FOUND_PREFIX + productId + BELONGS_TO_SHOP_PREFIX + shopId);
+        }
+        return doUpdateProduct(productId, request);
     }
 
     @Override
@@ -826,7 +874,7 @@ public class ProductServiceImpl implements ProductService {
     public ProductDetailResponse updateShopProductStatus(Long shopId, Long productId, ProductStatus status, String currentUsername) {
         verifyShopAccess(shopId, currentUsername);
         Product product = productRepository.findByIdAndShopId(productId, shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+                .orElseThrow(() -> new ResourceNotFoundException(PRODUCT_NOT_FOUND_PREFIX + productId + BELONGS_TO_SHOP_PREFIX + shopId));
         product.setStatus(status != null ? status : ProductStatus.ACTIVE);
         if (product.getStatus() == ProductStatus.INACTIVE && product.getDeletedAt() == null) {
             product.setDeletedAt(java.time.LocalDateTime.now());
@@ -842,7 +890,7 @@ public class ProductServiceImpl implements ProductService {
     public void deleteShopProduct(Long shopId, Long productId, boolean force, String currentUsername) {
         verifyShopAccess(shopId, currentUsername);
         Product product = productRepository.findByIdAndShopId(productId, shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+                .orElseThrow(() -> new ResourceNotFoundException(PRODUCT_NOT_FOUND_PREFIX + productId + BELONGS_TO_SHOP_PREFIX + shopId));
 
         long orderCount = productRepository.countOrderItemsByProductId(productId);
         if (orderCount > 0) {
@@ -853,7 +901,7 @@ public class ProductServiceImpl implements ProductService {
             return;
         }
 
-        deleteProduct(productId, force);
+        doDeleteProduct(productId, force);
     }
 
     @Override
@@ -861,7 +909,7 @@ public class ProductServiceImpl implements ProductService {
     public ProductVariantResponse createShopProductVariant(Long shopId, Long productId, com.example.demo.dto.request.CreateProductVariantRequest request, String currentUsername) {
         verifyShopAccess(shopId, currentUsername);
         Product product = productRepository.findByIdAndShopId(productId, shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+                .orElseThrow(() -> new ResourceNotFoundException(PRODUCT_NOT_FOUND_PREFIX + productId + BELONGS_TO_SHOP_PREFIX + shopId));
 
         if (request.getSku() == null || request.getSku().isBlank()) {
             request.setSku("SKU-" + System.currentTimeMillis() + "-" + productId);
@@ -903,11 +951,12 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public ProductVariantResponse updateShopProductVariant(Long shopId, Long productId, Long variantId, com.example.demo.dto.request.CreateProductVariantRequest request, String currentUsername) {
         verifyShopAccess(shopId, currentUsername);
-        productRepository.findByIdAndShopId(productId, shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+        if (!productRepository.existsByIdAndShopId(productId, shopId)) {
+            throw new ResourceNotFoundException(PRODUCT_NOT_FOUND_PREFIX + productId + BELONGS_TO_SHOP_PREFIX + shopId);
+        }
 
         ProductVariant variant = productVariantRepository.findByIdAndProductId(variantId, productId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy biến thể #" + variantId + " thuộc sản phẩm #" + productId));
+                .orElseThrow(() -> new ResourceNotFoundException(PRODUCT_NOT_FOUND_PREFIX + variantId + BELONGS_TO_PRODUCT_PREFIX + productId));
 
         if (request.getSku() != null && !request.getSku().isBlank() && !request.getSku().equalsIgnoreCase(variant.getSku())) {
             if (productVariantRepository.existsBySkuAndIdNot(request.getSku(), variantId)) {
@@ -957,11 +1006,12 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public void deleteShopProductVariant(Long shopId, Long productId, Long variantId, boolean force, String currentUsername) {
         verifyShopAccess(shopId, currentUsername);
-        productRepository.findByIdAndShopId(productId, shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+        if (!productRepository.existsByIdAndShopId(productId, shopId)) {
+            throw new ResourceNotFoundException(PRODUCT_NOT_FOUND_PREFIX + productId + BELONGS_TO_SHOP_PREFIX + shopId);
+        }
 
         ProductVariant variant = productVariantRepository.findByIdAndProductId(variantId, productId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy biến thể #" + variantId + " thuộc sản phẩm #" + productId));
+                .orElseThrow(() -> new ResourceNotFoundException(PRODUCT_NOT_FOUND_PREFIX + variantId + BELONGS_TO_PRODUCT_PREFIX + productId));
 
         long orderCount = productVariantRepository.countOrderItemsByVariantId(variantId);
         if (orderCount > 0) {
@@ -987,7 +1037,7 @@ public class ProductServiceImpl implements ProductService {
     public ProductImageResponse addShopProductImage(Long shopId, Long productId, com.example.demo.dto.request.CreateProductImageRequest request, String currentUsername) {
         verifyShopAccess(shopId, currentUsername);
         Product product = productRepository.findByIdAndShopId(productId, shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+                .orElseThrow(() -> new ResourceNotFoundException(PRODUCT_NOT_FOUND_PREFIX + productId + BELONGS_TO_SHOP_PREFIX + shopId));
 
         if (request.getImageUrl() == null || request.getImageUrl().isBlank()) {
             throw new com.example.demo.exception.BadRequestException("URL hình ảnh không được để trống");
@@ -1026,11 +1076,12 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public ProductImageResponse updateShopProductImage(Long shopId, Long productId, Long imageId, com.example.demo.dto.request.UpdateProductImageRequest request, String currentUsername) {
         verifyShopAccess(shopId, currentUsername);
-        productRepository.findByIdAndShopId(productId, shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+        if (!productRepository.existsByIdAndShopId(productId, shopId)) {
+            throw new ResourceNotFoundException(PRODUCT_NOT_FOUND_PREFIX + productId + BELONGS_TO_SHOP_PREFIX + shopId);
+        }
 
         ProductImage image = productImageRepository.findByIdAndProductId(imageId, productId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hình ảnh #" + imageId + " thuộc sản phẩm #" + productId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hình ảnh #" + imageId + BELONGS_TO_PRODUCT_PREFIX + productId));
 
         if (request.getIsPrimary() != null && request.getIsPrimary()) {
             List<ProductImage> existing = productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(productId);
@@ -1060,11 +1111,12 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public void deleteShopProductImage(Long shopId, Long productId, Long imageId, String currentUsername) {
         verifyShopAccess(shopId, currentUsername);
-        productRepository.findByIdAndShopId(productId, shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+        if (!productRepository.existsByIdAndShopId(productId, shopId)) {
+            throw new ResourceNotFoundException(PRODUCT_NOT_FOUND_PREFIX + productId + BELONGS_TO_SHOP_PREFIX + shopId);
+        }
 
         ProductImage image = productImageRepository.findByIdAndProductId(imageId, productId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hình ảnh #" + imageId + " thuộc sản phẩm #" + productId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hình ảnh #" + imageId + BELONGS_TO_PRODUCT_PREFIX + productId));
 
         boolean wasPrimary = image.isPrimary();
         productImageRepository.delete(image);
@@ -1086,11 +1138,11 @@ public class ProductServiceImpl implements ProductService {
         String normalized = java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD);
         String slug = normalized.replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
                 .toLowerCase()
-                .replaceAll("đ", "d")
+                .replace("đ", "d")
                 .replaceAll("[^a-z0-9\\s-]", "")
                 .replaceAll("\\s+", "-")
                 .replaceAll("-+", "-")
-                .replaceAll("^-|-$", "");
+                .replaceAll("(^-)|(-$)", "");
         return slug.isBlank() ? "product-" + System.currentTimeMillis() : slug;
     }
 }

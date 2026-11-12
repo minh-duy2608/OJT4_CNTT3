@@ -30,6 +30,10 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class ReturnServiceImpl implements ReturnService {
 
+    private static final String ORDER_NOT_FOUND_PREFIX = "Không tìm thấy đơn hàng #";
+    private static final String RETURN_NOT_FOUND_PREFIX = "Không tìm thấy yêu cầu trả hàng #";
+    private static final String ENTITY_TYPE_RETURN = "RETURN";
+
     private final OrderReturnRepository orderReturnRepository;
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
@@ -44,7 +48,7 @@ public class ReturnServiceImpl implements ReturnService {
         User user = getCurrentUser(currentUsername);
 
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
+                .orElseThrow(() -> new ResourceNotFoundException(ORDER_NOT_FOUND_PREFIX + orderId));
 
         if (!Objects.equals(order.getUserId(), user.getId())) {
             throw new ForbiddenException("Bạn không thể yêu cầu trả hàng cho đơn hàng của người khác");
@@ -86,12 +90,12 @@ public class ReturnServiceImpl implements ReturnService {
                     "RETURN_REQUESTED",
                     "Yêu cầu trả hàng mới",
                     "Khách hàng " + user.getFullName() + " vừa gửi yêu cầu trả hàng cho đơn #" + order.getOrderCode() + ": " + request.getReason(),
-                    "RETURN",
+                    ENTITY_TYPE_RETURN,
                     saved.getId()
             );
         }
 
-        auditLogService.log(user.getId(), "REQUEST_RETURN", "RETURN", String.valueOf(saved.getId()), order.getShopId(),
+        auditLogService.log(user.getId(), "REQUEST_RETURN", ENTITY_TYPE_RETURN, String.valueOf(saved.getId()), order.getShopId(),
                 "Khách hàng yêu cầu trả hàng cho đơn #" + order.getOrderCode() + ". Lý do: " + request.getReason());
 
         return mapToResponse(saved);
@@ -123,7 +127,7 @@ public class ReturnServiceImpl implements ReturnService {
     public ReturnResponse getReturnDetail(Long returnId, String currentUsername) {
         User user = getCurrentUser(currentUsername);
         OrderReturn ret = orderReturnRepository.findById(returnId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu trả hàng #" + returnId));
+                .orElseThrow(() -> new ResourceNotFoundException(RETURN_NOT_FOUND_PREFIX + returnId));
 
         Order order = orderRepository.findById(ret.getOrderId()).orElse(null);
         Long shopId = order != null ? order.getShopId() : null;
@@ -166,10 +170,10 @@ public class ReturnServiceImpl implements ReturnService {
         User user = verifyShopPermission(shopId, currentUsername);
 
         OrderReturn ret = orderReturnRepository.findById(returnId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu trả hàng #" + returnId));
+                .orElseThrow(() -> new ResourceNotFoundException(RETURN_NOT_FOUND_PREFIX + returnId));
 
         Order order = orderRepository.findById(ret.getOrderId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + ret.getOrderId()));
+                .orElseThrow(() -> new ResourceNotFoundException(ORDER_NOT_FOUND_PREFIX + ret.getOrderId()));
 
         if (!Objects.equals(order.getShopId(), shopId)) {
             throw new BadRequestException("Yêu cầu trả hàng #" + returnId + " không thuộc cửa hàng #" + shopId);
@@ -178,7 +182,7 @@ public class ReturnServiceImpl implements ReturnService {
         applyReturnStatus(ret, order, request, user);
         OrderReturn saved = orderReturnRepository.save(ret);
 
-        auditLogService.log(user.getId(), "PROCESS_SHOP_RETURN", "RETURN", String.valueOf(saved.getId()), shopId,
+        auditLogService.log(user.getId(), "PROCESS_SHOP_RETURN", ENTITY_TYPE_RETURN, String.valueOf(saved.getId()), shopId,
                 "Cửa hàng cập nhật yêu cầu trả hàng sang " + saved.getStatus());
 
         return mapToResponse(saved);
@@ -211,15 +215,15 @@ public class ReturnServiceImpl implements ReturnService {
         User admin = verifyAdminAccess(currentUsername);
 
         OrderReturn ret = orderReturnRepository.findById(returnId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu trả hàng #" + returnId));
+                .orElseThrow(() -> new ResourceNotFoundException(RETURN_NOT_FOUND_PREFIX + returnId));
 
         Order order = orderRepository.findById(ret.getOrderId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + ret.getOrderId()));
+                .orElseThrow(() -> new ResourceNotFoundException(ORDER_NOT_FOUND_PREFIX + ret.getOrderId()));
 
         applyReturnStatus(ret, order, request, admin);
         OrderReturn saved = orderReturnRepository.save(ret);
 
-        auditLogService.log(admin.getId(), "ADMIN_PROCESS_RETURN", "RETURN", String.valueOf(saved.getId()), order.getShopId(),
+        auditLogService.log(admin.getId(), "ADMIN_PROCESS_RETURN", ENTITY_TYPE_RETURN, String.valueOf(saved.getId()), order.getShopId(),
                 "Quản trị viên can thiệp xử lý yêu cầu trả hàng sang " + saved.getStatus());
 
         return mapToResponse(saved);
@@ -259,7 +263,7 @@ public class ReturnServiceImpl implements ReturnService {
                 "RETURN_STATUS_UPDATED",
                 "Cập nhật yêu cầu trả hàng",
                 "Yêu cầu trả hàng cho đơn #" + order.getOrderCode() + " đã " + statusText + (request.getResolutionNote() != null ? ": " + request.getResolutionNote() : ""),
-                "RETURN",
+                ENTITY_TYPE_RETURN,
                 ret.getId()
         );
     }
@@ -274,6 +278,9 @@ public class ReturnServiceImpl implements ReturnService {
 
     private User verifyShopPermission(Long shopId, String currentUsername) {
         User user = getCurrentUser(currentUsername);
+        if (user == null || user.getRole() == null) {
+            throw new UnauthorizedException("Tài khoản không hợp lệ hoặc thiếu quyền hạn");
+        }
         boolean isShopManager = isUserShopManager(user, shopId);
         boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN;
         if (!isShopManager && !isAdmin) {
@@ -283,7 +290,7 @@ public class ReturnServiceImpl implements ReturnService {
     }
 
     private boolean isUserShopManager(User user, Long shopId) {
-        if (user == null || shopId == null) return false;
+        if (user == null || user.getId() == null || shopId == null) return false;
         boolean isOwner = shopRepository.findById(shopId)
                 .map(s -> Objects.equals(s.getOwnerId(), user.getId()))
                 .orElse(false);
@@ -293,6 +300,9 @@ public class ReturnServiceImpl implements ReturnService {
 
     private User verifyAdminAccess(String currentUsername) {
         User user = getCurrentUser(currentUsername);
+        if (user == null || user.getRole() == null) {
+            throw new UnauthorizedException("Tài khoản không hợp lệ hoặc thiếu quyền hạn");
+        }
         boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN;
         if (!isAdmin) {
             throw new ForbiddenException("Chỉ Quản trị viên hệ thống mới có quyền thực hiện thao tác này");

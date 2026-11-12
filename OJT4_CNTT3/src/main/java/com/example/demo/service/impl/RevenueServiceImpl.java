@@ -43,23 +43,53 @@ public class RevenueServiceImpl implements RevenueService {
         List<Shop> allShops = shopRepository.findAll();
         Map<Long, Shop> shopMap = allShops.stream().collect(Collectors.toMap(Shop::getId, s -> s, (s1, s2) -> s1));
 
-        // Filter by shop if requested
-        List<Order> filteredOrders = allOrders;
-        if (targetShopId != null) {
-            filteredOrders = allOrders.stream()
-                    .filter(o -> targetShopId.equals(o.getShopId()))
-                    .collect(Collectors.toList());
-        }
+        List<Order> filteredOrders = (targetShopId != null)
+                ? allOrders.stream().filter(o -> targetShopId.equals(o.getShopId())).toList()
+                : allOrders;
 
-        // Calculate platform totals
-        BigDecimal totalRevenue = BigDecimal.ZERO; // Completed or paid orders
-        BigDecimal grossMerchandiseValue = BigDecimal.ZERO; // Total GMV (all non-cancelled)
-        long totalOrders = filteredOrders.size();
+        PlatformMetrics metrics = calculatePlatformTotals(filteredOrders);
+
+        Map<Long, List<Order>> ordersByShop = allOrders.stream()
+                .filter(o -> o.getShopId() != null)
+                .collect(Collectors.groupingBy(Order::getShopId));
+
+        List<ShopRevenueSummary> shopRevenues = buildShopRevenueSummaries(allShops, ordersByShop);
+        List<DailyRevenueSummary> dailyRevenues = calculateDailyRevenues(filteredOrders);
+        List<RecentOrderSummary> recentOrders = mapRecentOrders(filteredOrders, shopMap);
+
+        return AdminRevenueResponse.builder()
+                .totalRevenue(metrics.totalRevenue())
+                .grossMerchandiseValue(metrics.grossMerchandiseValue())
+                .totalOrders(metrics.totalOrders())
+                .completedOrders(metrics.completedOrders())
+                .processingOrders(metrics.processingOrders())
+                .cancelledOrders(metrics.cancelledOrders())
+                .averageOrderValue(metrics.averageOrderValue())
+                .shopRevenues(shopRevenues)
+                .dailyRevenues(dailyRevenues)
+                .recentOrders(recentOrders)
+                .build();
+    }
+
+    private record PlatformMetrics(
+            BigDecimal totalRevenue,
+            BigDecimal grossMerchandiseValue,
+            long totalOrders,
+            long completedOrders,
+            long processingOrders,
+            long cancelledOrders,
+            BigDecimal averageOrderValue
+    ) {}
+
+    private PlatformMetrics calculatePlatformTotals(List<Order> orders) {
+        BigDecimal totalRevenue = BigDecimal.ZERO;
+        BigDecimal grossMerchandiseValue = BigDecimal.ZERO;
+        long totalOrders = orders.size();
         long completedOrders = 0;
         long processingOrders = 0;
         long cancelledOrders = 0;
 
-        for (Order order : filteredOrders) {
+        for (Order order : orders) {
             BigDecimal amount = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
             OrderStatus status = order.getStatus();
             PaymentStatus paymentStatus = order.getPaymentStatus();
@@ -68,11 +98,9 @@ public class RevenueServiceImpl implements RevenueService {
                 cancelledOrders++;
             } else {
                 grossMerchandiseValue = grossMerchandiseValue.add(amount);
-
                 if (status == OrderStatus.DELIVERED || paymentStatus == PaymentStatus.PAID) {
                     totalRevenue = totalRevenue.add(amount);
                 }
-
                 if (status == OrderStatus.DELIVERED) {
                     completedOrders++;
                 } else {
@@ -86,17 +114,15 @@ public class RevenueServiceImpl implements RevenueService {
             averageOrderValue = grossMerchandiseValue.divide(BigDecimal.valueOf(totalOrders), 0, RoundingMode.HALF_UP);
         }
 
-        // Breakdown by shop
-        Map<Long, List<Order>> ordersByShop = allOrders.stream()
-                .filter(o -> o.getShopId() != null)
-                .collect(Collectors.groupingBy(Order::getShopId));
+        return new PlatformMetrics(totalRevenue, grossMerchandiseValue, totalOrders, completedOrders, processingOrders, cancelledOrders, averageOrderValue);
+    }
 
+    private List<ShopRevenueSummary> buildShopRevenueSummaries(List<Shop> allShops, Map<Long, List<Order>> ordersByShop) {
         List<ShopRevenueSummary> shopRevenues = new ArrayList<>();
         for (Shop shop : allShops) {
             List<Order> shopOrders = ordersByShop.getOrDefault(shop.getId(), Collections.emptyList());
             BigDecimal sRev = BigDecimal.ZERO;
             BigDecimal sPending = BigDecimal.ZERO;
-            long sOrderCount = shopOrders.size();
 
             for (Order o : shopOrders) {
                 BigDecimal a = o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO;
@@ -110,24 +136,33 @@ public class RevenueServiceImpl implements RevenueService {
             }
 
             User owner = shop.getOwnerId() != null ? userRepository.findById(shop.getOwnerId()).orElse(null) : null;
-
             shopRevenues.add(ShopRevenueSummary.builder()
                     .shopId(shop.getId())
                     .shopName(shop.getName())
-                    .ownerName(owner != null ? (owner.getFullName() != null && !owner.getFullName().isBlank() ? owner.getFullName() : owner.getUsername()) : "N/A")
+                    .ownerName(resolveOwnerDisplayName(owner))
                     .ownerEmail(owner != null ? owner.getEmail() : shop.getEmail())
                     .shopPhone(shop.getPhone())
                     .shopStatus(shop.getStatus() != null ? shop.getStatus().name() : "ACTIVE")
-                    .totalOrders(sOrderCount)
+                    .totalOrders((long) shopOrders.size())
                     .totalRevenue(sRev)
                     .pendingRevenue(sPending)
                     .build());
         }
-
-        // Sort shopRevenues by totalRevenue descending
         shopRevenues.sort((a, b) -> b.getTotalRevenue().compareTo(a.getTotalRevenue()));
+        return shopRevenues;
+    }
 
-        // Daily revenue for last 7 days
+    private String resolveOwnerDisplayName(User owner) {
+        if (owner == null) {
+            return "N/A";
+        }
+        if (owner.getFullName() != null && !owner.getFullName().isBlank()) {
+            return owner.getFullName();
+        }
+        return owner.getUsername();
+    }
+
+    private List<DailyRevenueSummary> calculateDailyRevenues(List<Order> orders) {
         Map<LocalDate, BigDecimal> dailyMap = new TreeMap<>();
         Map<LocalDate, Long> dailyCountMap = new HashMap<>();
         LocalDate today = LocalDate.now();
@@ -137,7 +172,7 @@ public class RevenueServiceImpl implements RevenueService {
             dailyCountMap.put(day, 0L);
         }
 
-        for (Order o : filteredOrders) {
+        for (Order o : orders) {
             if (o.getCreatedAt() != null && o.getStatus() != OrderStatus.CANCELLED) {
                 LocalDate orderDate = o.getCreatedAt().toLocalDate();
                 if (dailyMap.containsKey(orderDate)) {
@@ -157,9 +192,11 @@ public class RevenueServiceImpl implements RevenueService {
                     .orderCount(dailyCountMap.getOrDefault(entry.getKey(), 0L))
                     .build());
         }
+        return dailyRevenues;
+    }
 
-        // Recent 10 orders
-        List<RecentOrderSummary> recentOrders = filteredOrders.stream()
+    private List<RecentOrderSummary> mapRecentOrders(List<Order> orders, Map<Long, Shop> shopMap) {
+        return orders.stream()
                 .limit(10)
                 .map(o -> {
                     Shop s = o.getShopId() != null ? shopMap.get(o.getShopId()) : null;
@@ -175,20 +212,7 @@ public class RevenueServiceImpl implements RevenueService {
                             .createdAt(o.getCreatedAt())
                             .build();
                 })
-                .collect(Collectors.toList());
-
-        return AdminRevenueResponse.builder()
-                .totalRevenue(totalRevenue)
-                .grossMerchandiseValue(grossMerchandiseValue)
-                .totalOrders(totalOrders)
-                .completedOrders(completedOrders)
-                .processingOrders(processingOrders)
-                .cancelledOrders(cancelledOrders)
-                .averageOrderValue(averageOrderValue)
-                .shopRevenues(shopRevenues)
-                .dailyRevenues(dailyRevenues)
-                .recentOrders(recentOrders)
-                .build();
+                .toList();
     }
 
     private void verifyAdminAccess(String currentUsername) {

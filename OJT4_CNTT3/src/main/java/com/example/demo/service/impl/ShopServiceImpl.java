@@ -45,6 +45,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ShopServiceImpl implements ShopService {
 
+    private static final String NOT_FOUND_SHOP_PREFIX = "Không tìm thấy cửa hàng #";
+
     private final ShopRepository shopRepository;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -174,7 +176,7 @@ public class ShopServiceImpl implements ShopService {
         boolean isAdmin = isUserAdmin(user);
 
         Shop shop = shopRepository.findById(shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_SHOP_PREFIX + shopId));
 
         boolean isOwner = Objects.equals(shop.getOwnerId(), user.getId());
         Optional<ShopMember> membership = shopMemberRepository.findByIdShopIdAndIdUserId(shopId, user.getId());
@@ -183,7 +185,7 @@ public class ShopServiceImpl implements ShopService {
             throw new ForbiddenException("Bạn không có quyền quản lý cửa hàng này");
         }
 
-        String roleInShop = isOwner ? "OWNER" : (isAdmin ? "ADMIN" : (membership.map(m -> m.getRole() != null ? m.getRole().getCode() : "STAFF").orElse("MEMBER")));
+        String roleInShop = resolveUserRoleInShop(isOwner, isAdmin, membership);
 
         long totalProducts = productRepository.countByShopId(shopId);
         long activeProducts = productRepository.countByShopIdAndStatus(shopId, ProductStatus.ACTIVE);
@@ -215,6 +217,19 @@ public class ShopServiceImpl implements ShopService {
                 .build();
     }
 
+    private String resolveUserRoleInShop(boolean isOwner, boolean isAdmin, Optional<ShopMember> membership) {
+        if (isOwner) {
+            return "OWNER";
+        }
+        if (isAdmin) {
+            return "ADMIN";
+        }
+        return membership
+                .map(ShopMember::getRole)
+                .map(RoleEntity::getCode)
+                .orElse("MEMBER");
+    }
+
     @Override
     @Transactional(readOnly = true)
     public List<ShopDetailResponse> getAllActiveShops() {
@@ -227,7 +242,7 @@ public class ShopServiceImpl implements ShopService {
     @Transactional(readOnly = true)
     public ShopDetailResponse getShopById(Long shopId, String currentUsername) {
         Shop shop = shopRepository.findById(shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_SHOP_PREFIX + shopId));
 
         boolean isOwner = false;
         boolean isAdmin = false;
@@ -237,7 +252,9 @@ public class ShopServiceImpl implements ShopService {
                 User user = getCurrentUser(currentUsername);
                 isAdmin = isUserAdmin(user);
                 isOwner = Objects.equals(shop.getOwnerId(), user.getId());
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                log.debug("User context not available for shop detail #{}: {}", shopId, e.getMessage());
+            }
         }
 
         return ShopDetailResponse.fromEntity(shop, isOwner, isAdmin);
@@ -248,7 +265,7 @@ public class ShopServiceImpl implements ShopService {
     public ShopDetailResponse updateShop(Long shopId, RegisterShopRequest request, String currentUsername) {
         User user = getCurrentUser(currentUsername);
         Shop shop = shopRepository.findById(shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_SHOP_PREFIX + shopId));
 
         boolean isAdmin = isUserAdmin(user);
         boolean isOwner = Objects.equals(shop.getOwnerId(), user.getId());
@@ -316,7 +333,7 @@ public class ShopServiceImpl implements ShopService {
     @Transactional(readOnly = true)
     public ShopDetailResponse getAdminShopById(Long shopId) {
         Shop shop = shopRepository.findById(shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_SHOP_PREFIX + shopId));
         return ShopDetailResponse.fromEntity(shop, false, true);
     }
 
@@ -329,7 +346,7 @@ public class ShopServiceImpl implements ShopService {
         }
 
         Shop shop = shopRepository.findById(shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_SHOP_PREFIX + shopId));
 
         ShopStatus oldStatus = shop.getStatus();
         ShopStatus newStatus = request.getStatus();
@@ -372,7 +389,7 @@ public class ShopServiceImpl implements ShopService {
                 .replaceAll("[^a-z0-9\\s-]", "")
                 .replaceAll("\\s+", "-")
                 .replaceAll("-+", "-")
-                .replaceAll("^-|-$", "");
+                .replaceAll("(^-)|(-$)", "");
         return slug.isBlank() ? "shop-" + System.currentTimeMillis() : slug;
     }
 
@@ -412,12 +429,53 @@ public class ShopServiceImpl implements ShopService {
         }
     }
 
-    private static final String REVENUE_RECONCILIATION_RULE =
-            "QUY TẮC TÍNH TOÁN & ĐỐI CHIẾU DOANH THU CỬA HÀNG (SHOP REVENUE RECONCILIATION RULE):\n" +
-            "1. Đơn GIAO THÀNH CÔNG (DELIVERED): Tính 100% giá trị thực tế khách hàng thanh toán vào Doanh thu thuần (netRevenue).\n" +
-            "2. Đơn TRẢ HÀNG / HOÀN TIỀN (RETURNED): Ghi nhận Doanh thu gộp (grossRevenue) và khấu trừ số tiền hoàn trả (refundAmount) tương ứng. Doanh thu thuần = Giá trị đơn - Tiền hoàn (nếu hoàn toàn phần thì doanh thu = 0đ).\n" +
-            "3. Đơn ĐÃ HỦY (CANCELLED): Loại trừ hoàn toàn khỏi Doanh thu thuần (netRevenue = 0đ). Ghi nhận vào mục Đơn hủy phục vụ đối chiếu.\n" +
-            "4. Đơn ĐANG XỬ LÝ / VẬN CHUYỂN (PENDING, CONFIRMED, PROCESSING, SHIPPED): Tính vào Doanh thu tạm tính (pendingRevenue), không ghi nhận vào Doanh thu thuần thực nhận.";
+    private static final String REVENUE_RECONCILIATION_RULE = """
+            QUY TẮC TÍNH TOÁN & ĐỐI CHIẾU DOANH THU CỬA HÀNG (SHOP REVENUE RECONCILIATION RULE):
+            1. Đơn GIAO THÀNH CÔNG (DELIVERED): Tính 100% giá trị thực tế khách hàng thanh toán vào Doanh thu thuần (netRevenue).
+            2. Đơn TRẢ HÀNG / HOÀN TIỀN (RETURNED): Ghi nhận Doanh thu gộp (grossRevenue) và khấu trừ số tiền hoàn trả (refundAmount) tương ứng. Doanh thu thuần = Giá trị đơn - Tiền hoàn (nếu hoàn toàn phần thì doanh thu = 0đ).
+            3. Đơn ĐÃ HỦY (CANCELLED): Loại trừ hoàn toàn khỏi Doanh thu thuần (netRevenue = 0đ). Ghi nhận vào mục Đơn hủy phục vụ đối chiếu.
+            4. Đơn ĐANG XỬ LÝ / VẬN CHUYỂN (PENDING, CONFIRMED, PROCESSING, SHIPPED): Tính vào Doanh thu tạm tính (pendingRevenue), không ghi nhận vào Doanh thu thuần thực nhận.""";
+
+    private record OrderEvaluation(BigDecimal refund, BigDecimal net, String note) {}
+
+    private LocalDateTime resolveOrderReferenceTime(Order order) {
+        if (order.getDeliveredAt() != null) {
+            return order.getDeliveredAt();
+        }
+        return order.getCreatedAt() != null ? order.getCreatedAt() : LocalDateTime.now();
+    }
+
+    private OrderEvaluation evaluateReturnedOrder(Order order, BigDecimal orderTotal) {
+        BigDecimal actualRefund = orderTotal;
+        if (orderReturnRepository != null) {
+            try {
+                List<OrderReturn> returns = orderReturnRepository.findByOrderIdOrderByCreatedAtDesc(order.getId());
+                if (returns != null && !returns.isEmpty()) {
+                    OrderReturn r = returns.get(0);
+                    if (r.getRefundAmount() != null && r.getRefundAmount().compareTo(BigDecimal.ZERO) > 0) {
+                        actualRefund = r.getRefundAmount();
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Error querying returns for order #{}: {}", order.getId(), e.getMessage());
+            }
+        }
+        BigDecimal orderRefund = actualRefund.min(orderTotal);
+        BigDecimal orderNet = orderTotal.subtract(orderRefund).max(BigDecimal.ZERO);
+        String note = String.format("Trả hàng (RETURNED) - Khấu trừ %,.0f đ tiền hoàn, doanh thu còn lại: %,.0f đ",
+                orderRefund.doubleValue(), orderNet.doubleValue());
+        return new OrderEvaluation(orderRefund, orderNet, note);
+    }
+
+    private OrderEvaluation evaluateOrderRevenue(Order order, BigDecimal orderTotal) {
+        return switch (order.getStatus()) {
+            case CANCELLED -> new OrderEvaluation(BigDecimal.ZERO, BigDecimal.ZERO, "Đơn đã hủy (CANCELLED) - Loại trừ khỏi doanh thu");
+            case DELIVERED -> new OrderEvaluation(BigDecimal.ZERO, orderTotal, "Giao hàng thành công (DELIVERED) - Tính 100% doanh thu thuần");
+            case RETURNED -> evaluateReturnedOrder(order, orderTotal);
+            default -> new OrderEvaluation(BigDecimal.ZERO, BigDecimal.ZERO,
+                    String.format("Đang xử lý / Vận chuyển (%s) - Doanh thu tạm tính, chưa ghi nhận doanh thu thực nhận", order.getStatus()));
+        };
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -425,7 +483,7 @@ public class ShopServiceImpl implements ShopService {
         verifyShopAccess(shopId, currentUsername);
 
         Shop shop = shopRepository.findById(shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_SHOP_PREFIX + shopId));
 
         LocalDate startDate = (from != null && !from.isBlank()) ? LocalDate.parse(from) : LocalDate.now().minusDays(30);
         LocalDate endDate = (to != null && !to.isBlank()) ? LocalDate.parse(to) : LocalDate.now();
@@ -456,9 +514,7 @@ public class ShopServiceImpl implements ShopService {
         List<ShopRevenueDashboardResponse.OrderReconciliationItem> reconciliations = new ArrayList<>();
 
         for (Order order : orders) {
-            LocalDateTime orderRefTime = order.getDeliveredAt() != null
-                    ? order.getDeliveredAt()
-                    : (order.getCreatedAt() != null ? order.getCreatedAt() : LocalDateTime.now());
+            LocalDateTime orderRefTime = resolveOrderReferenceTime(order);
             LocalDate orderDate = orderRefTime.toLocalDate();
 
             if (orderDate.isBefore(startDate) || orderDate.isAfter(endDate)) {
@@ -469,50 +525,26 @@ public class ShopServiceImpl implements ShopService {
             BigDecimal orderTotal = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
             OrderStatus status = order.getStatus();
 
-            BigDecimal orderRefund = BigDecimal.ZERO;
-            BigDecimal orderNet = BigDecimal.ZERO;
-            String note;
+            OrderEvaluation eval = evaluateOrderRevenue(order, orderTotal);
+            BigDecimal orderRefund = eval.refund();
+            BigDecimal orderNet = eval.net();
+            String note = eval.note();
 
             if (status == OrderStatus.CANCELLED) {
                 cancelledOrders++;
                 cancelledRevenue = cancelledRevenue.add(orderTotal);
-                orderNet = BigDecimal.ZERO;
-                note = "Đơn đã hủy (CANCELLED) - Loại trừ khỏi doanh thu";
             } else if (status == OrderStatus.DELIVERED) {
                 deliveredOrders++;
                 grossRevenue = grossRevenue.add(orderTotal);
-                orderNet = orderTotal;
                 netRevenue = netRevenue.add(orderNet);
-                note = "Giao hàng thành công (DELIVERED) - Tính 100% doanh thu thuần";
             } else if (status == OrderStatus.RETURNED) {
                 returnedOrders++;
-                BigDecimal actualRefund = orderTotal;
-                if (orderReturnRepository != null) {
-                    try {
-                        List<OrderReturn> returns = orderReturnRepository.findByOrderIdOrderByCreatedAtDesc(order.getId());
-                        if (returns != null && !returns.isEmpty()) {
-                            OrderReturn r = returns.get(0);
-                            if (r.getRefundAmount() != null && r.getRefundAmount().compareTo(BigDecimal.ZERO) > 0) {
-                                actualRefund = r.getRefundAmount();
-                            }
-                        }
-                    } catch (Exception e) {
-                        log.debug("Error querying returns for order #{}: {}", order.getId(), e.getMessage());
-                    }
-                }
-                orderRefund = actualRefund.min(orderTotal);
-                orderNet = orderTotal.subtract(orderRefund).max(BigDecimal.ZERO);
-
                 grossRevenue = grossRevenue.add(orderTotal);
                 totalRefundAmount = totalRefundAmount.add(orderRefund);
                 netRevenue = netRevenue.add(orderNet);
-                note = String.format("Trả hàng (RETURNED) - Khấu trừ %,.0f đ tiền hoàn, doanh thu còn lại: %,.0f đ",
-                        orderRefund.doubleValue(), orderNet.doubleValue());
             } else {
                 pendingOrders++;
                 pendingRevenue = pendingRevenue.add(orderTotal);
-                orderNet = BigDecimal.ZERO;
-                note = String.format("Đang xử lý / Vận chuyển (%s) - Doanh thu tạm tính, chưa ghi nhận doanh thu thực nhận", status);
             }
 
             if (status == OrderStatus.DELIVERED || status == OrderStatus.RETURNED) {
@@ -538,10 +570,11 @@ public class ShopServiceImpl implements ShopService {
         }
 
         List<ShopRevenueDashboardResponse.RevenueDataPoint> chartData = new ArrayList<>();
-        for (String k : chartGrossMap.keySet()) {
+        for (Map.Entry<String, BigDecimal> entry : chartGrossMap.entrySet()) {
+            String k = entry.getKey();
             chartData.add(ShopRevenueDashboardResponse.RevenueDataPoint.builder()
                     .date(k)
-                    .grossRevenue(chartGrossMap.get(k))
+                    .grossRevenue(entry.getValue())
                     .refundAmount(chartRefundMap.get(k))
                     .netRevenue(chartNetMap.get(k))
                     .orderCount(chartCountMap.getOrDefault(k, 0L))
@@ -664,7 +697,7 @@ public class ShopServiceImpl implements ShopService {
         User user = getCurrentUser(currentUsername);
         boolean isAdmin = isUserAdmin(user);
         Shop shop = shopRepository.findById(shopId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_SHOP_PREFIX + shopId));
         boolean isOwner = Objects.equals(shop.getOwnerId(), user.getId());
         boolean isMember = shopMemberRepository.existsByIdShopIdAndIdUserIdAndStatus(shopId, user.getId(), ShopMemberStatus.ACTIVE);
 

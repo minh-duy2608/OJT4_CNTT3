@@ -131,3 +131,4 @@ Dự án có sẵn workflow `.github/workflows/sonar.yml` tự động chạy m�
 * `Settings` -> `Secrets and variables` -> `Actions` -> `New repository secret`:
   * `SONAR_HOST_URL`: URL máy chủ SonarQube của nhóm hoặc `https://sonarcloud.io`.
   * `SONAR_TOKEN`: Token xác thực SonarQube.
+

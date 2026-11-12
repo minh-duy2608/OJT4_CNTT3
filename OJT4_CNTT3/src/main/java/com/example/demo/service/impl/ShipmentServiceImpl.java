@@ -21,15 +21,20 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ShipmentServiceImpl implements ShipmentService {
+
+    private static final String ORDER_NOT_FOUND_PREFIX = "Không tìm thấy đơn hàng #";
+    private static final String ORDER_CODE_PREFIX = "Đơn hàng #";
+    private static final String ENTITY_TYPE_SHIPMENT = "SHIPMENT";
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final ShipmentRepository shipmentRepository;
     private final OrderRepository orderRepository;
@@ -43,7 +48,7 @@ public class ShipmentServiceImpl implements ShipmentService {
     @Transactional(readOnly = true)
     public List<ShipmentResponse> getOrderShipments(Long orderId, String currentUsername) {
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
+                .orElseThrow(() -> new ResourceNotFoundException(ORDER_NOT_FOUND_PREFIX + orderId));
 
         if (currentUsername != null && !currentUsername.isBlank()) {
             User user = userRepository.findByUsername(currentUsername).orElse(null);
@@ -88,10 +93,10 @@ public class ShipmentServiceImpl implements ShipmentService {
         User user = verifyShopPermission(shopId, currentUsername);
 
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
+                .orElseThrow(() -> new ResourceNotFoundException(ORDER_NOT_FOUND_PREFIX + orderId));
 
         if (!Objects.equals(order.getShopId(), shopId)) {
-            throw new BadRequestException("Đơn hàng #" + orderId + " không thuộc quyền quản lý của cửa hàng #" + shopId);
+            throw new BadRequestException(ORDER_CODE_PREFIX + orderId + " không thuộc quyền quản lý của cửa hàng #" + shopId);
         }
 
         if (order.getStatus() == OrderStatus.CANCELLED) {
@@ -100,7 +105,7 @@ public class ShipmentServiceImpl implements ShipmentService {
 
         String trackingCode = request.getTrackingCode();
         if (trackingCode == null || trackingCode.isBlank()) {
-            trackingCode = "TRK-" + (System.currentTimeMillis() % 10000000) + "-" + ThreadLocalRandom.current().nextInt(100, 999);
+            trackingCode = "TRK-" + (System.currentTimeMillis() % 10000000) + "-" + (100 + SECURE_RANDOM.nextInt(900));
         }
 
         Shipment shipment = Shipment.builder()
@@ -127,12 +132,12 @@ public class ShipmentServiceImpl implements ShipmentService {
                 order.getUserId(),
                 "SHIPMENT_CREATED",
                 "Đơn hàng đang được giao",
-                "Đơn hàng #" + order.getOrderCode() + " đã được xuất kho và bàn giao cho " + request.getCarrier() + " (Mã vận đơn: " + trackingCode + ")",
+                ORDER_CODE_PREFIX + order.getOrderCode() + " đã được xuất kho và bàn giao cho " + request.getCarrier() + " (Mã vận đơn: " + trackingCode + ")",
                 "ORDER",
                 order.getId()
         );
 
-        auditLogService.log(user.getId(), "CREATE_SHIPMENT", "SHIPMENT", String.valueOf(saved.getId()), shopId,
+        auditLogService.log(user.getId(), "CREATE_SHIPMENT", ENTITY_TYPE_SHIPMENT, String.valueOf(saved.getId()), shopId,
                 "Tạo vận đơn giao hàng #" + trackingCode + " cho đơn #" + order.getOrderCode());
 
         return mapToResponse(saved);
@@ -147,7 +152,7 @@ public class ShipmentServiceImpl implements ShipmentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin vận đơn #" + shipmentId));
 
         Order order = orderRepository.findById(shipment.getOrderId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + shipment.getOrderId()));
+                .orElseThrow(() -> new ResourceNotFoundException(ORDER_NOT_FOUND_PREFIX + shipment.getOrderId()));
 
         if (!Objects.equals(order.getShopId(), shopId)) {
             throw new BadRequestException("Vận đơn #" + shipmentId + " không thuộc quyền quản lý của cửa hàng #" + shopId);
@@ -156,7 +161,7 @@ public class ShipmentServiceImpl implements ShipmentService {
         applyShipmentUpdate(shipment, order, request);
         Shipment saved = shipmentRepository.save(shipment);
 
-        auditLogService.log(user.getId(), "UPDATE_SHIPMENT", "SHIPMENT", String.valueOf(saved.getId()), shopId,
+        auditLogService.log(user.getId(), "UPDATE_SHIPMENT", ENTITY_TYPE_SHIPMENT, String.valueOf(saved.getId()), shopId,
                 "Cửa hàng cập nhật vận đơn sang trạng thái " + saved.getStatus());
 
         return mapToResponse(saved);
@@ -192,12 +197,12 @@ public class ShipmentServiceImpl implements ShipmentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin vận đơn #" + shipmentId));
 
         Order order = orderRepository.findById(shipment.getOrderId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + shipment.getOrderId()));
+                .orElseThrow(() -> new ResourceNotFoundException(ORDER_NOT_FOUND_PREFIX + shipment.getOrderId()));
 
         applyShipmentUpdate(shipment, order, request);
         Shipment saved = shipmentRepository.save(shipment);
 
-        auditLogService.log(admin.getId(), "ADMIN_UPDATE_SHIPMENT", "SHIPMENT", String.valueOf(saved.getId()), order.getShopId(),
+        auditLogService.log(admin.getId(), "ADMIN_UPDATE_SHIPMENT", ENTITY_TYPE_SHIPMENT, String.valueOf(saved.getId()), order.getShopId(),
                 "Admin can thiệp vận đơn sang trạng thái " + saved.getStatus() + (request.getNote() != null ? " (" + request.getNote() + ")" : ""));
 
         return mapToResponse(saved);
@@ -214,34 +219,42 @@ public class ShipmentServiceImpl implements ShipmentService {
             shipment.setNote(request.getNote());
         }
 
-        ShipmentStatus newStatus = request.getStatus();
-        if (newStatus != null && newStatus != shipment.getStatus()) {
-            shipment.setStatus(newStatus);
-            if (newStatus == ShipmentStatus.IN_TRANSIT && shipment.getShippedAt() == null) {
-                shipment.setShippedAt(LocalDateTime.now());
-                if (order.getStatus() != OrderStatus.DELIVERED && order.getStatus() != OrderStatus.CANCELLED) {
-                    order.setStatus(OrderStatus.SHIPPED);
-                    order.setShippedAt(LocalDateTime.now());
-                    orderRepository.save(order);
-                }
-            } else if (newStatus == ShipmentStatus.DELIVERED) {
-                shipment.setDeliveredAt(LocalDateTime.now());
-                if (order.getStatus() != OrderStatus.CANCELLED) {
-                    order.setStatus(OrderStatus.DELIVERED);
-                    order.setDeliveredAt(LocalDateTime.now());
-                    order.setPaymentStatus(PaymentStatus.PAID);
-                    orderRepository.save(order);
-                }
-                notificationService.createNotification(
-                        order.getUserId(),
-                        "ORDER_DELIVERED",
-                        "Đơn hàng giao thành công",
-                        "Đơn hàng #" + order.getOrderCode() + " đã được giao thành công. Hãy đánh giá sản phẩm để chia sẻ trải nghiệm nhé!",
-                        "ORDER",
-                        order.getId()
-                );
-            }
+        handleStatusTransition(shipment, order, request.getStatus());
+    }
+
+    private void handleStatusTransition(Shipment shipment, Order order, ShipmentStatus newStatus) {
+        if (newStatus == null || newStatus == shipment.getStatus()) {
+            return;
         }
+        shipment.setStatus(newStatus);
+        if (newStatus == ShipmentStatus.IN_TRANSIT && shipment.getShippedAt() == null) {
+            shipment.setShippedAt(LocalDateTime.now());
+            if (order.getStatus() != OrderStatus.DELIVERED && order.getStatus() != OrderStatus.CANCELLED) {
+                order.setStatus(OrderStatus.SHIPPED);
+                order.setShippedAt(LocalDateTime.now());
+                orderRepository.save(order);
+            }
+        } else if (newStatus == ShipmentStatus.DELIVERED) {
+            handleDeliveredStatus(shipment, order);
+        }
+    }
+
+    private void handleDeliveredStatus(Shipment shipment, Order order) {
+        shipment.setDeliveredAt(LocalDateTime.now());
+        if (order.getStatus() != OrderStatus.CANCELLED) {
+            order.setStatus(OrderStatus.DELIVERED);
+            order.setDeliveredAt(LocalDateTime.now());
+            order.setPaymentStatus(PaymentStatus.PAID);
+            orderRepository.save(order);
+        }
+        notificationService.createNotification(
+                order.getUserId(),
+                "ORDER_DELIVERED",
+                "Đơn hàng giao thành công",
+                ORDER_CODE_PREFIX + order.getOrderCode() + " đã được giao thành công. Hãy đánh giá sản phẩm để chia sẻ trải nghiệm nhé!",
+                "ORDER",
+                order.getId()
+        );
     }
 
     private User verifyShopPermission(Long shopId, String currentUsername) {
@@ -250,6 +263,10 @@ public class ShipmentServiceImpl implements ShipmentService {
         }
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản: " + currentUsername));
+
+        if (user.getRole() == null) {
+            throw new UnauthorizedException("Tài khoản không hợp lệ hoặc thiếu quyền hạn");
+        }
 
         boolean isShopManager = isUserShopManagerForShop(user, shopId);
         boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN;
@@ -260,7 +277,7 @@ public class ShipmentServiceImpl implements ShipmentService {
     }
 
     private boolean isUserShopManagerForShop(User user, Long shopId) {
-        if (user == null || shopId == null) return false;
+        if (user == null || user.getId() == null || shopId == null) return false;
         boolean isOwner = shopRepository.findById(shopId)
                 .map(s -> Objects.equals(s.getOwnerId(), user.getId()))
                 .orElse(false);
@@ -274,8 +291,8 @@ public class ShipmentServiceImpl implements ShipmentService {
         }
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản: " + currentUsername));
-        boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN;
-        if (!isAdmin) {
+
+        if (user.getRole() == null || (user.getRole() != Role.ADMIN && user.getRole() != Role.ROLE_ADMIN)) {
             throw new ForbiddenException("Chỉ Quản trị viên hệ thống mới có quyền thực hiện thao tác này");
         }
         return user;

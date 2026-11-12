@@ -40,6 +40,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ProductReviewServiceImpl implements ProductReviewService {
 
+    private static final String NOT_FOUND_REVIEW_PREFIX = "Không tìm thấy đánh giá với id: ";
+    private static final String REVIEW_NOT_BELONG_PRODUCT = "Đánh giá không thuộc sản phẩm này";
+
     private final ProductReviewRepository productReviewRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
@@ -56,6 +59,48 @@ public class ProductReviewServiceImpl implements ProductReviewService {
             log.warn("Lỗi serialize imageUrls review: {}", e.getMessage());
             return String.join(",", imageUrls);
         }
+    }
+
+    private record ReviewPermission(boolean hasPurchased, boolean canReview, boolean isShopOwnerOfProduct) {}
+
+    private Map<Integer, Long> calculateRatingCounts(Long productId) {
+        Map<Integer, Long> ratingCounts = new HashMap<>();
+        for (int star = 1; star <= 5; star++) {
+            ratingCounts.put(star, 0L);
+        }
+        List<Object[]> groupCounts = productReviewRepository.countReviewsGroupByRating(productId);
+        if (groupCounts != null) {
+            for (Object[] row : groupCounts) {
+                if (row.length >= 2 && row[0] instanceof Integer star && row[1] instanceof Long cnt) {
+                    ratingCounts.put(star, cnt);
+                }
+            }
+        }
+        return ratingCounts;
+    }
+
+    private ReviewPermission evaluateUserReviewPermission(User currentUser, Long productId, Long shopId) {
+        if (currentUser == null) {
+            return new ReviewPermission(false, false, false);
+        }
+        boolean hasPurchased = false;
+        try {
+            hasPurchased = productReviewRepository.hasUserPurchasedProduct(currentUser.getId(), productId);
+        } catch (Exception e) {
+            log.warn("Lỗi kiểm tra lịch sử mua hàng: {}", e.getMessage());
+        }
+
+        boolean hasReviewed = productReviewRepository.existsByProductIdAndUserId(productId, currentUser.getId());
+        boolean canReview = hasPurchased && !hasReviewed;
+        boolean isShopOwnerOfProduct = isUserShopOwner(currentUser, shopId);
+        return new ReviewPermission(hasPurchased, canReview, isShopOwnerOfProduct);
+    }
+
+    private String resolveSellerShopName(Long shopId) {
+        if (shopId != null) {
+            return shopRepository.findById(shopId).map(Shop::getName).orElse("Cyber Official Store");
+        }
+        return "Cyber Official Store";
     }
 
     @Override
@@ -75,64 +120,23 @@ public class ProductReviewServiceImpl implements ProductReviewService {
         }
 
         // Lấy danh sách review theo trang và filter rating (nếu có)
-        Page<ProductReview> reviewPage;
-        if (ratingFilter != null && ratingFilter >= 1 && ratingFilter <= 5) {
-            reviewPage = productReviewRepository.findByProductIdAndRating(productId, ratingFilter, pageable);
-        } else {
-            reviewPage = productReviewRepository.findByProductId(productId, pageable);
-        }
+        Page<ProductReview> reviewPage = (ratingFilter != null && ratingFilter >= 1 && ratingFilter <= 5)
+                ? productReviewRepository.findByProductIdAndRating(productId, ratingFilter, pageable)
+                : productReviewRepository.findByProductId(productId, pageable);
 
         Long finalCurrentUserId = currentUserId;
         List<ProductReviewResponse> reviewResponses = reviewPage.getContent().stream()
                 .map(r -> ProductReviewResponse.fromEntity(r, finalCurrentUserId))
-                .collect(Collectors.toList());
+                .toList();
 
         // Thống kê tổng số đánh giá & sao trung bình
         Double rawAvg = productReviewRepository.getAverageRatingByProductId(productId);
         double averageRating = rawAvg != null ? Math.round(rawAvg * 10.0) / 10.0 : 0.0;
         long totalReviews = productReviewRepository.countByProductId(productId);
 
-        // Đếm số lượng từng mức sao 1..5
-        Map<Integer, Long> ratingCounts = new HashMap<>();
-        for (int star = 1; star <= 5; star++) {
-            ratingCounts.put(star, 0L);
-        }
-        List<Object[]> groupCounts = productReviewRepository.countReviewsGroupByRating(productId);
-        if (groupCounts != null) {
-            for (Object[] row : groupCounts) {
-                if (row.length >= 2 && row[0] instanceof Integer && row[1] instanceof Long) {
-                    ratingCounts.put((Integer) row[0], (Long) row[1]);
-                }
-            }
-        }
-
-        // Xác định quyền hạn của người dùng hiện tại
-        boolean hasPurchased = false;
-        boolean canReview = false;
-        boolean isShopOwnerOfProduct = false;
-        String sellerShopName = "Cyber Official Store";
-
-        if (product.getShopId() != null) {
-            Optional<Shop> shopOpt = shopRepository.findById(product.getShopId());
-            if (shopOpt.isPresent()) {
-                sellerShopName = shopOpt.get().getName();
-            }
-        }
-
-        if (currentUser != null) {
-            try {
-                hasPurchased = productReviewRepository.hasUserPurchasedProduct(currentUser.getId(), productId);
-            } catch (Exception e) {
-                log.warn("Lỗi kiểm tra lịch sử mua hàng: {}", e.getMessage());
-            }
-
-            boolean hasReviewed = productReviewRepository.existsByProductIdAndUserId(productId, currentUser.getId());
-            // Chỉ khi đã mua hàng và chưa từng đánh giá thì mới được phép viết đánh giá
-            canReview = hasPurchased && !hasReviewed;
-
-            // CHỈ CHỦ SHOP BÁN SẢN PHẨM NÀY MỚI CÓ QUYỀN PHẢN HỒI ĐÁNH GIÁ
-            isShopOwnerOfProduct = isUserShopOwner(currentUser, product.getShopId());
-        }
+        Map<Integer, Long> ratingCounts = calculateRatingCounts(productId);
+        ReviewPermission permission = evaluateUserReviewPermission(currentUser, productId, product.getShopId());
+        String sellerShopName = resolveSellerShopName(product.getShopId());
 
         return ProductReviewSummaryResponse.builder()
                 .averageRating(averageRating)
@@ -142,9 +146,9 @@ public class ProductReviewServiceImpl implements ProductReviewService {
                 .currentPage(reviewPage.getNumber() + 1)
                 .totalPages(reviewPage.getTotalPages())
                 .totalElements(reviewPage.getTotalElements())
-                .hasPurchased(hasPurchased)
-                .canReview(canReview)
-                .isShopOwnerOfProduct(isShopOwnerOfProduct)
+                .hasPurchased(permission.hasPurchased())
+                .canReview(permission.canReview())
+                .isShopOwnerOfProduct(permission.isShopOwnerOfProduct())
                 .sellerShopName(sellerShopName)
                 .build();
     }
@@ -206,10 +210,10 @@ public class ProductReviewServiceImpl implements ProductReviewService {
     public ProductReviewResponse updateReview(Long productId, Long reviewId, UpdateProductReviewRequest request, String currentUsername) {
         User user = getUserByUsername(currentUsername);
         ProductReview review = productReviewRepository.findById(reviewId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đánh giá với id: " + reviewId));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_REVIEW_PREFIX + reviewId));
 
         if (!review.getProduct().getId().equals(productId)) {
-            throw new ResourceNotFoundException("Đánh giá không thuộc sản phẩm này");
+            throw new ResourceNotFoundException(REVIEW_NOT_BELONG_PRODUCT);
         }
 
         // Chỉ chính chủ bài đánh giá mới được cập nhật
@@ -235,10 +239,10 @@ public class ProductReviewServiceImpl implements ProductReviewService {
     public void deleteReview(Long productId, Long reviewId, String currentUsername) {
         User user = getUserByUsername(currentUsername);
         ProductReview review = productReviewRepository.findById(reviewId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đánh giá với id: " + reviewId));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_REVIEW_PREFIX + reviewId));
 
         if (!review.getProduct().getId().equals(productId)) {
-            throw new ResourceNotFoundException("Đánh giá không thuộc sản phẩm này");
+            throw new ResourceNotFoundException(REVIEW_NOT_BELONG_PRODUCT);
         }
 
         boolean isAdmin = isUserAdmin(user);
@@ -257,11 +261,11 @@ public class ProductReviewServiceImpl implements ProductReviewService {
     public ProductReviewResponse replyToReview(Long productId, Long reviewId, ReplyProductReviewRequest request, String currentUsername) {
         User user = getUserByUsername(currentUsername);
         ProductReview review = productReviewRepository.findById(reviewId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đánh giá với id: " + reviewId));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_REVIEW_PREFIX + reviewId));
 
         Product product = review.getProduct();
         if (!product.getId().equals(productId)) {
-            throw new ResourceNotFoundException("Đánh giá không thuộc sản phẩm này");
+            throw new ResourceNotFoundException(REVIEW_NOT_BELONG_PRODUCT);
         }
 
         // RÀNG BUỘC NGƯỜI BÁN: Khách mua của shop nào thì CHỈ CHỦ SHOP BÁN SẢN PHẨM ĐÓ mới được phản hồi đánh giá
@@ -294,11 +298,11 @@ public class ProductReviewServiceImpl implements ProductReviewService {
     public ProductReviewResponse deleteReply(Long productId, Long reviewId, String currentUsername) {
         User user = getUserByUsername(currentUsername);
         ProductReview review = productReviewRepository.findById(reviewId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đánh giá với id: " + reviewId));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_REVIEW_PREFIX + reviewId));
 
         Product product = review.getProduct();
         if (!product.getId().equals(productId)) {
-            throw new ResourceNotFoundException("Đánh giá không thuộc sản phẩm này");
+            throw new ResourceNotFoundException(REVIEW_NOT_BELONG_PRODUCT);
         }
 
         boolean isShopOwnerOfThisProduct = isUserShopOwner(user, product.getShopId());

@@ -35,6 +35,8 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class AuditLogServiceImpl implements AuditLogService {
 
+    private static final String MESSAGE_KEY = "message";
+
     private final AuditLogRepository auditLogRepository;
     private final UserRepository userRepository;
     private final ShopRepository shopRepository;
@@ -51,20 +53,19 @@ public class AuditLogServiceImpl implements AuditLogService {
                 objectMapper.readTree(trimmed);
                 return trimmed;
             } catch (Exception ignored) {
+                log.debug("Detail string is not valid JSON, wrapping as object: {}", ignored.getMessage());
             }
         }
         try {
             Map<String, Object> map = new LinkedHashMap<>();
-            map.put("message", details);
+            map.put(MESSAGE_KEY, details);
             return objectMapper.writeValueAsString(map);
         } catch (Exception e) {
-            return "{\"message\":\"" + details.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "") + "\"}";
+            return "{\"" + MESSAGE_KEY + "\":\"" + details.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "") + "\"}";
         }
     }
 
-    @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void log(Long actorUserId, String action, String entityType, String entityId, Long shopId, String details, HttpServletRequest request) {
+    private void saveAuditLog(Long actorUserId, String action, String entityType, String entityId, Long shopId, String details, HttpServletRequest request) {
         String ipAddress = null;
         String userAgent = null;
         if (request != null) {
@@ -100,8 +101,14 @@ public class AuditLogServiceImpl implements AuditLogService {
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void log(Long actorUserId, String action, String entityType, String entityId, Long shopId, String details, HttpServletRequest request) {
+        saveAuditLog(actorUserId, action, entityType, entityId, shopId, details, request);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void log(Long actorUserId, String action, String entityType, String entityId, Long shopId, String details) {
-        log(actorUserId, action, entityType, entityId, shopId, details, null);
+        saveAuditLog(actorUserId, action, entityType, entityId, shopId, details, null);
     }
 
     @Override
@@ -199,10 +206,11 @@ public class AuditLogServiceImpl implements AuditLogService {
         if (rawDetails != null && rawDetails.trim().startsWith("{")) {
             try {
                 JsonNode node = objectMapper.readTree(rawDetails);
-                if (node.has("message") && node.get("message").isTextual()) {
-                    displayDetails = node.get("message").asText();
+                if (node.has(MESSAGE_KEY) && node.get(MESSAGE_KEY).isTextual()) {
+                    displayDetails = node.get(MESSAGE_KEY).asText();
                 }
             } catch (Exception ignored) {
+                log.debug("Could not parse audit log details JSON for display: {}", ignored.getMessage());
             }
         }
 

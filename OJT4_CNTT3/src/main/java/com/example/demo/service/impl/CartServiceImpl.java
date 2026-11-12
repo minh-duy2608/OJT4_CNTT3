@@ -92,7 +92,7 @@ public class CartServiceImpl implements CartService {
             cartItemRepository.save(newItem);
         }
 
-        return getCart(currentUsername);
+        return mapToCartResponse(cart);
     }
 
     @Override
@@ -120,7 +120,7 @@ public class CartServiceImpl implements CartService {
             cartItemRepository.save(item);
         }
 
-        return getCart(currentUsername);
+        return mapToCartResponse(cart);
     }
 
     @Override
@@ -137,7 +137,7 @@ public class CartServiceImpl implements CartService {
         }
 
         cartItemRepository.delete(item);
-        return getCart(currentUsername);
+        return mapToCartResponse(cart);
     }
 
     @Override
@@ -156,27 +156,32 @@ public class CartServiceImpl implements CartService {
 
         if (items != null) {
             for (AddToCartRequest req : items) {
-                if (req.getVariantId() == null) continue;
-                ProductVariant variant = productVariantRepository.findById(req.getVariantId()).orElse(null);
-                if (variant == null) continue;
-
-                int qty = req.getQuantity() != null && req.getQuantity() > 0 ? req.getQuantity() : 1;
-                Optional<CartItem> existing = cartItemRepository.findByCartIdAndVariantId(cart.getId(), variant.getId());
-                if (existing.isPresent()) {
-                    CartItem ci = existing.get();
-                    ci.setQuantity(Math.max(ci.getQuantity(), qty));
-                    cartItemRepository.save(ci);
-                } else {
-                    cartItemRepository.save(CartItem.builder()
-                            .cart(cart)
-                            .variantId(variant.getId())
-                            .quantity(qty)
-                            .build());
+                if (req.getVariantId() != null) {
+                    ProductVariant variant = productVariantRepository.findById(req.getVariantId()).orElse(null);
+                    if (variant != null) {
+                        syncSingleItem(cart, req, variant);
+                    }
                 }
             }
         }
 
-        return getCart(currentUsername);
+        return mapToCartResponse(cart);
+    }
+
+    private void syncSingleItem(Cart cart, AddToCartRequest req, ProductVariant variant) {
+        int qty = req.getQuantity() != null && req.getQuantity() > 0 ? req.getQuantity() : 1;
+        Optional<CartItem> existing = cartItemRepository.findByCartIdAndVariantId(cart.getId(), variant.getId());
+        if (existing.isPresent()) {
+            CartItem ci = existing.get();
+            ci.setQuantity(Math.max(ci.getQuantity(), qty));
+            cartItemRepository.save(ci);
+        } else {
+            cartItemRepository.save(CartItem.builder()
+                    .cart(cart)
+                    .variantId(variant.getId())
+                    .quantity(qty)
+                    .build());
+        }
     }
 
     private User getUser(String currentUsername) {
@@ -192,6 +197,66 @@ public class CartServiceImpl implements CartService {
                 .orElseGet(() -> cartRepository.save(Cart.builder().userId(user.getId()).build()));
     }
 
+    private BigDecimal resolveEffectivePrice(ProductVariant variant) {
+        if (variant.getSalePrice() != null) {
+            return variant.getSalePrice();
+        }
+        return variant.getPrice() != null ? variant.getPrice() : BigDecimal.ZERO;
+    }
+
+    private String resolveProductImageUrl(Product product) {
+        if (product == null) {
+            return null;
+        }
+        List<ProductImage> imgs = productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(product.getId());
+        return imgs.stream()
+                .filter(ProductImage::isPrimary)
+                .findFirst()
+                .map(ProductImage::getImageUrl)
+                .orElse(imgs.isEmpty() ? null : imgs.get(0).getImageUrl());
+    }
+
+    private CartItemResponse buildCartItemResponse(CartItem ci, ProductVariant variant) {
+        Product product = variant.getProduct();
+        String prodName = product != null ? product.getName() : "Sản phẩm Cyber";
+        Long prodId = product != null ? product.getId() : null;
+        Long itemShopId = product != null ? product.getShopId() : null;
+        String itemShopName = null;
+        if (itemShopId != null) {
+            itemShopName = shopRepository.findById(itemShopId).map(Shop::getName).orElse(null);
+        }
+
+        BigDecimal price = variant.getPrice();
+        BigDecimal salePrice = variant.getSalePrice();
+        BigDecimal effectivePrice = resolveEffectivePrice(variant);
+        BigDecimal lineTotal = effectivePrice.multiply(BigDecimal.valueOf(ci.getQuantity()));
+        String imgUrl = resolveProductImageUrl(product);
+
+        int stock = 0;
+        Inventory inv = inventoryRepository.findById(variant.getId()).orElse(null);
+        if (inv != null) {
+            stock = inv.getAvailableQuantity();
+        }
+
+        return CartItemResponse.builder()
+                .id(ci.getId())
+                .variantId(variant.getId())
+                .productId(prodId)
+                .shopId(itemShopId)
+                .shopName(itemShopName)
+                .productName(prodName)
+                .variantName(variant.getVariantName())
+                .sku(variant.getSku())
+                .imageUrl(imgUrl)
+                .price(price)
+                .salePrice(salePrice)
+                .quantity(ci.getQuantity())
+                .stockQuantity(stock)
+                .lineTotal(lineTotal)
+                .addedAt(ci.getAddedAt())
+                .build();
+    }
+
     private CartResponse mapToCartResponse(Cart cart) {
         List<CartItem> items = cartItemRepository.findByCartId(cart.getId());
         List<CartItemResponse> itemResponses = new ArrayList<>();
@@ -200,56 +265,14 @@ public class CartServiceImpl implements CartService {
 
         for (CartItem ci : items) {
             ProductVariant variant = productVariantRepository.findById(ci.getVariantId()).orElse(null);
-            if (variant == null) continue;
-
-            Product product = variant.getProduct();
-            String prodName = product != null ? product.getName() : "Sản phẩm Cyber";
-            Long prodId = product != null ? product.getId() : null;
-            Long itemShopId = product != null ? product.getShopId() : null;
-            String itemShopName = null;
-            if (itemShopId != null) {
-                itemShopName = shopRepository.findById(itemShopId).map(Shop::getName).orElse(null);
+            if (variant == null) {
+                continue;
             }
 
-            BigDecimal price = variant.getPrice();
-            BigDecimal salePrice = variant.getSalePrice();
-            BigDecimal effectivePrice = salePrice != null ? salePrice : (price != null ? price : BigDecimal.ZERO);
-
-            BigDecimal lineTotal = effectivePrice.multiply(BigDecimal.valueOf(ci.getQuantity()));
-            subtotal = subtotal.add(lineTotal);
+            CartItemResponse response = buildCartItemResponse(ci, variant);
+            subtotal = subtotal.add(response.getLineTotal());
             totalItems += ci.getQuantity();
-
-            // Tìm ảnh sản phẩm
-            String imgUrl = null;
-            if (product != null) {
-                List<ProductImage> imgs = productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(product.getId());
-                imgUrl = imgs.stream().filter(ProductImage::isPrimary).findFirst().map(ProductImage::getImageUrl)
-                        .orElse(imgs.isEmpty() ? null : imgs.get(0).getImageUrl());
-            }
-
-            int stock = 0;
-            Inventory inv = inventoryRepository.findById(variant.getId()).orElse(null);
-            if (inv != null) {
-                stock = inv.getAvailableQuantity();
-            }
-
-            itemResponses.add(CartItemResponse.builder()
-                    .id(ci.getId())
-                    .variantId(variant.getId())
-                    .productId(prodId)
-                    .shopId(itemShopId)
-                    .shopName(itemShopName)
-                    .productName(prodName)
-                    .variantName(variant.getVariantName())
-                    .sku(variant.getSku())
-                    .imageUrl(imgUrl)
-                    .price(price)
-                    .salePrice(salePrice)
-                    .quantity(ci.getQuantity())
-                    .stockQuantity(stock)
-                    .lineTotal(lineTotal)
-                    .addedAt(ci.getAddedAt())
-                    .build());
+            itemResponses.add(response);
         }
 
         return CartResponse.builder()

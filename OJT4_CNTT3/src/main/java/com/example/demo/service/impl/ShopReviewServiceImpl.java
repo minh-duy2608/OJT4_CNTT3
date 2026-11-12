@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,9 @@ import java.util.Objects;
 @Service
 @RequiredArgsConstructor
 public class ShopReviewServiceImpl implements ShopReviewService {
+
+    private static final String ENTITY_SHOP_REVIEW = "SHOP_REVIEW";
+    private static final String NOT_FOUND_REVIEW_PREFIX = "Không tìm thấy đánh giá #";
 
     private final ShopReviewRepository shopReviewRepository;
     private final OrderRepository orderRepository;
@@ -146,7 +150,7 @@ public class ShopReviewServiceImpl implements ShopReviewService {
                     "SHOP_REVIEW_NEW",
                     "Đánh giá mới từ khách hàng",
                     "Đơn hàng #" + order.getOrderCode() + " vừa nhận được đánh giá " + request.getRating() + " sao từ khách hàng " + user.getFullName(),
-                    "SHOP_REVIEW",
+                    ENTITY_SHOP_REVIEW,
                     saved.getId()
             );
         }
@@ -177,7 +181,7 @@ public class ShopReviewServiceImpl implements ShopReviewService {
     public ShopReviewResponse updateReview(Long reviewId, UpdateShopReviewRequest request, String currentUsername) {
         User user = getCurrentUser(currentUsername);
         ShopReview review = shopReviewRepository.findById(reviewId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đánh giá #" + reviewId));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_REVIEW_PREFIX + reviewId));
 
         if (!Objects.equals(review.getUserId(), user.getId())) {
             throw new ForbiddenException("Bạn chỉ có thể chỉnh sửa đánh giá của chính mình");
@@ -206,7 +210,7 @@ public class ShopReviewServiceImpl implements ShopReviewService {
     public void deleteReview(Long reviewId, String currentUsername) {
         User user = getCurrentUser(currentUsername);
         ShopReview review = shopReviewRepository.findById(reviewId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đánh giá #" + reviewId));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_REVIEW_PREFIX + reviewId));
 
         boolean isOwner = Objects.equals(review.getUserId(), user.getId());
         boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN;
@@ -221,9 +225,9 @@ public class ShopReviewServiceImpl implements ShopReviewService {
     @Override
     @Transactional
     public ShopReviewResponse replyReview(Long shopId, Long reviewId, ReplyShopReviewRequest request, String currentUsername) {
-        User user = verifyShopPermission(shopId, currentUsername);
+        verifyShopPermission(shopId, currentUsername);
         ShopReview review = shopReviewRepository.findById(reviewId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đánh giá #" + reviewId));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_REVIEW_PREFIX + reviewId));
 
         if (!Objects.equals(review.getShopId(), shopId)) {
             throw new BadRequestException("Đánh giá #" + reviewId + " không thuộc quyền quản lý của cửa hàng #" + shopId);
@@ -239,7 +243,7 @@ public class ShopReviewServiceImpl implements ShopReviewService {
                 "SHOP_REVIEW_REPLY",
                 "Cửa hàng đã phản hồi đánh giá của bạn",
                 "Cửa hàng đã gửi lời phản hồi cho đánh giá đơn hàng #" + review.getOrderId(),
-                "SHOP_REVIEW",
+                ENTITY_SHOP_REVIEW,
                 saved.getId()
         );
 
@@ -299,7 +303,7 @@ public class ShopReviewServiceImpl implements ShopReviewService {
     public ShopReviewResponse moderateReview(Long reviewId, ModerateShopReviewRequest request, String currentUsername) {
         User admin = verifyAdminAccess(currentUsername);
         ShopReview review = shopReviewRepository.findById(reviewId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đánh giá #" + reviewId));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_REVIEW_PREFIX + reviewId));
 
         review.setStatus(request.getStatus());
         review.setModeratedBy(admin.getId());
@@ -308,7 +312,7 @@ public class ShopReviewServiceImpl implements ShopReviewService {
 
         ShopReview saved = shopReviewRepository.save(review);
 
-        auditLogService.log(admin.getId(), "MODERATE_SHOP_REVIEW", "SHOP_REVIEW", String.valueOf(reviewId), review.getShopId(),
+        auditLogService.log(admin.getId(), "MODERATE_SHOP_REVIEW", ENTITY_SHOP_REVIEW, String.valueOf(reviewId), review.getShopId(),
                 "Kiểm duyệt đánh giá sang trạng thái " + request.getStatus() + (request.getReason() != null ? " (" + request.getReason() + ")" : ""));
 
         return mapToResponse(saved);
@@ -349,6 +353,24 @@ public class ShopReviewServiceImpl implements ShopReviewService {
         return user;
     }
 
+    private List<String> parseReviewImageUrls(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return Collections.emptyList();
+        }
+        try {
+            if (raw.trim().startsWith("[")) {
+                return objectMapper.readValue(raw, new TypeReference<List<String>>() {});
+            } else {
+                return Arrays.stream(raw.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .toList();
+            }
+        } catch (Exception e) {
+            return List.of(raw);
+        }
+    }
+
     private ShopReviewResponse mapToResponse(ShopReview r) {
         String username = null;
         String userFullName = null;
@@ -380,21 +402,7 @@ public class ShopReviewServiceImpl implements ShopReviewService {
             orderCode = orderRepository.findById(r.getOrderId()).map(Order::getOrderCode).orElse(null);
         }
 
-        List<String> imageUrls = new ArrayList<>();
-        if (r.getImageUrls() != null && !r.getImageUrls().isBlank()) {
-            try {
-                if (r.getImageUrls().trim().startsWith("[")) {
-                    imageUrls = objectMapper.readValue(r.getImageUrls(), new TypeReference<List<String>>() {});
-                } else {
-                    imageUrls = Arrays.stream(r.getImageUrls().split(","))
-                            .map(String::trim)
-                            .filter(s -> !s.isEmpty())
-                            .toList();
-                }
-            } catch (Exception e) {
-                imageUrls = List.of(r.getImageUrls());
-            }
-        }
+        List<String> imageUrls = parseReviewImageUrls(r.getImageUrls());
 
         return ShopReviewResponse.builder()
                 .id(r.getId())

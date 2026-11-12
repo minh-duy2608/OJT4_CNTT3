@@ -27,6 +27,8 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     Optional<Product> findByIdAndShopId(Long id, Long shopId);
 
+    boolean existsByIdAndShopId(Long id, Long shopId);
+
     long countByCategoryId(Long categoryId);
 
     long countByBrandId(Long brandId);

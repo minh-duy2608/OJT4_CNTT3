@@ -38,6 +38,13 @@ import java.util.Optional;
 public class CouponServiceImpl implements CouponService {
 
     private static final ZoneId ZONE_VN = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final String NOT_FOUND_PRODUCT_PREFIX = "Không tìm thấy sản phẩm #";
+    private static final String SHOP_PREFIX = "Shop #";
+    private static final String COUPON_QUOTE_PREFIX = "Mã giảm giá '";
+    private static final String PRODUCT_PREFIX = "Sản phẩm #";
+    private static final String INVALID_USER_MSG = "Người dùng không hợp lệ";
+    private static final String NOT_FOUND_COUPON_PREFIX = "Không tìm thấy mã giảm giá #";
+    private static final String MAX_USAGE_PREFIX = "Bạn đã dùng hết số lượt cho phép (";
 
     private final CouponRepository couponRepository;
     private final CouponProductRepository couponProductRepository;
@@ -51,15 +58,33 @@ public class CouponServiceImpl implements CouponService {
     private final UserRepository userRepository;
     private final UserCouponRepository userCouponRepository;
 
+    private record CouponValidity(boolean isValid, String reason) {}
+    private record SubtotalCalculation(BigDecimal orderSubtotal, BigDecimal eligibleSubtotal) {}
+    private record CouponRuleDto(
+            String code,
+            CouponDiscountType discountType,
+            BigDecimal discountValue,
+            BigDecimal maxDiscountAmount,
+            BigDecimal minOrderAmount,
+            LocalDateTime startAt,
+            LocalDateTime endAt,
+            Integer usageLimit,
+            Integer perUserLimit
+    ) {}
+
     @Override
     @Transactional(readOnly = true)
     public List<CouponResponse> getPublicShopCoupons(Long shopId) {
-        return getPublicShopCoupons(shopId, null);
+        return doGetPublicShopCoupons(shopId, null);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<CouponResponse> getPublicShopCoupons(Long shopId, String currentUsername) {
+        return doGetPublicShopCoupons(shopId, currentUsername);
+    }
+
+    private List<CouponResponse> doGetPublicShopCoupons(Long shopId, String currentUsername) {
         Shop shop = shopRepository.findById(shopId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
 
@@ -79,7 +104,7 @@ public class CouponServiceImpl implements CouponService {
     @Transactional(readOnly = true)
     public List<CouponResponse> getProductCoupons(Long productId, String currentUsername) {
         Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_PRODUCT_PREFIX + productId));
 
         Long shopId = product.getShopId();
         if (shopId == null) {
@@ -87,7 +112,7 @@ public class CouponServiceImpl implements CouponService {
         }
 
         Shop shop = shopRepository.findById(shopId).orElse(null);
-        String shopName = shop != null ? shop.getName() : ("Shop #" + shopId);
+        String shopName = shop != null ? shop.getName() : (SHOP_PREFIX + shopId);
 
         LocalDateTime now = LocalDateTime.now(ZONE_VN);
         List<Coupon> activeCoupons = couponRepository.findActivePublicCouponsByShopId(shopId, now);
@@ -134,14 +159,29 @@ public class CouponServiceImpl implements CouponService {
     @Override
     @Transactional
     public CouponResponse saveCouponToWallet(Long couponId, String currentUsername) {
+        return doSaveCouponToWallet(couponId, currentUsername);
+    }
+
+    @Override
+    @Transactional
+    public CouponResponse saveCouponCodeToWallet(String code, String currentUsername) {
+        if (code == null || code.trim().isEmpty()) {
+            throw new BadRequestException("Vui lòng nhập mã giảm giá");
+        }
+        Coupon coupon = couponRepository.findByCode(code.trim().toUpperCase())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mã giảm giá '" + code.trim().toUpperCase() + "'"));
+        return doSaveCouponToWallet(coupon.getId(), currentUsername);
+    }
+
+    private CouponResponse doSaveCouponToWallet(Long couponId, String currentUsername) {
         if (currentUsername == null || currentUsername.isBlank()) {
             throw new UnauthorizedException("Vui lòng đăng nhập để lưu mã giảm giá vào ví");
         }
         User user = userRepository.findByUsername(currentUsername)
-                .orElseThrow(() -> new UnauthorizedException("Người dùng không hợp lệ"));
+                .orElseThrow(() -> new UnauthorizedException(INVALID_USER_MSG));
 
         Coupon coupon = couponRepository.findById(couponId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mã giảm giá #" + couponId));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_COUPON_PREFIX + couponId));
 
         LocalDateTime now = LocalDateTime.now(ZONE_VN);
         validateCouponForSaving(coupon, now);
@@ -184,15 +224,23 @@ public class CouponServiceImpl implements CouponService {
         );
     }
 
-    @Override
-    @Transactional
-    public CouponResponse saveCouponCodeToWallet(String code, String currentUsername) {
-        if (code == null || code.trim().isEmpty()) {
-            throw new BadRequestException("Vui lòng nhập mã giảm giá");
+    private CouponValidity determineCouponValidity(Coupon coupon, int userUsageCount, LocalDateTime now) {
+        if (coupon.getStatus() != CouponStatus.ACTIVE) {
+            return new CouponValidity(false, "Mã không hoạt động");
         }
-        Coupon coupon = couponRepository.findByCode(code.trim().toUpperCase())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mã giảm giá '" + code.trim().toUpperCase() + "'"));
-        return saveCouponToWallet(coupon.getId(), currentUsername);
+        if (coupon.getStartAt() != null && now.isBefore(coupon.getStartAt())) {
+            return new CouponValidity(false, "Chưa đến thời gian áp dụng");
+        }
+        if (coupon.getEndAt() != null && now.isAfter(coupon.getEndAt())) {
+            return new CouponValidity(false, "Mã đã hết hạn sử dụng");
+        }
+        if (coupon.getUsageLimit() != null && coupon.getUsageCount() != null && coupon.getUsageCount() >= coupon.getUsageLimit()) {
+            return new CouponValidity(false, "Mã đã hết lượt sử dụng chung");
+        }
+        if (coupon.getPerUserLimit() != null && userUsageCount >= coupon.getPerUserLimit()) {
+            return new CouponValidity(false, MAX_USAGE_PREFIX + coupon.getPerUserLimit() + " lần)");
+        }
+        return new CouponValidity(true, null);
     }
 
     @Override
@@ -202,7 +250,7 @@ public class CouponServiceImpl implements CouponService {
             throw new UnauthorizedException("Vui lòng đăng nhập để xem ví mã giảm giá");
         }
         User user = userRepository.findByUsername(currentUsername)
-                .orElseThrow(() -> new UnauthorizedException("Người dùng không hợp lệ"));
+                .orElseThrow(() -> new UnauthorizedException(INVALID_USER_MSG));
 
         LocalDateTime now = LocalDateTime.now(ZONE_VN);
         List<UserCoupon> userCoupons = userCouponRepository.findByUserIdOrderBySavedAtDesc(user.getId());
@@ -219,25 +267,7 @@ public class CouponServiceImpl implements CouponService {
 
             int userUsageCount = (int) couponUsageRepository.countAppliedUsagesByCouponAndUser(coupon.getId(), user.getId());
             boolean allProducts = couponProductRepository.countByIdCouponId(coupon.getId()) == 0;
-
-            boolean isValid = true;
-            String invalidReason = null;
-            if (coupon.getStatus() != CouponStatus.ACTIVE) {
-                isValid = false;
-                invalidReason = "Mã không còn hoạt động";
-            } else if (coupon.getStartAt() != null && now.isBefore(coupon.getStartAt())) {
-                isValid = false;
-                invalidReason = "Chưa đến thời gian áp dụng";
-            } else if (coupon.getEndAt() != null && now.isAfter(coupon.getEndAt())) {
-                isValid = false;
-                invalidReason = "Mã đã hết hạn sử dụng";
-            } else if (coupon.getUsageLimit() != null && coupon.getUsageCount() != null && coupon.getUsageCount() >= coupon.getUsageLimit()) {
-                isValid = false;
-                invalidReason = "Mã đã hết lượt sử dụng chung";
-            } else if (coupon.getPerUserLimit() != null && userUsageCount >= coupon.getPerUserLimit()) {
-                isValid = false;
-                invalidReason = "Bạn đã dùng hết số lượt cho phép (" + coupon.getPerUserLimit() + " lần)";
-            }
+            CouponValidity validity = determineCouponValidity(coupon, userUsageCount, now);
 
             responses.add(CouponResponse.fromEntity(
                     coupon,
@@ -246,8 +276,8 @@ public class CouponServiceImpl implements CouponService {
                     null,
                     true,
                     uc.getSavedAt(),
-                    isValid,
-                    invalidReason,
+                    validity.isValid(),
+                    validity.reason(),
                     userUsageCount
             ));
         }
@@ -262,22 +292,22 @@ public class CouponServiceImpl implements CouponService {
             throw new UnauthorizedException("Vui lòng đăng nhập");
         }
         User user = userRepository.findByUsername(currentUsername)
-                .orElseThrow(() -> new UnauthorizedException("Người dùng không hợp lệ"));
+                .orElseThrow(() -> new UnauthorizedException(INVALID_USER_MSG));
         userCouponRepository.deleteByUserIdAndCouponId(user.getId(), couponId);
     }
 
     private void validateCouponForSaving(Coupon coupon, LocalDateTime now) {
         if (coupon.getStatus() != CouponStatus.ACTIVE) {
-            throw new BadRequestException("Mã giảm giá '" + coupon.getCode() + "' hiện không hoạt động hoặc đã bị vô hiệu hóa");
+            throw new BadRequestException(COUPON_QUOTE_PREFIX + coupon.getCode() + "' hiện không hoạt động hoặc đã bị vô hiệu hóa");
         }
         if (coupon.getStartAt() != null && now.isBefore(coupon.getStartAt())) {
-            throw new BadRequestException("Mã giảm giá '" + coupon.getCode() + "' chưa đến thời gian áp dụng");
+            throw new BadRequestException(COUPON_QUOTE_PREFIX + coupon.getCode() + "' chưa đến thời gian áp dụng");
         }
         if (coupon.getEndAt() != null && now.isAfter(coupon.getEndAt())) {
-            throw new BadRequestException("Mã giảm giá '" + coupon.getCode() + "' đã hết hạn sử dụng");
+            throw new BadRequestException(COUPON_QUOTE_PREFIX + coupon.getCode() + "' đã hết hạn sử dụng");
         }
         if (coupon.getUsageLimit() != null && coupon.getUsageCount() != null && coupon.getUsageCount() >= coupon.getUsageLimit()) {
-            throw new BadRequestException("Mã giảm giá '" + coupon.getCode() + "' đã hết số lượt sử dụng");
+            throw new BadRequestException(COUPON_QUOTE_PREFIX + coupon.getCode() + "' đã hết số lượt sử dụng");
         }
         if (coupon.getShopId() != null) {
             Shop shop = shopRepository.findById(coupon.getShopId()).orElse(null);
@@ -304,24 +334,7 @@ public class CouponServiceImpl implements CouponService {
             userUsageCount = (int) couponUsageRepository.countAppliedUsagesByCouponAndUser(coupon.getId(), currentUserId);
         }
 
-        boolean isValid = true;
-        String invalidReason = null;
-        if (coupon.getStatus() != CouponStatus.ACTIVE) {
-            isValid = false;
-            invalidReason = "Mã không hoạt động";
-        } else if (coupon.getStartAt() != null && now.isBefore(coupon.getStartAt())) {
-            isValid = false;
-            invalidReason = "Chưa đến thời gian áp dụng";
-        } else if (coupon.getEndAt() != null && now.isAfter(coupon.getEndAt())) {
-            isValid = false;
-            invalidReason = "Mã đã hết hạn sử dụng";
-        } else if (coupon.getUsageLimit() != null && coupon.getUsageCount() != null && coupon.getUsageCount() >= coupon.getUsageLimit()) {
-            isValid = false;
-            invalidReason = "Mã đã hết lượt sử dụng chung";
-        } else if (coupon.getPerUserLimit() != null && userUsageCount >= coupon.getPerUserLimit()) {
-            isValid = false;
-            invalidReason = "Bạn đã dùng hết số lượt cho phép (" + coupon.getPerUserLimit() + " lần)";
-        }
+        CouponValidity validity = determineCouponValidity(coupon, userUsageCount, now);
 
         return CouponResponse.fromEntity(
                 coupon,
@@ -330,202 +343,155 @@ public class CouponServiceImpl implements CouponService {
                 productIds,
                 isSaved,
                 savedAt,
-                isValid,
-                invalidReason,
+                validity.isValid(),
+                validity.reason(),
                 userUsageCount
         );
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public ValidateCouponResponse validateCoupon(ValidateCouponRequest request, String currentUsername) {
-        if (currentUsername == null || currentUsername.isBlank()) {
-            throw new UnauthorizedException("Yêu cầu đăng nhập để kiểm tra mã giảm giá");
-        }
-        User user = userRepository.findByUsername(currentUsername)
-                .orElseThrow(() -> new UnauthorizedException("Người dùng không hợp lệ"));
-
-        String code = request.getCode() != null ? request.getCode().trim().toUpperCase() : "";
-        if (code.isBlank()) {
-            return ValidateCouponResponse.builder()
-                    .valid(false)
-                    .message("Vui lòng nhập mã giảm giá")
-                    .build();
-        }
-
-        // 1. Tìm Coupon theo Code
-        Optional<Coupon> couponOpt = (request.getShopId() != null)
-                ? couponRepository.findByShopIdAndCode(request.getShopId(), code)
-                : couponRepository.findByCode(code);
-
-        if (couponOpt.isEmpty()) {
-            return ValidateCouponResponse.builder()
-                    .valid(false)
-                    .code(code)
-                    .message("Mã giảm giá '" + code + "' không tồn tại hoặc không áp dụng cho cửa hàng này")
-                    .build();
-        }
-
-        Coupon coupon = couponOpt.get();
-
-        // 2. Kiểm tra trạng thái mã
+    private Optional<ValidateCouponResponse> validateCouponRestrictions(Coupon coupon, User user, String code) {
         if (coupon.getStatus() != CouponStatus.ACTIVE) {
-            return ValidateCouponResponse.builder()
+            return Optional.of(ValidateCouponResponse.builder()
                     .valid(false)
                     .code(code)
                     .couponId(coupon.getId())
                     .message("Mã giảm giá đang không hoạt động (Trạng thái: " + coupon.getStatus() + ")")
-                    .build();
+                    .build());
         }
 
-        // 3. Kiểm tra thời hạn hiệu lực
         LocalDateTime now = LocalDateTime.now(ZONE_VN);
         if (now.isBefore(coupon.getStartAt())) {
-            return ValidateCouponResponse.builder()
+            return Optional.of(ValidateCouponResponse.builder()
                     .valid(false)
                     .code(code)
                     .couponId(coupon.getId())
                     .message("Mã giảm giá chưa đến thời gian áp dụng (Bắt đầu từ: " + coupon.getStartAt() + ")")
-                    .build();
+                    .build());
         }
         if (now.isAfter(coupon.getEndAt())) {
-            return ValidateCouponResponse.builder()
+            return Optional.of(ValidateCouponResponse.builder()
                     .valid(false)
                     .code(code)
                     .couponId(coupon.getId())
                     .message("Mã giảm giá đã hết hạn sử dụng")
-                    .build();
+                    .build());
         }
 
-        // 4. Kiểm tra tổng lượt sử dụng toàn hệ thống
         if (coupon.getUsageLimit() != null && coupon.getUsageCount() >= coupon.getUsageLimit()) {
-            return ValidateCouponResponse.builder()
+            return Optional.of(ValidateCouponResponse.builder()
                     .valid(false)
                     .code(code)
                     .couponId(coupon.getId())
                     .message("Mã giảm giá đã hết lượt sử dụng")
-                    .build();
+                    .build());
         }
 
-        // 5. Kiểm tra giới hạn lượt dùng của từng người dùng
         if (coupon.getPerUserLimit() != null) {
             long userUsedCount = couponUsageRepository.countAppliedUsagesByCouponAndUser(coupon.getId(), user.getId());
             if (userUsedCount >= coupon.getPerUserLimit()) {
-                return ValidateCouponResponse.builder()
+                return Optional.of(ValidateCouponResponse.builder()
                         .valid(false)
                         .code(code)
                         .couponId(coupon.getId())
-                        .message("Bạn đã dùng hết số lượt cho phép (" + coupon.getPerUserLimit() + " lượt) của mã giảm giá này")
-                        .build();
+                        .message(MAX_USAGE_PREFIX + coupon.getPerUserLimit() + " lượt) của mã giảm giá này")
+                        .build());
             }
         }
+        return Optional.empty();
+    }
 
-        // 6. Tính toán giá trị đơn hàng hợp lệ dựa trên items gửi lên hoặc giỏ hàng
-        List<ValidateCouponItem> items = request.getItems();
+    private BigDecimal resolveValidateItemUnitPrice(ValidateCouponItem item) {
+        if (item.getVariantId() != null) {
+            ProductVariant variant = productVariantRepository.findById(item.getVariantId()).orElse(null);
+            if (variant != null) {
+                return variant.getPrice() != null ? variant.getPrice() : BigDecimal.ZERO;
+            }
+        }
+        if (item.getProductId() != null) {
+            Product product = productRepository.findById(item.getProductId()).orElse(null);
+            if (product != null) {
+                return productVariantRepository.findByProductIdOrderByPriceAsc(item.getProductId()).stream()
+                        .map(v -> v.getSalePrice() != null ? v.getSalePrice() : v.getPrice())
+                        .filter(Objects::nonNull)
+                        .findFirst()
+                        .orElse(BigDecimal.ZERO);
+            }
+        }
+        return BigDecimal.ZERO;
+    }
+
+    private Long resolveValidateItemProductId(ValidateCouponItem item) {
+        if (item.getProductId() != null) {
+            return item.getProductId();
+        }
+        if (item.getVariantId() != null) {
+            return productVariantRepository.findById(item.getVariantId())
+                    .map(ProductVariant::getProduct)
+                    .map(Product::getId)
+                    .orElse(null);
+        }
+        return null;
+    }
+
+    private SubtotalCalculation calculateSubtotalFromItems(List<ValidateCouponItem> items, Coupon coupon, boolean hasProductRestriction, List<Long> eligibleProductIds) {
         BigDecimal orderSubtotal = BigDecimal.ZERO;
         BigDecimal eligibleSubtotal = BigDecimal.ZERO;
 
-        List<CouponProduct> restrictedProducts = couponProductRepository.findByIdCouponId(coupon.getId());
-        boolean hasProductRestriction = !restrictedProducts.isEmpty();
-        List<Long> eligibleProductIds = restrictedProducts.stream()
-                .map(cp -> cp.getId().getProductId())
-                .toList();
+        for (ValidateCouponItem item : items) {
+            BigDecimal unitPrice = resolveValidateItemUnitPrice(item);
+            int qty = (item.getQuantity() != null && item.getQuantity() > 0) ? item.getQuantity() : 1;
+            BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(qty));
+            orderSubtotal = orderSubtotal.add(lineTotal);
 
-        if (items != null && !items.isEmpty()) {
-            for (ValidateCouponItem item : items) {
-                BigDecimal unitPrice = BigDecimal.ZERO;
-                Long itemProductId = item.getProductId();
+            Long itemProductId = resolveValidateItemProductId(item);
+            Product itemProduct = itemProductId != null ? productRepository.findById(itemProductId).orElse(null) : null;
+            boolean belongsToShop = itemProduct != null && Objects.equals(itemProduct.getShopId(), coupon.getShopId());
 
-                if (item.getVariantId() != null) {
-                    ProductVariant variant = productVariantRepository.findById(item.getVariantId()).orElse(null);
-                    if (variant != null) {
-                        unitPrice = variant.getPrice();
-                        if (itemProductId == null) {
-                            itemProductId = variant.getProduct().getId();
-                        }
-                    }
-                } else if (itemProductId != null) {
-                    Product product = productRepository.findById(itemProductId).orElse(null);
-                    if (product != null) {
-                        unitPrice = productVariantRepository.findByProductIdOrderByPriceAsc(itemProductId).stream()
-                                .map(v -> v.getSalePrice() != null ? v.getSalePrice() : v.getPrice())
-                                .filter(Objects::nonNull)
-                                .findFirst()
-                                .orElse(BigDecimal.ZERO);
-                    }
-                }
+            boolean isProductEligible = belongsToShop && (!hasProductRestriction || eligibleProductIds.contains(itemProductId));
+            if (isProductEligible) {
+                eligibleSubtotal = eligibleSubtotal.add(lineTotal);
+            }
+        }
+        return new SubtotalCalculation(orderSubtotal, eligibleSubtotal);
+    }
 
-                int qty = (item.getQuantity() != null && item.getQuantity() > 0) ? item.getQuantity() : 1;
-                BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(qty));
+    private BigDecimal resolveCartItemUnitPrice(CartItem ci) {
+        if (ci.getVariant() == null) {
+            return BigDecimal.ZERO;
+        }
+        if (ci.getVariant().getSalePrice() != null) {
+            return ci.getVariant().getSalePrice();
+        }
+        return ci.getVariant().getPrice() != null ? ci.getVariant().getPrice() : BigDecimal.ZERO;
+    }
+
+    private SubtotalCalculation calculateSubtotalFromCart(User user, Coupon coupon, boolean hasProductRestriction, List<Long> eligibleProductIds) {
+        BigDecimal orderSubtotal = BigDecimal.ZERO;
+        BigDecimal eligibleSubtotal = BigDecimal.ZERO;
+
+        Optional<Cart> cartOpt = cartRepository.findByUserId(user.getId());
+        if (cartOpt.isPresent()) {
+            List<CartItem> cartItems = cartItemRepository.findByCartId(cartOpt.get().getId());
+            for (CartItem ci : cartItems) {
+                BigDecimal unitPrice = resolveCartItemUnitPrice(ci);
+                BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(ci.getQuantity()));
                 orderSubtotal = orderSubtotal.add(lineTotal);
 
-                // Nghiệp vụ: Mã của Shop A chỉ áp dụng cho sản phẩm thuộc Shop A (Sản phẩm cửa hàng B không thể add mã giảm shop A)
-                Product itemProduct = itemProductId != null ? productRepository.findById(itemProductId).orElse(null) : null;
-                boolean belongsToShop = itemProduct != null && Objects.equals(itemProduct.getShopId(), coupon.getShopId());
+                Product prod = (ci.getVariant() != null && ci.getVariant().getProduct() != null)
+                        ? ci.getVariant().getProduct()
+                        : null;
+                boolean belongsToShop = prod != null && Objects.equals(prod.getShopId(), coupon.getShopId());
 
-                boolean isProductEligible = belongsToShop;
-                if (isProductEligible && hasProductRestriction) {
-                    isProductEligible = eligibleProductIds.contains(itemProductId);
-                }
+                boolean isProductEligible = belongsToShop && (!hasProductRestriction || (prod != null && eligibleProductIds.contains(prod.getId())));
                 if (isProductEligible) {
                     eligibleSubtotal = eligibleSubtotal.add(lineTotal);
                 }
             }
-        } else {
-            // Lấy từ giỏ hàng hiện tại của user
-            Optional<Cart> cartOpt = cartRepository.findByUserId(user.getId());
-            if (cartOpt.isPresent()) {
-                List<CartItem> cartItems = cartItemRepository.findByCartId(cartOpt.get().getId());
-                for (CartItem ci : cartItems) {
-                    BigDecimal unitPrice = (ci.getVariant() != null && ci.getVariant().getSalePrice() != null)
-                            ? ci.getVariant().getSalePrice()
-                            : (ci.getVariant() != null ? ci.getVariant().getPrice() : BigDecimal.ZERO);
-                    BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(ci.getQuantity()));
-                    orderSubtotal = orderSubtotal.add(lineTotal);
-
-                    Product prod = (ci.getVariant() != null && ci.getVariant().getProduct() != null)
-                            ? ci.getVariant().getProduct()
-                            : null;
-                    boolean belongsToShop = prod != null && Objects.equals(prod.getShopId(), coupon.getShopId());
-
-                    boolean isProductEligible = belongsToShop;
-                    if (isProductEligible && hasProductRestriction) {
-                        isProductEligible = eligibleProductIds.contains(prod != null ? prod.getId() : null);
-                    }
-                    if (isProductEligible) {
-                        eligibleSubtotal = eligibleSubtotal.add(lineTotal);
-                    }
-                }
-            }
         }
+        return new SubtotalCalculation(orderSubtotal, eligibleSubtotal);
+    }
 
-        if (eligibleSubtotal.compareTo(BigDecimal.ZERO) <= 0) {
-            Shop cShop = shopRepository.findById(coupon.getShopId()).orElse(null);
-            String shopName = cShop != null ? cShop.getName() : ("Shop #" + coupon.getShopId());
-            return ValidateCouponResponse.builder()
-                    .valid(false)
-                    .code(code)
-                    .couponId(coupon.getId())
-                    .message("Mã giảm giá '" + code + "' của cửa hàng '" + shopName + "' không áp dụng cho sản phẩm nào trong đơn hàng của bạn (Sản phẩm thuộc cửa hàng khác hoặc không nằm trong danh sách ưu đãi)")
-                    .orderSubtotal(orderSubtotal)
-                    .finalTotal(orderSubtotal)
-                    .build();
-        }
-
-        // 7. Kiểm tra giá trị đơn hàng tối thiểu
-        if (coupon.getMinOrderAmount() != null && eligibleSubtotal.compareTo(coupon.getMinOrderAmount()) < 0) {
-            return ValidateCouponResponse.builder()
-                    .valid(false)
-                    .code(code)
-                    .couponId(coupon.getId())
-                    .message("Đơn hàng chưa đạt giá trị tối thiểu " + coupon.getMinOrderAmount() + "đ để sử dụng mã này")
-                    .orderSubtotal(orderSubtotal)
-                    .eligibleSubtotal(eligibleSubtotal)
-                    .finalTotal(orderSubtotal)
-                    .build();
-        }
-
-        // 8. Tính toán số tiền được giảm
+    private BigDecimal calculateDiscountAmount(Coupon coupon, BigDecimal eligibleSubtotal) {
         BigDecimal discountAmount = BigDecimal.ZERO;
         if (coupon.getDiscountType() == CouponDiscountType.PERCENTAGE) {
             discountAmount = eligibleSubtotal
@@ -541,7 +507,83 @@ public class CouponServiceImpl implements CouponService {
                 discountAmount = eligibleSubtotal;
             }
         }
+        return discountAmount;
+    }
 
+    @Override
+    @Transactional(readOnly = true)
+    public ValidateCouponResponse validateCoupon(ValidateCouponRequest request, String currentUsername) {
+        if (currentUsername == null || currentUsername.isBlank()) {
+            throw new UnauthorizedException("Yêu cầu đăng nhập để kiểm tra mã giảm giá");
+        }
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new UnauthorizedException(INVALID_USER_MSG));
+
+        String code = request.getCode() != null ? request.getCode().trim().toUpperCase() : "";
+        if (code.isBlank()) {
+            return ValidateCouponResponse.builder()
+                    .valid(false)
+                    .message("Vui lòng nhập mã giảm giá")
+                    .build();
+        }
+
+        Optional<Coupon> couponOpt = (request.getShopId() != null)
+                ? couponRepository.findByShopIdAndCode(request.getShopId(), code)
+                : couponRepository.findByCode(code);
+
+        if (couponOpt.isEmpty()) {
+            return ValidateCouponResponse.builder()
+                    .valid(false)
+                    .code(code)
+                    .message(COUPON_QUOTE_PREFIX + code + "' không tồn tại hoặc không áp dụng cho cửa hàng này")
+                    .build();
+        }
+
+        Coupon coupon = couponOpt.get();
+        Optional<ValidateCouponResponse> invalidCheck = validateCouponRestrictions(coupon, user, code);
+        if (invalidCheck.isPresent()) {
+            return invalidCheck.get();
+        }
+
+        List<CouponProduct> restrictedProducts = couponProductRepository.findByIdCouponId(coupon.getId());
+        boolean hasProductRestriction = !restrictedProducts.isEmpty();
+        List<Long> eligibleProductIds = restrictedProducts.stream()
+                .map(cp -> cp.getId().getProductId())
+                .toList();
+
+        SubtotalCalculation subtotal = (request.getItems() != null && !request.getItems().isEmpty())
+                ? calculateSubtotalFromItems(request.getItems(), coupon, hasProductRestriction, eligibleProductIds)
+                : calculateSubtotalFromCart(user, coupon, hasProductRestriction, eligibleProductIds);
+
+        BigDecimal orderSubtotal = subtotal.orderSubtotal();
+        BigDecimal eligibleSubtotal = subtotal.eligibleSubtotal();
+
+        if (eligibleSubtotal.compareTo(BigDecimal.ZERO) <= 0) {
+            Shop cShop = shopRepository.findById(coupon.getShopId()).orElse(null);
+            String shopName = cShop != null ? cShop.getName() : (SHOP_PREFIX + coupon.getShopId());
+            return ValidateCouponResponse.builder()
+                    .valid(false)
+                    .code(code)
+                    .couponId(coupon.getId())
+                    .message(COUPON_QUOTE_PREFIX + code + "' của cửa hàng '" + shopName + "' không áp dụng cho sản phẩm nào trong đơn hàng của bạn (Sản phẩm thuộc cửa hàng khác hoặc không nằm trong danh sách ưu đãi)")
+                    .orderSubtotal(orderSubtotal)
+                    .finalTotal(orderSubtotal)
+                    .build();
+        }
+
+        if (coupon.getMinOrderAmount() != null && eligibleSubtotal.compareTo(coupon.getMinOrderAmount()) < 0) {
+            return ValidateCouponResponse.builder()
+                    .valid(false)
+                    .code(code)
+                    .couponId(coupon.getId())
+                    .message("Đơn hàng chưa đạt giá trị tối thiểu " + coupon.getMinOrderAmount() + "đ để sử dụng mã này")
+                    .orderSubtotal(orderSubtotal)
+                    .eligibleSubtotal(eligibleSubtotal)
+                    .finalTotal(orderSubtotal)
+                    .build();
+        }
+
+        BigDecimal discountAmount = calculateDiscountAmount(coupon, eligibleSubtotal);
         BigDecimal finalTotal = orderSubtotal.subtract(discountAmount);
         if (finalTotal.compareTo(BigDecimal.ZERO) < 0) {
             finalTotal = BigDecimal.ZERO;
@@ -577,8 +619,6 @@ public class CouponServiceImpl implements CouponService {
             Optional<Shop> userShop = shopRepository.findFirstByOwnerIdOrderByIdDesc(user.getId());
             if (userShop.isPresent()) {
                 effectiveShopId = userShop.get().getId();
-            } else if (shopId != null) {
-                effectiveShopId = shopId;
             }
         }
 
@@ -589,7 +629,7 @@ public class CouponServiceImpl implements CouponService {
 
         List<CouponResponse> responseList = couponPage.getContent().stream().map(c -> {
             Shop shop = shopRepository.findById(c.getShopId()).orElse(null);
-            String shopName = shop != null ? shop.getName() : ("Shop #" + c.getShopId());
+            String shopName = shop != null ? shop.getName() : (SHOP_PREFIX + c.getShopId());
             List<CouponProduct> restrictions = couponProductRepository.findByIdCouponId(c.getId());
             List<Long> productIds = restrictions.stream().map(cp -> cp.getId().getProductId()).toList();
             return CouponResponse.fromEntity(c, shopName, restrictions.isEmpty(), productIds);
@@ -611,12 +651,12 @@ public class CouponServiceImpl implements CouponService {
     public CouponResponse getAdminCouponById(Long id, String currentUsername) {
         User user = getCurrentUser(currentUsername);
         Coupon coupon = couponRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mã giảm giá #" + id));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_COUPON_PREFIX + id));
 
         validateShopAccess(coupon.getShopId(), user);
 
         Shop shop = shopRepository.findById(coupon.getShopId()).orElse(null);
-        String shopName = shop != null ? shop.getName() : ("Shop #" + coupon.getShopId());
+        String shopName = shop != null ? shop.getName() : (SHOP_PREFIX + coupon.getShopId());
         List<CouponProduct> restrictions = couponProductRepository.findByIdCouponId(coupon.getId());
         List<Long> productIds = restrictions.stream().map(cp -> cp.getId().getProductId()).toList();
 
@@ -631,13 +671,15 @@ public class CouponServiceImpl implements CouponService {
 
         String code = request.getCode().trim().toUpperCase();
         if (couponRepository.existsByShopIdAndCode(shop.getId(), code)) {
-            throw new BadRequestException("Mã giảm giá '" + code + "' đã tồn tại trong cửa hàng '" + shop.getName() + "'");
+            throw new BadRequestException(COUPON_QUOTE_PREFIX + code + "' đã tồn tại trong cửa hàng '" + shop.getName() + "'");
         }
 
-        validateCouponRules(code, request.getDiscountType(), request.getDiscountValue(),
+        validateCouponRules(new CouponRuleDto(
+                code, request.getDiscountType(), request.getDiscountValue(),
                 request.getMaxDiscountAmount(), request.getMinOrderAmount(),
                 request.getStartAt(), request.getEndAt(),
-                request.getUsageLimit(), request.getPerUserLimit());
+                request.getUsageLimit(), request.getPerUserLimit()
+        ));
 
         Coupon coupon = Coupon.builder()
                 .shopId(shop.getId())
@@ -663,9 +705,9 @@ public class CouponServiceImpl implements CouponService {
         if (productIds != null && !productIds.isEmpty()) {
             for (Long pid : productIds) {
                 Product p = productRepository.findById(pid)
-                        .orElseThrow(() -> new BadRequestException("Không tìm thấy sản phẩm #" + pid));
+                        .orElseThrow(() -> new BadRequestException(NOT_FOUND_PRODUCT_PREFIX + pid));
                 if (!Objects.equals(p.getShopId(), shop.getId())) {
-                    throw new BadRequestException("Sản phẩm #" + pid + " ('" + p.getName() + "') thuộc cửa hàng #" + p.getShopId() + ", không thể thêm vào mã giảm giá của cửa hàng '" + shop.getName() + "' (#" + shop.getId() + ")!");
+                    throw new BadRequestException(PRODUCT_PREFIX + pid + " ('" + p.getName() + "') thuộc cửa hàng #" + p.getShopId() + ", không thể thêm vào mã giảm giá của cửa hàng '" + shop.getName() + "' (#" + shop.getId() + ")!");
                 }
             }
             List<CouponProduct> productMappings = productIds.stream()
@@ -683,24 +725,57 @@ public class CouponServiceImpl implements CouponService {
         return CouponResponse.fromEntity(saved, shop.getName(), productIds == null || productIds.isEmpty(), productIds);
     }
 
+    private List<Long> updateCouponProductMappings(Coupon coupon, List<Long> productIds, Shop shop) {
+        if (productIds != null) {
+            if (!productIds.isEmpty()) {
+                for (Long pid : productIds) {
+                    Product p = productRepository.findById(pid)
+                            .orElseThrow(() -> new BadRequestException(NOT_FOUND_PRODUCT_PREFIX + pid));
+                    if (!Objects.equals(p.getShopId(), shop.getId())) {
+                        throw new BadRequestException(PRODUCT_PREFIX + pid + " không thuộc cửa hàng #" + shop.getId());
+                    }
+                }
+            }
+            List<CouponProduct> existing = couponProductRepository.findByIdCouponId(coupon.getId());
+            couponProductRepository.deleteAll(existing);
+
+            if (!productIds.isEmpty()) {
+                List<CouponProduct> productMappings = productIds.stream()
+                        .map(pid -> CouponProduct.builder()
+                                .id(CouponProductId.builder()
+                                        .couponId(coupon.getId())
+                                        .productId(pid)
+                                        .build())
+                                .build())
+                        .toList();
+                couponProductRepository.saveAll(productMappings);
+            }
+            return productIds;
+        }
+        List<CouponProduct> existing = couponProductRepository.findByIdCouponId(coupon.getId());
+        return existing.stream().map(cp -> cp.getId().getProductId()).toList();
+    }
+
     @Override
     @Transactional
     public CouponResponse updateCoupon(Long id, UpdateCouponRequest request, String currentUsername) {
         User user = getCurrentUser(currentUsername);
         Coupon coupon = couponRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mã giảm giá #" + id));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_COUPON_PREFIX + id));
 
         Shop shop = validateShopAccess(coupon.getShopId(), user);
 
         String code = request.getCode().trim().toUpperCase();
         if (couponRepository.existsByShopIdAndCodeAndIdNot(coupon.getShopId(), code, coupon.getId())) {
-            throw new BadRequestException("Mã giảm giá '" + code + "' đã được sử dụng bởi chương trình khác trong shop này");
+            throw new BadRequestException(COUPON_QUOTE_PREFIX + code + "' đã được sử dụng bởi chương trình khác trong shop này");
         }
 
-        validateCouponRules(code, request.getDiscountType(), request.getDiscountValue(),
+        validateCouponRules(new CouponRuleDto(
+                code, request.getDiscountType(), request.getDiscountValue(),
                 request.getMaxDiscountAmount(), request.getMinOrderAmount(),
                 request.getStartAt(), request.getEndAt(),
-                request.getUsageLimit(), request.getPerUserLimit());
+                request.getUsageLimit(), request.getPerUserLimit()
+        ));
 
         coupon.setCode(code);
         coupon.setName(request.getName().trim());
@@ -718,37 +793,7 @@ public class CouponServiceImpl implements CouponService {
         }
 
         Coupon saved = couponRepository.save(coupon);
-
-        // Cập nhật danh sách sản phẩm giới hạn nếu có
-        List<Long> productIds = request.getProductIds();
-        if (productIds != null) {
-            if (!productIds.isEmpty()) {
-                for (Long pid : productIds) {
-                    Product p = productRepository.findById(pid)
-                            .orElseThrow(() -> new BadRequestException("Không tìm thấy sản phẩm #" + pid));
-                    if (!Objects.equals(p.getShopId(), shop.getId())) {
-                        throw new BadRequestException("Sản phẩm #" + pid + " không thuộc cửa hàng #" + shop.getId());
-                    }
-                }
-            }
-            List<CouponProduct> existing = couponProductRepository.findByIdCouponId(saved.getId());
-            couponProductRepository.deleteAll(existing);
-
-            if (!productIds.isEmpty()) {
-                List<CouponProduct> productMappings = productIds.stream()
-                        .map(pid -> CouponProduct.builder()
-                                .id(CouponProductId.builder()
-                                        .couponId(saved.getId())
-                                        .productId(pid)
-                                        .build())
-                                .build())
-                        .toList();
-                couponProductRepository.saveAll(productMappings);
-            }
-        } else {
-            List<CouponProduct> existing = couponProductRepository.findByIdCouponId(saved.getId());
-            productIds = existing.stream().map(cp -> cp.getId().getProductId()).toList();
-        }
+        List<Long> productIds = updateCouponProductMappings(saved, request.getProductIds(), shop);
 
         log.info("User {} updated coupon #{} ({})", user.getUsername(), saved.getId(), saved.getCode());
         return CouponResponse.fromEntity(saved, shop.getName(), productIds == null || productIds.isEmpty(), productIds);
@@ -759,7 +804,7 @@ public class CouponServiceImpl implements CouponService {
     public CouponResponse updateCouponStatus(Long id, CouponStatus status, String currentUsername) {
         User user = getCurrentUser(currentUsername);
         Coupon coupon = couponRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mã giảm giá #" + id));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_COUPON_PREFIX + id));
 
         Shop shop = validateShopAccess(coupon.getShopId(), user);
 
@@ -779,7 +824,7 @@ public class CouponServiceImpl implements CouponService {
     public void deleteCoupon(Long id, String currentUsername) {
         User user = getCurrentUser(currentUsername);
         Coupon coupon = couponRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mã giảm giá #" + id));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_COUPON_PREFIX + id));
 
         validateShopAccess(coupon.getShopId(), user);
 
@@ -803,41 +848,18 @@ public class CouponServiceImpl implements CouponService {
     public CouponResponse updateCouponProducts(Long shopId, Long couponId, List<Long> productIds, String currentUsername) {
         User user = getCurrentUser(currentUsername);
         Coupon coupon = couponRepository.findById(couponId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mã giảm giá #" + couponId));
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_COUPON_PREFIX + couponId));
 
         if (!Objects.equals(coupon.getShopId(), shopId)) {
-            throw new BadRequestException("Mã giảm giá #" + couponId + " không thuộc cửa hàng #" + shopId);
+            throw new BadRequestException(NOT_FOUND_COUPON_PREFIX + couponId + " không thuộc cửa hàng #" + shopId);
         }
 
         Shop shop = validateShopAccess(coupon.getShopId(), user);
 
-        if (productIds != null && !productIds.isEmpty()) {
-            for (Long pid : productIds) {
-                Product p = productRepository.findById(pid)
-                        .orElseThrow(() -> new BadRequestException("Không tìm thấy sản phẩm #" + pid));
-                if (!Objects.equals(p.getShopId(), shop.getId())) {
-                    throw new BadRequestException("Sản phẩm #" + pid + " ('" + p.getName() + "') thuộc cửa hàng #" + p.getShopId() + ", không thể thêm vào mã giảm giá của cửa hàng '" + shop.getName() + "' (#" + shop.getId() + ")!");
-                }
-            }
-        }
-
-        List<CouponProduct> existing = couponProductRepository.findByIdCouponId(coupon.getId());
-        couponProductRepository.deleteAll(existing);
-
-        if (productIds != null && !productIds.isEmpty()) {
-            List<CouponProduct> productMappings = productIds.stream()
-                    .map(pid -> CouponProduct.builder()
-                            .id(CouponProductId.builder()
-                                    .couponId(coupon.getId())
-                                    .productId(pid)
-                                    .build())
-                            .build())
-                    .toList();
-            couponProductRepository.saveAll(productMappings);
-        }
+        List<Long> updatedProductIds = updateCouponProductMappings(coupon, productIds, shop);
 
         log.info("User {} updated products scope for coupon #{} in shop #{}", user.getUsername(), couponId, shopId);
-        return CouponResponse.fromEntity(coupon, shop.getName(), productIds == null || productIds.isEmpty(), productIds);
+        return CouponResponse.fromEntity(coupon, shop.getName(), updatedProductIds == null || updatedProductIds.isEmpty(), updatedProductIds);
     }
 
     // =========================================================================
@@ -849,7 +871,7 @@ public class CouponServiceImpl implements CouponService {
             throw new UnauthorizedException("Yêu cầu đăng nhập để thực hiện thao tác");
         }
         return userRepository.findByUsername(username)
-                .orElseThrow(() -> new UnauthorizedException("Người dùng không hợp lệ"));
+                .orElseThrow(() -> new UnauthorizedException(INVALID_USER_MSG));
     }
 
     private boolean isUserAdmin(User user) {
@@ -858,19 +880,6 @@ public class CouponServiceImpl implements CouponService {
         if (user.getRoles() != null) {
             return user.getRoles().stream()
                     .anyMatch(r -> "ROLE_ADMIN".equalsIgnoreCase(r.getCode()) || "ADMIN".equalsIgnoreCase(r.getCode()));
-        }
-        return false;
-    }
-
-    private boolean isUserShopManager(User user) {
-        if (user == null) return false;
-        if (user.getRole() == Role.SHOP_MANAGER || user.getRole() == Role.SHOP_OWNER) return true;
-        if (user.getRoles() != null) {
-            return user.getRoles().stream()
-                    .anyMatch(r -> "ROLE_SHOP_MANAGER".equalsIgnoreCase(r.getCode())
-                            || "SHOP_MANAGER".equalsIgnoreCase(r.getCode())
-                            || "ROLE_SHOP_OWNER".equalsIgnoreCase(r.getCode())
-                            || "SHOP_OWNER".equalsIgnoreCase(r.getCode()));
         }
         return false;
     }
@@ -907,38 +916,33 @@ public class CouponServiceImpl implements CouponService {
         return shop;
     }
 
-    private void validateCouponRules(String code, CouponDiscountType discountType, BigDecimal discountValue,
-                                      BigDecimal maxDiscountAmount, BigDecimal minOrderAmount,
-                                      LocalDateTime startAt, LocalDateTime endAt,
-                                      Integer usageLimit, Integer perUserLimit) {
-        if (code == null || code.trim().length() < 2) {
+    private void validateCouponRules(CouponRuleDto rules) {
+        if (rules.code() == null || rules.code().trim().length() < 2) {
             throw new BadRequestException("Mã giảm giá phải có ít nhất 2 ký tự");
         }
-        if (discountType == CouponDiscountType.PERCENTAGE) {
-            if (discountValue == null || discountValue.compareTo(BigDecimal.ZERO) <= 0 || discountValue.compareTo(BigDecimal.valueOf(100)) > 0) {
-                throw new BadRequestException("Phần trăm giảm giá phải nằm trong khoảng từ 0.01% đến 100%");
-            }
-        } else if (discountType == CouponDiscountType.FIXED_AMOUNT) {
-            if (discountValue == null || discountValue.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new BadRequestException("Số tiền giảm giá phải lớn hơn 0");
-            }
+        if (rules.discountType() == CouponDiscountType.PERCENTAGE &&
+                (rules.discountValue() == null || rules.discountValue().compareTo(BigDecimal.ZERO) <= 0 || rules.discountValue().compareTo(BigDecimal.valueOf(100)) > 0)) {
+            throw new BadRequestException("Phần trăm giảm giá phải nằm trong khoảng từ 0.01% đến 100%");
+        } else if (rules.discountType() == CouponDiscountType.FIXED_AMOUNT &&
+                (rules.discountValue() == null || rules.discountValue().compareTo(BigDecimal.ZERO) <= 0)) {
+            throw new BadRequestException("Số tiền giảm giá phải lớn hơn 0");
         }
-        if (startAt == null || endAt == null) {
+        if (rules.startAt() == null || rules.endAt() == null) {
             throw new BadRequestException("Thời gian bắt đầu và kết thúc không được để trống");
         }
-        if (!endAt.isAfter(startAt)) {
+        if (!rules.endAt().isAfter(rules.startAt())) {
             throw new BadRequestException("Thời gian kết thúc phải sau thời gian bắt đầu");
         }
-        if (minOrderAmount != null && minOrderAmount.compareTo(BigDecimal.ZERO) < 0) {
+        if (rules.minOrderAmount() != null && rules.minOrderAmount().compareTo(BigDecimal.ZERO) < 0) {
             throw new BadRequestException("Giá trị đơn hàng tối thiểu không được âm");
         }
-        if (maxDiscountAmount != null && maxDiscountAmount.compareTo(BigDecimal.ZERO) < 0) {
+        if (rules.maxDiscountAmount() != null && rules.maxDiscountAmount().compareTo(BigDecimal.ZERO) < 0) {
             throw new BadRequestException("Số tiền giảm tối đa không được âm");
         }
-        if (usageLimit != null && usageLimit <= 0) {
+        if (rules.usageLimit() != null && rules.usageLimit() <= 0) {
             throw new BadRequestException("Giới hạn lượt sử dụng phải lớn hơn 0");
         }
-        if (perUserLimit != null && perUserLimit <= 0) {
+        if (rules.perUserLimit() != null && rules.perUserLimit() <= 0) {
             throw new BadRequestException("Giới hạn lượt dùng trên mỗi khách hàng phải lớn hơn 0");
         }
     }

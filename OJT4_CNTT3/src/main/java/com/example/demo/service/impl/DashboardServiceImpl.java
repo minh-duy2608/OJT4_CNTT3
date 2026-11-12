@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -166,7 +165,6 @@ public class DashboardServiceImpl implements DashboardService {
         int max = limit > 0 ? Math.min(limit, 50) : 10;
         List<Order> orders = orderRepository.findAll();
         List<Shop> shops = shopRepository.findAll();
-        Map<Long, Shop> shopMap = shops.stream().collect(Collectors.toMap(Shop::getId, s -> s, (s1, s2) -> s1));
 
         Map<Long, List<Order>> ordersByShop = orders.stream()
                 .filter(o -> o.getShopId() != null)
@@ -175,25 +173,7 @@ public class DashboardServiceImpl implements DashboardService {
         List<TopShopResponse> result = new ArrayList<>();
         for (Shop s : shops) {
             List<Order> shopOrders = ordersByShop.getOrDefault(s.getId(), Collections.emptyList());
-            long total = shopOrders.size();
-            long delivered = 0;
-            BigDecimal rev = BigDecimal.ZERO;
-            for (Order o : shopOrders) {
-                if (o.getStatus() == OrderStatus.DELIVERED || o.getPaymentStatus() == PaymentStatus.PAID) {
-                    rev = rev.add(o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO);
-                }
-                if (o.getStatus() == OrderStatus.DELIVERED) {
-                    delivered++;
-                }
-            }
-            result.add(TopShopResponse.builder()
-                    .shopId(s.getId())
-                    .shopName(s.getName())
-                    .logoUrl(s.getLogoUrl())
-                    .totalOrders(total)
-                    .totalDeliveredOrders(delivered)
-                    .totalRevenue(rev)
-                    .build());
+            result.add(calculateShopOrderMetrics(s, shopOrders));
         }
 
         result.sort((a, b) -> b.getTotalRevenue().compareTo(a.getTotalRevenue()));
@@ -201,6 +181,28 @@ public class DashboardServiceImpl implements DashboardService {
             result = result.subList(0, max);
         }
         return result;
+    }
+
+    private TopShopResponse calculateShopOrderMetrics(Shop s, List<Order> shopOrders) {
+        long total = shopOrders.size();
+        long delivered = 0;
+        BigDecimal rev = BigDecimal.ZERO;
+        for (Order o : shopOrders) {
+            if (o.getStatus() == OrderStatus.DELIVERED || o.getPaymentStatus() == PaymentStatus.PAID) {
+                rev = rev.add(o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO);
+            }
+            if (o.getStatus() == OrderStatus.DELIVERED) {
+                delivered++;
+            }
+        }
+        return TopShopResponse.builder()
+                .shopId(s.getId())
+                .shopName(s.getName())
+                .logoUrl(s.getLogoUrl())
+                .totalOrders(total)
+                .totalDeliveredOrders(delivered)
+                .totalRevenue(rev)
+                .build();
     }
 
     // 19.2 Shop Dashboard
@@ -316,26 +318,26 @@ public class DashboardServiceImpl implements DashboardService {
         long totalOrdersCount = 0;
 
         for (Order o : orders) {
-            if (o.getCreatedAt() == null) continue;
-            LocalDate orderDate = o.getCreatedAt().toLocalDate();
-            if (orderDate.isBefore(startDate) || orderDate.isAfter(endDate)) continue;
-
-            if (o.getStatus() == OrderStatus.DELIVERED || o.getPaymentStatus() == PaymentStatus.PAID) {
-                String key = orderDate.format(formatter);
-                BigDecimal amt = o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO;
-                revMap.put(key, revMap.getOrDefault(key, BigDecimal.ZERO).add(amt));
-                countMap.put(key, countMap.getOrDefault(key, 0L) + 1);
-                grandTotal = grandTotal.add(amt);
-                totalOrdersCount++;
+            if (o.getCreatedAt() != null) {
+                LocalDate orderDate = o.getCreatedAt().toLocalDate();
+                if (!orderDate.isBefore(startDate) && !orderDate.isAfter(endDate) &&
+                        (o.getStatus() == OrderStatus.DELIVERED || o.getPaymentStatus() == PaymentStatus.PAID)) {
+                    String key = orderDate.format(formatter);
+                    BigDecimal amt = o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO;
+                    revMap.put(key, revMap.getOrDefault(key, BigDecimal.ZERO).add(amt));
+                    countMap.put(key, countMap.getOrDefault(key, 0L) + 1);
+                    grandTotal = grandTotal.add(amt);
+                    totalOrdersCount++;
+                }
             }
         }
 
         List<RevenueReportResponse.TimePointRevenue> dataPoints = new ArrayList<>();
-        for (String k : revMap.keySet()) {
+        for (Map.Entry<String, BigDecimal> entry : revMap.entrySet()) {
             dataPoints.add(RevenueReportResponse.TimePointRevenue.builder()
-                    .date(k)
-                    .revenue(revMap.get(k))
-                    .orderCount(countMap.getOrDefault(k, 0L))
+                    .date(entry.getKey())
+                    .revenue(entry.getValue())
+                    .orderCount(countMap.getOrDefault(entry.getKey(), 0L))
                     .build());
         }
 
@@ -348,46 +350,50 @@ public class DashboardServiceImpl implements DashboardService {
                 .build();
     }
 
+    private void processOrderItemForTopProducts(Map<String, TopProductResponse> map, OrderItem it) {
+        if (it.getOrder() != null && it.getOrder().getStatus() == OrderStatus.CANCELLED) {
+            return;
+        }
+        String key = it.getProductName();
+        Long qty = (long) (it.getQuantity() != null ? it.getQuantity() : 1);
+        BigDecimal total = it.getLineTotal() != null ? it.getLineTotal() : BigDecimal.ZERO;
+
+        Long prodId = null;
+        Long shopId = null;
+        String shopName = null;
+        if (it.getVariant() != null && it.getVariant().getProduct() != null) {
+            prodId = it.getVariant().getProduct().getId();
+            shopId = it.getVariant().getProduct().getShopId();
+            if (it.getVariant().getProduct().getShop() != null) {
+                shopName = it.getVariant().getProduct().getShop().getName();
+            }
+        }
+        if (shopId == null && it.getOrder() != null) {
+            shopId = it.getOrder().getShopId();
+        }
+
+        if (map.containsKey(key)) {
+            TopProductResponse existing = map.get(key);
+            existing.setTotalSoldQuantity(existing.getTotalSoldQuantity() + qty);
+            existing.setTotalRevenue(existing.getTotalRevenue().add(total));
+        } else {
+            map.put(key, TopProductResponse.builder()
+                    .productId(prodId)
+                    .productName(it.getProductName())
+                    .imageUrl(it.getProductImageUrl())
+                    .shopId(shopId)
+                    .shopName(shopName)
+                    .totalSoldQuantity(qty)
+                    .totalRevenue(total)
+                    .build());
+        }
+    }
+
     private List<TopProductResponse> calculateTopProducts(List<OrderItem> items, int max) {
         Map<String, TopProductResponse> map = new HashMap<>();
 
         for (OrderItem it : items) {
-            if (it.getOrder() != null && it.getOrder().getStatus() == OrderStatus.CANCELLED) {
-                continue;
-            }
-            String key = it.getProductName();
-            Long qty = (long) (it.getQuantity() != null ? it.getQuantity() : 1);
-            BigDecimal total = it.getLineTotal() != null ? it.getLineTotal() : BigDecimal.ZERO;
-
-            Long prodId = null;
-            Long shopId = null;
-            String shopName = null;
-            if (it.getVariant() != null && it.getVariant().getProduct() != null) {
-                prodId = it.getVariant().getProduct().getId();
-                shopId = it.getVariant().getProduct().getShopId();
-                if (it.getVariant().getProduct().getShop() != null) {
-                    shopName = it.getVariant().getProduct().getShop().getName();
-                }
-            }
-            if (shopId == null && it.getOrder() != null) {
-                shopId = it.getOrder().getShopId();
-            }
-
-            if (map.containsKey(key)) {
-                TopProductResponse existing = map.get(key);
-                existing.setTotalSoldQuantity(existing.getTotalSoldQuantity() + qty);
-                existing.setTotalRevenue(existing.getTotalRevenue().add(total));
-            } else {
-                map.put(key, TopProductResponse.builder()
-                        .productId(prodId)
-                        .productName(it.getProductName())
-                        .imageUrl(it.getProductImageUrl())
-                        .shopId(shopId)
-                        .shopName(shopName)
-                        .totalSoldQuantity(qty)
-                        .totalRevenue(total)
-                        .build());
-            }
+            processOrderItemForTopProducts(map, it);
         }
 
         List<TopProductResponse> list = new ArrayList<>(map.values());
