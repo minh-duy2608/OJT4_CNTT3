@@ -99,7 +99,6 @@ public class AuditLogServiceImpl implements AuditLogService {
     }
 
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void log(Long actorUserId, String action, String entityType, String entityId, Long shopId, String details) {
         log(actorUserId, action, entityType, entityId, shopId, details, null);
     }

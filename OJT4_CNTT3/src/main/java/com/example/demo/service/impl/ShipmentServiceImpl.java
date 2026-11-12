@@ -250,7 +250,9 @@ public class ShipmentServiceImpl implements ShipmentService {
         }
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản: " + currentUsername));
-
+        if (user == null) {
+            throw new UnauthorizedException("Yêu cầu đăng nhập");
+        }
         boolean isShopManager = isUserShopManagerForShop(user, shopId);
         boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN;
         if (!isShopManager && !isAdmin) {

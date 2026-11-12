@@ -274,6 +274,9 @@ public class ReturnServiceImpl implements ReturnService {
 
     private User verifyShopPermission(Long shopId, String currentUsername) {
         User user = getCurrentUser(currentUsername);
+        if (user == null) {
+            throw new UnauthorizedException("Yêu cầu đăng nhập");
+        }
         boolean isShopManager = isUserShopManager(user, shopId);
         boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN;
         if (!isShopManager && !isAdmin) {
