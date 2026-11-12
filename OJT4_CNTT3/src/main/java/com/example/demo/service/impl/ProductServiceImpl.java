@@ -181,13 +181,10 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<ProductSummaryResponse> getShopProducts(Long shopId, ProductFilterCriteria criteria) {
-        shopRepository.findById(shopId)
+        var shop = shopRepository.findById(shopId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng với ID: " + shopId));
-
-        if (criteria == null) {
-            criteria = ProductFilterCriteria.builder().build();
-        }
-        criteria.setShopId(shopId);
+        criteria = (criteria == null) ? ProductFilterCriteria.builder().build() : criteria;
+        criteria.setShopId(shop.getId());
         return getProducts(criteria);
     }
 
@@ -903,8 +900,9 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public ProductVariantResponse updateShopProductVariant(Long shopId, Long productId, Long variantId, com.example.demo.dto.request.CreateProductVariantRequest request, String currentUsername) {
         verifyShopAccess(shopId, currentUsername);
-        productRepository.findByIdAndShopId(productId, shopId)
+        var productForVariantUpdate = productRepository.findByIdAndShopId(productId, shopId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+        log.debug("updateShopProductVariant productId={}", productForVariantUpdate.getId());
 
         ProductVariant variant = productVariantRepository.findByIdAndProductId(variantId, productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy biến thể #" + variantId + " thuộc sản phẩm #" + productId));
@@ -957,8 +955,9 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public void deleteShopProductVariant(Long shopId, Long productId, Long variantId, boolean force, String currentUsername) {
         verifyShopAccess(shopId, currentUsername);
-        productRepository.findByIdAndShopId(productId, shopId)
+        var productForVariantUpdate = productRepository.findByIdAndShopId(productId, shopId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+        log.debug("updateShopProductVariant productId={}", productForVariantUpdate.getId());
 
         ProductVariant variant = productVariantRepository.findByIdAndProductId(variantId, productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy biến thể #" + variantId + " thuộc sản phẩm #" + productId));
@@ -1026,8 +1025,9 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public ProductImageResponse updateShopProductImage(Long shopId, Long productId, Long imageId, com.example.demo.dto.request.UpdateProductImageRequest request, String currentUsername) {
         verifyShopAccess(shopId, currentUsername);
-        productRepository.findByIdAndShopId(productId, shopId)
+        var productForVariantUpdate = productRepository.findByIdAndShopId(productId, shopId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+        log.debug("updateShopProductVariant productId={}", productForVariantUpdate.getId());
 
         ProductImage image = productImageRepository.findByIdAndProductId(imageId, productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hình ảnh #" + imageId + " thuộc sản phẩm #" + productId));
@@ -1060,8 +1060,9 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public void deleteShopProductImage(Long shopId, Long productId, Long imageId, String currentUsername) {
         verifyShopAccess(shopId, currentUsername);
-        productRepository.findByIdAndShopId(productId, shopId)
+        var productForVariantUpdate = productRepository.findByIdAndShopId(productId, shopId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm #" + productId + " thuộc cửa hàng #" + shopId));
+        log.debug("updateShopProductVariant productId={}", productForVariantUpdate.getId());
 
         ProductImage image = productImageRepository.findByIdAndProductId(imageId, productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hình ảnh #" + imageId + " thuộc sản phẩm #" + productId));
