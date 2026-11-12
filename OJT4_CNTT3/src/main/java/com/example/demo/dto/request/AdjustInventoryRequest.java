@@ -29,6 +29,11 @@ public class AdjustInventoryRequest {
     private Integer adjustment;
 
     /**
+     * Bí danh thay đổi số lượng (dùng khi frontend gửi changeQuantity)
+     */
+    private Integer changeQuantity;
+
+    /**
      * Số lượng hàng đang tạm giữ
      */
     @Min(value = 0, message = "Số lượng tạm giữ không được âm")
