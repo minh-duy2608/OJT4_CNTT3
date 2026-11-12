@@ -97,21 +97,34 @@ public class InventoryServiceImpl implements InventoryService {
         int currentQty = inventory.getQuantity() != null ? inventory.getQuantity() : 0;
         int currentReserved = inventory.getReservedQuantity() != null ? inventory.getReservedQuantity() : 0;
 
-        String op = request.getOperation() != null ? request.getOperation().trim().toUpperCase() : "SET";
+        Integer change = request.getChangeQuantity() != null ? request.getChangeQuantity() : request.getAdjustment();
+        String op = request.getOperation() != null ? request.getOperation().trim().toUpperCase() : null;
+
+        if (op == null) {
+            if (change != null) {
+                op = "ADJUST";
+            } else if (request.getQuantity() != null) {
+                op = "SET";
+            } else {
+                op = "SET";
+            }
+        }
 
         int targetQty = currentQty;
         if ("SET".equals(op)) {
             if (request.getQuantity() != null) {
                 targetQty = request.getQuantity();
+            } else if (change != null) {
+                targetQty = currentQty + change;
             }
         } else if ("INCREMENT".equals(op) || "ADD".equals(op)) {
-            int adj = request.getAdjustment() != null ? request.getAdjustment() : (request.getQuantity() != null ? request.getQuantity() : 0);
+            int adj = change != null ? change : (request.getQuantity() != null ? request.getQuantity() : 0);
             targetQty = currentQty + adj;
         } else if ("DECREMENT".equals(op) || "SUBTRACT".equals(op)) {
-            int adj = request.getAdjustment() != null ? request.getAdjustment() : (request.getQuantity() != null ? request.getQuantity() : 0);
-            targetQty = currentQty - adj;
+            int adj = change != null ? change : (request.getQuantity() != null ? request.getQuantity() : 0);
+            targetQty = currentQty - Math.abs(adj);
         } else if ("ADJUST".equals(op)) {
-            int adj = request.getAdjustment() != null ? request.getAdjustment() : 0;
+            int adj = change != null ? change : 0;
             targetQty = currentQty + adj;
         }
 

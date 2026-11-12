@@ -55,7 +55,8 @@ export const CartProvider = ({ children }) => {
             price: Number(it.salePrice || it.price || 0),
             quantity: it.quantity,
             image: it.imageUrl,
-            stockQuantity: it.stockQuantity
+            stockQuantity: it.stockQuantity,
+            inStock: it.stockQuantity != null ? it.stockQuantity > 0 : true
           }));
           setCartItems(beMapped);
           setSelectedItemIds(prev => (prev.length > 0 ? prev : beMapped.map(i => i.id)));
@@ -239,6 +240,23 @@ export const CartProvider = ({ children }) => {
       return;
     }
     const target = cartItems.find((item) => item.id === id);
+    if (!target) return;
+
+    const maxStock = target.availableQuantity ?? target.stockQuantity;
+    const isOutOfStock = target.inStock === false || target.stockQuantity === 0 || (target.availableQuantity !== undefined && target.availableQuantity <= 0);
+
+    // Chặn tăng số lượng nếu sản phẩm đã hết hàng
+    if (quantity > target.quantity && (isOutOfStock || (maxStock !== undefined && maxStock <= 0))) {
+      showToast('Sản phẩm này hiện đã hết hàng, không thể tăng thêm số lượng!', 'error');
+      return;
+    }
+
+    // Chặn tăng vượt quá tồn kho khả dụng
+    if (quantity > target.quantity && maxStock !== undefined && quantity > maxStock) {
+      showToast(`Số lượng vượt quá tồn kho khả dụng (chỉ còn ${maxStock} sản phẩm)!`, 'warning');
+      return;
+    }
+
     setCartItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, quantity } : item))
     );
@@ -248,6 +266,12 @@ export const CartProvider = ({ children }) => {
         await cartApi.updateQuantity(target.backendItemId, quantity);
       } catch (err) {
         console.warn('Could not update quantity on backend cart:', err);
+        // Rollback lại số lượng cũ nếu backend từ chối
+        setCartItems((prev) =>
+          prev.map((item) => (item.id === id ? { ...item, quantity: target.quantity } : item))
+        );
+        const errMsg = err.response?.data?.message || 'Không thể cập nhật số lượng do lỗi tồn kho';
+        showToast(errMsg, 'error');
       }
     }
   };

@@ -2250,7 +2250,7 @@ export const AdminPage = () => {
         });
         if (res) {
           setInventoryList(res.content || []);
-          setInventoryPage(res.pageNumber || 0);
+          setInventoryPage(res.page ?? res.pageNumber ?? 0);
           setInventoryTotalPages(res.totalPages || 1);
           setInventoryTotalElements(res.totalElements || 0);
         }
@@ -2279,12 +2279,30 @@ export const AdminPage = () => {
     }
     try {
       setAdjustingLoading(true);
-      await inventoryApi.adjustInventory(selectedShopId, selectedInventoryItem.variantId, {
+      const res = await inventoryApi.adjustInventory(selectedShopId, selectedInventoryItem.variantId, {
+        operation: 'ADJUST',
+        adjustment: qty,
         changeQuantity: qty,
+        quantity: Math.max(0, Number(selectedInventoryItem.quantity || 0) + qty),
         reason: adjustReason.trim() || 'Điều chỉnh tồn kho'
       });
       triggerAlert(`Đã điều chỉnh tồn kho phiên bản "${selectedInventoryItem.variantName}" thành công!`, 'success');
       setShowAdjustModal(false);
+
+      // Cập nhật ngay lập tức danh sách trong state để phản ánh thay đổi tức thì
+      if (res) {
+        setInventoryList((prev) =>
+          prev.map((item) =>
+            (item.variantId === selectedInventoryItem.variantId || item.inventoryId === selectedInventoryItem.inventoryId)
+              ? {
+                  ...item,
+                  quantity: res.quantity ?? (Number(item.quantity || 0) + qty),
+                  availableQuantity: res.availableQuantity ?? Math.max(0, Number(item.availableQuantity || 0) + qty)
+                }
+              : item
+          )
+        );
+      }
       fetchInventory(inventoryPage);
     } catch (err) {
       triggerAlert(err.message || 'Lỗi khi điều chỉnh tồn kho.', 'error');

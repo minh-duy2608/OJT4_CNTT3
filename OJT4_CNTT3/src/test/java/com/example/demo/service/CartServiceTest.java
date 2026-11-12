@@ -319,6 +319,20 @@ class CartServiceTest extends BaseUnitTest {
     }
 
     @Test
+    @DisplayName("updateItemQuantity: out of stock throws BadRequestException")
+    void updateItemQuantity_outOfStock() {
+        CartItem item = CartItem.builder().id(50L).cart(cart).variantId(200L).quantity(2).build();
+
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
+        when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findById(50L)).thenReturn(Optional.of(item));
+        when(inventoryRepository.findById(200L)).thenReturn(Optional.of(Inventory.builder().variantId(200L).quantity(0).reservedQuantity(0).build()));
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () -> cartService.updateItemQuantity(50L, 3, "testuser"));
+        assertTrue(ex.getMessage().contains("hết hàng"));
+    }
+
+    @Test
     @DisplayName("updateItemQuantity: quantity exceeds available stock throws BadRequestException")
     void updateItemQuantity_exceedsStock() {
         CartItem item = CartItem.builder().id(50L).cart(cart).variantId(200L).quantity(2).build();
