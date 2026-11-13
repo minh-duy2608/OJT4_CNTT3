@@ -56,11 +56,13 @@ public class ChatController {
                     "/topic/messages." + request.getReceiverId(),
                     response
             );
-            // Bắn tới kênh của người gửi (để UI bên gửi cũng hiển thị ngay)
-            messagingTemplate.convertAndSend(
-                    "/topic/messages." + request.getSenderId(),
-                    response
-            );
+            // Chỉ gửi thêm tới người gửi nếu senderId != receiverId (tránh bắn 2 lần vào cùng 1 topic)
+            if (request.getSenderId() != null && !request.getSenderId().equals(request.getReceiverId())) {
+                messagingTemplate.convertAndSend(
+                        "/topic/messages." + request.getSenderId(),
+                        response
+                );
+            }
         } catch (Exception e) {
             log.error("Lỗi khi gửi tin nhắn WS: {}", e.getMessage(), e);
         }

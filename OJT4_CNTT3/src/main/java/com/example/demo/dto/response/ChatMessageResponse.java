@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 public class ChatMessageResponse {
 
     private Long id;
+    private String clientMsgId;
     private Long roomId;
 
     private Long senderId;

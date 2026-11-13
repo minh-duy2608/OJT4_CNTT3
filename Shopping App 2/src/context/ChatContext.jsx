@@ -23,9 +23,29 @@ export const ChatProvider = ({ children }) => {
   const [totalUnread, setTotalUnread]     = useState(0);
   const [connected, setConnected]         = useState(false);
 
-  /* ─── STOMP client ─── */
+  /* ─── STOMP client & Subscriptions refs ─── */
   const stompClientRef = useRef(null);
-  const subscriptionRef = useRef(null);
+  const messageSubRef = useRef(null);
+  const readSubRef = useRef(null);
+  const isConnectingRef = useRef(false);
+
+  /* ─── Ngắt kết nối sạch sẽ ─── */
+  const disconnectWS = useCallback(() => {
+    if (messageSubRef.current) {
+      try { messageSubRef.current.unsubscribe(); } catch {}
+      messageSubRef.current = null;
+    }
+    if (readSubRef.current) {
+      try { readSubRef.current.unsubscribe(); } catch {}
+      readSubRef.current = null;
+    }
+    if (stompClientRef.current) {
+      try { stompClientRef.current.deactivate(); } catch {}
+      stompClientRef.current = null;
+    }
+    isConnectingRef.current = false;
+    setConnected(false);
+  }, []);
 
   /* ─── Kết nối WebSocket khi user đăng nhập ─── */
   useEffect(() => {
@@ -33,6 +53,10 @@ export const ChatProvider = ({ children }) => {
       disconnectWS();
       return;
     }
+
+    // Đảm bảo dọn sạch kết nối cũ trước khi mở kết nối mới
+    disconnectWS();
+    isConnectingRef.current = true;
 
     const token =
       localStorage.getItem('CYBER_ACCESS_TOKEN') ||
@@ -43,62 +67,126 @@ export const ChatProvider = ({ children }) => {
         new SockJS(`${window.location.protocol}//${window.location.host}/ws-chat`),
       connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
       reconnectDelay: 5000,
+      heartbeatIncoming: 4000,
+      heartbeatOutgoing: 4000,
       onConnect: () => {
+        isConnectingRef.current = false;
         setConnected(true);
-        // Subscribe kênh nhận tin nhắn của chính mình
-        subscriptionRef.current = client.subscribe(
+
+        // Hủy subscription cũ nếu còn sót
+        if (messageSubRef.current) {
+          try { messageSubRef.current.unsubscribe(); } catch {}
+          messageSubRef.current = null;
+        }
+        if (readSubRef.current) {
+          try { readSubRef.current.unsubscribe(); } catch {}
+          readSubRef.current = null;
+        }
+
+        // 1. Subscribe kênh nhận tin nhắn của chính mình
+        messageSubRef.current = client.subscribe(
           `/topic/messages.${user.id}`,
           (frame) => {
             try {
-              const msg = JSON.parse(frame.body);
+              const incoming = JSON.parse(frame.body);
+              if (!incoming) return;
+
               setMessages((prev) => {
-                // Chỉ thêm vào messages nếu thuộc active room
-                const isActive =
-                  (msg.senderId === user.id || msg.receiverId === user.id);
-                return isActive ? [...prev, msg] : prev;
+                // a. Nếu đã tồn tại tin nhắn cùng id (từ DB) -> bỏ qua
+                if (incoming.id && prev.some((m) => m.id === incoming.id)) {
+                  return prev;
+                }
+
+                // b. Nếu có clientMsgId, thay thế tin nhắn tạm (optimistic) có cùng clientMsgId
+                if (incoming.clientMsgId && prev.some((m) => m.clientMsgId === incoming.clientMsgId)) {
+                  return prev.map((m) => (m.clientMsgId === incoming.clientMsgId ? incoming : m));
+                }
+
+                // c. Nếu có tin nhắn tạm (chưa có id DB) cùng sender, receiver, content -> thay thế
+                const localIdx = prev.findIndex(
+                  (m) =>
+                    !m.id &&
+                    m.senderId === incoming.senderId &&
+                    m.receiverId === incoming.receiverId &&
+                    m.content === incoming.content
+                );
+                if (localIdx !== -1) {
+                  const next = [...prev];
+                  next[localIdx] = incoming;
+                  return next;
+                }
+
+                return [...prev, incoming];
               });
-              // Tăng badge chưa đọc nếu khung chat không focus
+
+              // Tăng badge nếu không focus cửa sổ chat
               if (!isChatOpen || isMinimized) {
                 setTotalUnread((n) => n + 1);
+              }
+            } catch (err) {
+              console.warn('Lỗi phân tích tin nhắn WebSocket:', err);
+            }
+          }
+        );
+
+        // 2. Subscribe sự kiện "Đã xem" từ đối phương
+        readSubRef.current = client.subscribe(
+          `/topic/read.${user.id}`,
+          (frame) => {
+            try {
+              const event = JSON.parse(frame.body);
+              if (event?.roomId) {
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.roomId === event.roomId || !m.roomId
+                      ? { ...m, isRead: true }
+                      : m
+                  )
+                );
               }
             } catch {}
           }
         );
       },
-      onDisconnect: () => setConnected(false),
-      onStompError: (frame) => console.warn('STOMP error', frame),
+      onDisconnect: () => {
+        setConnected(false);
+        isConnectingRef.current = false;
+      },
+      onStompError: (frame) => {
+        console.warn('STOMP protocol error:', frame);
+        setConnected(false);
+      },
     });
 
     client.activate();
     stompClientRef.current = client;
 
-    // Lấy badge chưa đọc ban đầu
+    // Lấy số tin chưa đọc ban đầu
     chatApi.getUnreadCount(user.id)
       .then((data) => setTotalUnread(data?.unreadCount ?? 0))
       .catch(() => {});
 
-    return () => { disconnectWS(); };
-  }, [isAuthenticated, user?.id]);
+    // Cleanup khi component unmount hoặc user thay đổi (chống StrictMode tạo 2 kết nối)
+    return () => {
+      disconnectWS();
+    };
+  }, [isAuthenticated, user?.id, disconnectWS]);
 
-  const disconnectWS = () => {
-    subscriptionRef.current?.unsubscribe();
-    stompClientRef.current?.deactivate();
-    stompClientRef.current = null;
-    setConnected(false);
-  };
-
-  /* ─── Gửi tin nhắn qua WebSocket ─── */
+  /* ─── Gửi tin nhắn qua WebSocket STOMP ─── */
   const sendMessage = useCallback((payload) => {
-    if (!stompClientRef.current?.connected) return;
+    if (!stompClientRef.current || !stompClientRef.current.connected) {
+      console.warn('WebSocket chưa kết nối, không thể gửi tin nhắn.');
+      return;
+    }
     stompClientRef.current.publish({
       destination: '/app/chat.send',
       body: JSON.stringify(payload),
     });
   }, []);
 
-  /* ─── Đánh dấu đã đọc qua WebSocket ─── */
+  /* ─── Đánh dấu đã đọc qua WebSocket STOMP ─── */
   const markAsRead = useCallback((roomId, readerId) => {
-    if (!stompClientRef.current?.connected) return;
+    if (!stompClientRef.current || !stompClientRef.current.connected) return;
     stompClientRef.current.publish({
       destination: '/app/chat.read',
       body: JSON.stringify({ roomId, readerId }),
@@ -114,10 +202,15 @@ export const ChatProvider = ({ children }) => {
     setIsMinimized(false);
     setIsChatOpen(true);
 
-    // Load lịch sử tin nhắn
+    // Tải lịch sử tin nhắn & loại bỏ trùng lặp theo id
     try {
       const history = await chatApi.getHistory(user.id, sellerInfo.id);
-      setMessages(Array.isArray(history) ? history : []);
+      const list = Array.isArray(history) ? history : [];
+      const map = new Map();
+      list.forEach((m) => {
+        if (m.id) map.set(m.id, m);
+      });
+      setMessages(Array.from(map.values()));
     } catch {
       setMessages([]);
     }
@@ -134,9 +227,17 @@ export const ChatProvider = ({ children }) => {
     setIsMinimized((v) => !v);
   }, []);
 
-  /* ─── Thêm tin nhắn local (optimistic update khi gửi) ─── */
+  /* ─── Thêm tin nhắn local (Optimistic UI có kiểm tra trùng lặp) ─── */
   const addLocalMessage = useCallback((msg) => {
-    setMessages((prev) => [...prev, msg]);
+    setMessages((prev) => {
+      if (msg.clientMsgId && prev.some((m) => m.clientMsgId === msg.clientMsgId)) {
+        return prev;
+      }
+      if (msg.id && prev.some((m) => m.id === msg.id)) {
+        return prev;
+      }
+      return [...prev, msg];
+    });
   }, []);
 
   return (
@@ -157,4 +258,3 @@ export const useChat = () => {
   if (!ctx) throw new Error('useChat must be used within ChatProvider');
   return ctx;
 };
-

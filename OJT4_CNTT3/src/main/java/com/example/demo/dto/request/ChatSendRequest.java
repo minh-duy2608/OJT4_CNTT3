@@ -11,6 +11,9 @@ import java.math.BigDecimal;
 @Data
 public class ChatSendRequest {
 
+    /** ID duy nhất từ client để chống trùng lặp và đồng bộ Optimistic UI */
+    private String clientMsgId;
+
     /** ID người gửi */
     private Long senderId;
 
