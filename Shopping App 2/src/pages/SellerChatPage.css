@@ -415,26 +415,26 @@
   border: 1px solid var(--border-color, #e2e8f0);
 }
 
-/* Thẻ sản phẩm */
-.product-card-bubble {
+/* Thẻ sản phẩm trong chat */
+.chat-product-bubble {
   padding: 0.85rem;
   min-width: 260px;
 }
 
-.product-card-badge {
+.chat-product-badge {
   font-size: 0.72rem;
   font-weight: 600;
   margin-bottom: 0.5rem;
   opacity: 0.9;
 }
 
-.product-card-main {
+.chat-product-main {
   display: flex;
   gap: 0.75rem;
   align-items: center;
 }
 
-.product-card-img {
+.chat-product-thumb {
   width: 58px;
   height: 58px;
   border-radius: 8px;
@@ -443,13 +443,13 @@
   border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
-.product-card-details {
+.chat-product-details {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
 }
 
-.product-card-title {
+.chat-product-title {
   font-size: 0.85rem;
   font-weight: 600;
   margin: 0;
@@ -460,17 +460,17 @@
   overflow: hidden;
 }
 
-.product-card-price {
+.chat-product-price {
   font-size: 0.88rem;
   font-weight: 700;
   color: #ef4444;
 }
 
-.chat-bubble.is-me .product-card-price {
+.chat-bubble.is-me .chat-product-price {
   color: #fca5a5;
 }
 
-.product-card-view-btn {
+.chat-product-view-btn {
   font-size: 0.75rem;
   font-weight: 600;
   display: inline-flex;
@@ -480,10 +480,10 @@
   margin-top: 0.2rem;
 }
 
-.chat-bubble.is-me .product-card-view-btn {
+.chat-bubble.is-me .chat-product-view-btn {
   color: #bfdbfe;
 }
-.chat-bubble.is-partner .product-card-view-btn {
+.chat-bubble.is-partner .chat-product-view-btn {
   color: var(--accent-color, #2563eb);
 }
 

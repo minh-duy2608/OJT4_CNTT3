@@ -311,22 +311,22 @@ export const SellerChatPage = ({ embedded = false }) => {
 
                       <div className="chat-bubble-container">
                         {msg.messageType === 'PRODUCT_CARD' ? (
-                          <div className={`chat-bubble product-card-bubble ${isMe ? 'is-me' : 'is-partner'}`}>
-                            <div className="product-card-badge">🛍️ Sản phẩm khách đang hỏi</div>
-                            <div className="product-card-main">
+                          <div className={`chat-bubble chat-product-bubble ${isMe ? 'is-me' : 'is-partner'}`}>
+                            <div className="chat-product-badge">🛍️ Sản phẩm khách đang hỏi</div>
+                            <div className="chat-product-main">
                               {msg.productImage && (
-                                <img src={msg.productImage} alt={msg.productName} className="product-card-img" />
+                                <img src={msg.productImage} alt={msg.productName} className="chat-product-thumb" />
                               )}
-                              <div className="product-card-details">
-                                <h4 className="product-card-title">{msg.productName}</h4>
+                              <div className="chat-product-details">
+                                <h4 className="chat-product-title">{msg.productName}</h4>
                                 {msg.productPrice && (
-                                  <div className="product-card-price">{formatVND(msg.productPrice)}</div>
+                                  <div className="chat-product-price">{formatVND(msg.productPrice)}</div>
                                 )}
                                 {msg.productId && (
                                   <Link
                                     to={`/products/${msg.productId}`}
                                     target="_blank"
-                                    className="product-card-view-btn"
+                                    className="chat-product-view-btn"
                                   >
                                     Xem chi tiết sản phẩm <ExternalLink size={12} />
                                   </Link>

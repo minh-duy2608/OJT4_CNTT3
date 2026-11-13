@@ -26,10 +26,11 @@
   box-shadow: 0 12px 24px -4px rgba(37, 99, 235, 0.12), 0 4px 8px -2px rgba(0, 0, 0, 0.06);
 }
 
-/* Khung ảnh sản phẩm */
+/* Khung ảnh sản phẩm - Chuẩn hóa hiển thị và độ ưu tiên cao */
+.cyber-product-card .product-img-wrapper,
 .product-img-wrapper {
   width: 100%;
-  height: 180px;
+  height: 185px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -37,18 +38,22 @@
   overflow: hidden;
   border-radius: 10px;
   background-color: #f8fafc;
-  padding: 8px;
+  padding: 12px;
   box-sizing: border-box;
 }
 
+.cyber-product-card .product-card-img,
 .product-card-img {
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  border: none !important;
+  border-radius: 0 !important;
   transition: transform 0.3s ease;
   mix-blend-mode: multiply;
+  display: block;
 }
 
 .cyber-product-card:hover .product-card-img {
@@ -130,48 +135,65 @@
    ========================================================================== */
 
 [data-theme='dark'] .cyber-product-card,
-.dark .cyber-product-card {
+.dark .cyber-product-card,
+.dark-theme .cyber-product-card {
   background-color: #1e293b; /* Nền xám đen nhám */
   border-color: #334155; /* Viền tối mỏng */
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
 [data-theme='dark'] .cyber-product-card:hover,
-.dark .cyber-product-card:hover {
+.dark .cyber-product-card:hover,
+.dark-theme .cyber-product-card:hover {
   background-color: #334155;
   border-color: #60a5fa;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
 }
 
+[data-theme='dark'] .cyber-product-card .product-img-wrapper,
+.dark .cyber-product-card .product-img-wrapper,
+.dark-theme .cyber-product-card .product-img-wrapper,
 [data-theme='dark'] .product-img-wrapper,
-.dark .product-img-wrapper {
+.dark .product-img-wrapper,
+.dark-theme .product-img-wrapper {
   background-color: #ffffff; /* Giữ nền ảnh trắng để nổi sản phẩm */
 }
 
+[data-theme='dark'] .cyber-product-card .product-card-img,
+.dark .cyber-product-card .product-card-img,
+.dark-theme .cyber-product-card .product-card-img {
+  mix-blend-mode: multiply;
+}
+
 [data-theme='dark'] .product-card-title,
-.dark .product-card-title {
+.dark .product-card-title,
+.dark-theme .product-card-title {
   color: #f8fafc; /* Chữ trắng sáng nổi bật trong Dark Mode */
 }
 
 [data-theme='dark'] .cyber-product-card:hover .product-card-title,
-.dark .cyber-product-card:hover .product-card-title {
+.dark .cyber-product-card:hover .product-card-title,
+.dark-theme .cyber-product-card:hover .product-card-title {
   color: #60a5fa;
 }
 
 [data-theme='dark'] .product-card-price,
-.dark .product-card-price {
+.dark .product-card-price,
+.dark-theme .product-card-price {
   color: #38bdf8; /* Xanh Cyan sáng */
 }
 
 [data-theme='dark'] .product-buy-btn,
-.dark .product-buy-btn {
+.dark .product-buy-btn,
+.dark-theme .product-buy-btn {
   background: rgba(255, 255, 255, 0.08);
   color: #ffffff;
   border-color: rgba(255, 255, 255, 0.15);
 }
 
 [data-theme='dark'] .cyber-product-card:hover .product-buy-btn,
-.dark .cyber-product-card:hover .product-buy-btn {
+.dark .cyber-product-card:hover .product-buy-btn,
+.dark-theme .cyber-product-card:hover .product-buy-btn {
   background: #2563eb;
   border-color: #2563eb;
   color: #ffffff;
