@@ -1,0 +1,528 @@
+/* ==========================================================================
+   FloatingChatWidget — Light & Dark Mode Support
+   Selector: .dark-theme (applied on html/body by ThemeContext)
+   ========================================================================== */
+
+/* ─── Wrapper nổi góc dưới phải ─── */
+.fcw-wrapper {
+  position: fixed;
+  bottom: 20px;
+  right: 24px;
+  z-index: 1000;
+  width: 370px;
+  height: 500px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.18),
+    0 4px 16px rgba(0, 0, 0, 0.1);
+  transition: height 0.25s ease, box-shadow 0.2s ease;
+
+  /* Light mode */
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+/* Thu nhỏ: chỉ hiện header */
+.fcw-wrapper.fcw-minimized {
+  height: 60px;
+  cursor: pointer;
+  border-radius: 12px;
+}
+
+/* Dark mode */
+.dark-theme .fcw-wrapper {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* ─── HEADER ─── */
+.fcw-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  user-select: none;
+}
+
+.fcw-minimized .fcw-header {
+  border-radius: 12px;
+}
+
+.fcw-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.fcw-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.fcw-seller-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+}
+
+.fcw-avatar-placeholder {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+}
+
+.fcw-status-dot {
+  position: absolute;
+  bottom: 1px;
+  right: 1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+.fcw-status-dot.online  { background: #22c55e; }
+.fcw-status-dot.offline { background: #94a3b8; }
+
+.fcw-header-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.fcw-seller-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #fff;
+}
+
+.fcw-seller-status {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.78);
+  margin-top: 1px;
+}
+
+.fcw-header-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.fcw-icon-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+.fcw-icon-btn:hover { background: rgba(255, 255, 255, 0.28); }
+
+/* ─── PRODUCT CONTEXT BANNER ─── */
+.fcw-product-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  flex-shrink: 0;
+  border-bottom: 1px solid #e2e8f0;
+
+  /* Light */
+  background: #f0f9ff;
+}
+.dark-theme .fcw-product-banner {
+  background: #0f2a3f;
+  border-bottom-color: #1e3a52;
+}
+
+.fcw-product-thumb {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+  border: 1px solid #bae6fd;
+}
+
+.fcw-product-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.fcw-product-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dark-theme .fcw-product-name { color: #e2e8f0; }
+
+.fcw-product-price {
+  font-size: 0.75rem;
+  color: #dc2626;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.fcw-send-product-btn {
+  flex-shrink: 0;
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.fcw-send-product-btn:hover {
+  background: #2563eb;
+  color: #fff;
+}
+.dark-theme .fcw-send-product-btn {
+  background: #1e3a5f;
+  border-color: #2563eb;
+  color: #93c5fd;
+}
+.dark-theme .fcw-send-product-btn:hover {
+  background: #2563eb;
+  color: #fff;
+}
+
+/* ─── MESSAGES AREA ─── */
+.fcw-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  scroll-behavior: smooth;
+
+  /* Light */
+  background: #f8fafc;
+}
+.dark-theme .fcw-messages { background: #0f172a; }
+
+/* Scrollbar mảnh */
+.fcw-messages::-webkit-scrollbar { width: 4px; }
+.fcw-messages::-webkit-scrollbar-track { background: transparent; }
+.fcw-messages::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+.dark-theme .fcw-messages::-webkit-scrollbar-thumb { background: #334155; }
+
+/* ─── Empty State ─── */
+.fcw-empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #94a3b8;
+  text-align: center;
+  padding: 20px;
+  font-size: 0.85rem;
+}
+.fcw-empty-icon { opacity: 0.4; }
+
+/* ─── Message Row ─── */
+.fcw-msg-row {
+  display: flex;
+  gap: 7px;
+  align-items: flex-end;
+}
+.fcw-msg-row.me   { flex-direction: row-reverse; }
+.fcw-msg-row.them { flex-direction: row; }
+
+.fcw-msg-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+}
+.fcw-msg-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.fcw-msg-content {
+  display: flex;
+  flex-direction: column;
+  max-width: 76%;
+}
+
+/* ─── Bubble ─── */
+.fcw-bubble {
+  padding: 8px 12px;
+  border-radius: 14px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* Mình gửi → xanh dương, căn phải */
+.fcw-bubble.me {
+  background: #2563eb;
+  color: #ffffff;
+  border-bottom-right-radius: 4px;
+  align-self: flex-end;
+}
+
+/* Đối phương → xám nhạt, căn trái */
+.fcw-bubble.them {
+  background: #e2e8f0;
+  color: #1e293b;
+  border-bottom-left-radius: 4px;
+  align-self: flex-start;
+}
+.dark-theme .fcw-bubble.them {
+  background: #334155;
+  color: #e2e8f0;
+}
+
+/* ─── Product Card Bubble ─── */
+.fcw-bubble.fcw-product-card {
+  padding: 10px;
+  min-width: 200px;
+}
+
+.fcw-product-card-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  opacity: 0.75;
+  display: block;
+  margin-bottom: 7px;
+}
+
+.fcw-product-card-body {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.fcw-product-card-img {
+  width: 50px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 7px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.fcw-product-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.fcw-product-card-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.fcw-product-card-price {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fca5a5;
+}
+.fcw-bubble.them .fcw-product-card-price {
+  color: #dc2626;
+}
+.dark-theme .fcw-bubble.them .fcw-product-card-price {
+  color: #f87171;
+}
+
+.fcw-product-card-link {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #93c5fd;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  text-decoration: underline;
+  cursor: pointer;
+  margin-top: 2px;
+}
+.fcw-bubble.them .fcw-product-card-link {
+  color: #2563eb;
+}
+.dark-theme .fcw-bubble.them .fcw-product-card-link {
+  color: #60a5fa;
+}
+
+/* ─── Message Meta (time + read) ─── */
+.fcw-msg-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+  font-size: 0.68rem;
+  color: #94a3b8;
+}
+.fcw-msg-meta.me   { justify-content: flex-end; }
+.fcw-msg-meta.them { justify-content: flex-start; }
+
+.fcw-read-label {
+  color: #60a5fa;
+  font-weight: 600;
+}
+
+/* ─── QUICK REPLIES ─── */
+.fcw-quick-replies {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 10px 4px;
+  border-top: 1px solid #e2e8f0;
+  flex-shrink: 0;
+  background: #ffffff;
+}
+.dark-theme .fcw-quick-replies {
+  background: #1e293b;
+  border-top-color: #334155;
+}
+
+.fcw-qr-chip {
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  border-radius: 20px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #2563eb;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.fcw-qr-chip:hover {
+  background: #2563eb;
+  color: #fff;
+}
+.dark-theme .fcw-qr-chip {
+  background: #1e3a5f;
+  border-color: #2563eb;
+  color: #93c5fd;
+}
+.dark-theme .fcw-qr-chip:hover {
+  background: #2563eb;
+  color: #fff;
+}
+
+/* ─── INPUT ROW ─── */
+.fcw-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid #e2e8f0;
+  flex-shrink: 0;
+  background: #ffffff;
+}
+.dark-theme .fcw-input-row {
+  background: #1e293b;
+  border-top-color: #334155;
+}
+
+.fcw-input {
+  flex: 1;
+  resize: none;
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  font-family: inherit;
+  border-radius: 20px;
+  border: 1.5px solid #e2e8f0;
+  outline: none;
+  line-height: 1.4;
+  min-height: 36px;
+  max-height: 80px;
+  overflow-y: auto;
+  transition: border-color 0.2s;
+
+  /* Light */
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.fcw-input:focus {
+  border-color: #2563eb;
+  background: #ffffff;
+}
+.dark-theme .fcw-input {
+  background: #0f172a;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+.dark-theme .fcw-input::placeholder { color: #64748b; }
+.dark-theme .fcw-input:focus {
+  border-color: #3b82f6;
+  background: #1e293b;
+}
+
+.fcw-send-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: #2563eb;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, transform 0.1s;
+}
+.fcw-send-btn:hover:not(:disabled) {
+  background: #1d4ed8;
+  transform: scale(1.07);
+}
+.fcw-send-btn:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+}
+.dark-theme .fcw-send-btn:disabled { background: #334155; }
+

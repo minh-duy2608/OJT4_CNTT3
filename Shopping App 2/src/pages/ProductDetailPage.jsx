@@ -18,10 +18,12 @@ import {
   Layers,
   Sparkles,
   AlertCircle,
-  Tag
+  Tag,
+  MessageCircle
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { useChat } from '../context/ChatContext';
 import { formatVND } from '../data/products';
 import { ProductCard } from '../components/ProductCard';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -37,7 +39,8 @@ export const ProductDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToCart, showToast } = useCart();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const { openChatWithSeller } = useChat();
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -276,6 +279,7 @@ export const ProductDetailPage = () => {
           const primaryImg = data.primaryImageUrl || sortedImages[0]?.imageUrl || '';
 
           const resolvedShopId = data.shopId || data.shop?.id || null;
+          const resolvedShopOwnerId = data.shop?.ownerId || data.shopOwnerId || (resolvedShopId ? Number(resolvedShopId) : 1);
 
           // Kiểm tra xem sản phẩm có biến thể nào có giảm giá thực tế từ API hay không (salePrice < price)
           const rawVariants = Array.isArray(data.variants) ? data.variants : [];
@@ -309,7 +313,9 @@ export const ProductDetailPage = () => {
             brand: data.brandName || data.brand?.name || 'Cyber Official',
             brandLogo: data.brand?.logoUrl,
             shopId: resolvedShopId,
+            shopOwnerId: resolvedShopOwnerId,
             shop: data.shopName || data.shop?.name || 'Cyber Flagship Store',
+            shopLogo: data.shop?.logoUrl || null,
             inStock: data.inStock !== false && hasAnyStock,
             totalStockQuantity: data.totalStockQuantity ?? (rawVariants.length > 0 ? totalStock : (hasAnyStock ? 100 : 0)),
             warrantyMonths: data.warrantyMonths || 12
@@ -647,6 +653,37 @@ export const ProductDetailPage = () => {
 
     // Chuyển hướng sang Checkout với duy nhất buyNowItem, KHÔNG gọi addToCart
     navigate('/checkout', { state: { buyNowItem } });
+  };
+
+  // Mở khung chat thời gian thực với Người bán
+  const handleChatNow = () => {
+    if (!isAuthenticated) {
+      setShowAuthRequiredModal(true);
+      return;
+    }
+    if (!product) return;
+
+    // Kiểm tra nếu chính là người bán của sản phẩm này
+    if (user?.id && (String(user.id) === String(product.shopOwnerId) || (user.ownedShopId && String(user.ownedShopId) === String(product.shopId)))) {
+      showToast('Đây là sản phẩm thuộc shop của bạn, không thể chat với chính mình!', 'info');
+      return;
+    }
+
+    const sellerInfo = {
+      id: product.shopOwnerId || 1,
+      name: product.shop || 'Người bán',
+      avatar: product.shopLogo || null,
+      email: null
+    };
+
+    const productCtx = {
+      id: product.id,
+      name: product.name,
+      image: selectedImage || product.image,
+      price: currentPrice
+    };
+
+    openChatWithSeller(sellerInfo, productCtx);
   };
 
   // Sao chép link mua hàng vào clipboard
@@ -1202,6 +1239,17 @@ export const ProductDetailPage = () => {
             >
               <ShoppingCart size={18} />
               <span>{isOutOfStock ? 'Hết hàng' : 'Thêm vào giỏ hàng'}</span>
+            </button>
+
+            {/* Nút Chat ngay với Người bán */}
+            <button
+              type="button"
+              className="detail-btn-chat"
+              onClick={handleChatNow}
+              title="Chat trực tiếp với người bán"
+            >
+              <MessageCircle size={18} />
+              <span>Chat ngay</span>
             </button>
 
             {/* Nút Mua ngay */}

@@ -15,10 +15,12 @@ import {
   ChevronDown,
   Package,
   ShieldCheck,
-  Store
+  Store,
+  MessageCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { useChat } from '../context/ChatContext';
 import { productApi } from '../services/productApi';
 import { shopApi } from '../services/shopApi';
 import { formatVND } from '../data/products';
@@ -49,6 +51,7 @@ const CyberIcon = ({ className = "cyber-logo-icon" }) => (
 export const Header = () => {
   const { user, isAuthenticated, logout, refreshUser } = useAuth();
   const { cartCount, cartBumping } = useCart();
+  const { totalUnread } = useChat();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAuthDropdown, setShowAuthDropdown] = useState(false);
   const [isWishlistModalOpen, setIsWishlistModalOpen] = useState(false);
@@ -385,6 +388,24 @@ export const Header = () => {
             {/* Thông báo nếu đã đăng nhập */}
             {isAuthenticated && <NotificationDropdown />}
 
+            {/* Tin nhắn trực tiếp thời gian thực */}
+            {isAuthenticated && (
+              <Link
+                to={isUserAdmin || isShopManager ? "/admin?tab=messages" : "/chat"}
+                className="cyber-action-btn"
+                title="Hộp thư tin nhắn"
+                aria-label={`Hộp thư tin nhắn ${totalUnread > 0 ? `(${totalUnread} tin mới)` : ''}`}
+                style={{ position: 'relative' }}
+              >
+                <MessageCircle size={21} strokeWidth={1.8} />
+                {totalUnread > 0 && (
+                  <span className="cyber-cart-badge" style={{ backgroundColor: '#ef4444' }}>
+                    {totalUnread > 99 ? '99+' : totalUnread}
+                  </span>
+                )}
+              </Link>
+            )}
+
             {/* Giỏ hàng với hiệu ứng nhảy khi sản phẩm bay vào */}
             <Link
               to="/cart"
@@ -474,6 +495,14 @@ export const Header = () => {
                       >
                         <User size={15} />
                         Thông tin tài khoản
+                      </Link>
+                      <Link
+                        to={isUserAdmin || isShopManager ? "/admin?tab=messages" : "/chat"}
+                        className="cyber-dropdown-item"
+                        onClick={() => setShowAuthDropdown(false)}
+                      >
+                        <MessageCircle size={15} />
+                        Hộp thư tin nhắn {totalUnread > 0 && `(${totalUnread})`}
                       </Link>
                       <Link
                         to="/orders"

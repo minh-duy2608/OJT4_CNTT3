@@ -28,6 +28,7 @@ import {
   Activity,
   Sliders,
   ExternalLink,
+  MessageCircle,
   Phone,
   Mail,
   Calendar,
@@ -79,6 +80,7 @@ import { AdminReviewsTab } from '../components/admin/AdminReviewsTab';
 import { AdminAuditLogsTab } from '../components/admin/AdminAuditLogsTab';
 import { AdminSystemHealthCard } from '../components/admin/AdminSystemHealthCard';
 import { ShopDashboardTab } from '../components/admin/ShopDashboardTab';
+import { SellerChatPage } from './SellerChatPage';
 import './AdminPage.css';
 
 // Core system roles protected by the system
@@ -2423,12 +2425,12 @@ export const AdminPage = () => {
   // Strict Role Separation for Portal Tabs
   useEffect(() => {
     if (isShopManager && !isAdminUser) {
-      const allowedShopTabs = ['shops', 'inventory', 'orders', 'coupons', 'permissions', 'shipments', 'returns', 'reviews', 'audit-logs', 'shop-revenue'];
+      const allowedShopTabs = ['shops', 'inventory', 'orders', 'coupons', 'permissions', 'shipments', 'returns', 'reviews', 'messages', 'audit-logs', 'shop-revenue'];
       if (!allowedShopTabs.includes(activeTab)) {
         setActiveTab('shops');
       }
     } else if (isAdminUser) {
-      const allowedAdminTabs = ['revenue', 'admin-shops', 'orders', 'shipments', 'returns', 'reviews', 'users', 'roles', 'categories', 'brands', 'audit-logs'];
+      const allowedAdminTabs = ['revenue', 'admin-shops', 'orders', 'shipments', 'returns', 'reviews', 'messages', 'users', 'roles', 'categories', 'brands', 'audit-logs'];
       if (!allowedAdminTabs.includes(activeTab)) {
         setActiveTab('revenue');
       }
@@ -3415,6 +3417,16 @@ export const AdminPage = () => {
 
               <button
                 type="button"
+                className={`admin-tab-btn ${activeTab === 'messages' ? 'active' : ''}`}
+                onClick={() => setActiveTab('messages')}
+              >
+                <MessageCircle size={17} />
+                Tin nhắn khách hàng
+                <span className="admin-tab-badge">Live Chat</span>
+              </button>
+
+              <button
+                type="button"
                 className={`admin-tab-btn ${activeTab === 'users' ? 'active' : ''}`}
                 onClick={() => setActiveTab('users')}
               >
@@ -3535,6 +3547,16 @@ export const AdminPage = () => {
                 <Star size={17} />
                 Đánh giá Cửa hàng
                 <span className="admin-tab-badge">STT 130-132</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'messages' ? 'active' : ''}`}
+                onClick={() => setActiveTab('messages')}
+              >
+                <MessageCircle size={17} />
+                Tin nhắn khách hàng
+                <span className="admin-tab-badge">Live Chat</span>
               </button>
 
               <button
@@ -6034,6 +6056,15 @@ export const AdminPage = () => {
             isAdmin={isAdminUser}
             shopId={isAdminUser ? undefined : (myShopInfo?.id || selectedShopId)}
           />
+        )}
+
+        {/* =================================================================== */}
+        {/* TAB: TIN NHẮN KHÁCH HÀNG (LIVE CHAT - ADMIN & SHOP MANAGER) */}
+        {/* =================================================================== */}
+        {activeTab === 'messages' && (
+          <div style={{ marginTop: '1rem' }}>
+            <SellerChatPage embedded={true} />
+          </div>
         )}
 
         {/* =================================================================== */}

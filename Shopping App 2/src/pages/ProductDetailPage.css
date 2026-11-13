@@ -840,3 +840,42 @@
     border-radius: 8px;
   }
 }
+
+/* ─── Nút "Chat ngay" đồng bộ kích thước & hỗ trợ Light/Dark Mode ─── */
+.detail-btn-chat {
+  background-color: #eff6ff;
+  color: #2563eb;
+  border: 1.5px solid #bfdbfe;
+  padding: 0.85rem 1.25rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.detail-btn-chat:hover {
+  background-color: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  transform: translateY(-1px);
+}
+
+.dark-theme .detail-btn-chat,
+[data-theme='dark'] .detail-btn-chat {
+  background-color: #1e3a5f;
+  color: #93c5fd;
+  border-color: #2563eb;
+}
+
+.dark-theme .detail-btn-chat:hover,
+[data-theme='dark'] .detail-btn-chat:hover {
+  background-color: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}

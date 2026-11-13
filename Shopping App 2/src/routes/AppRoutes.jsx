@@ -10,6 +10,7 @@ import { OrdersPage } from '../pages/OrdersPage';
 import { AuthPage } from '../pages/AuthPage';
 import { ProfilePage } from '../pages/ProfilePage';
 import { AdminPage } from '../pages/AdminPage';
+import { SellerChatPage } from '../pages/SellerChatPage';
 import { AboutPage } from '../pages/AboutPage';
 import { ContactPage } from '../pages/ContactPage';
 import { InfoPage } from '../pages/InfoPage';
@@ -30,6 +31,8 @@ export const AppRoutes = () => {
         <Route path="register" element={<AuthPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="admin" element={<AdminPage />} />
+        <Route path="chat" element={<SellerChatPage />} />
+        <Route path="messages" element={<SellerChatPage />} />
 
         {/* Thông tin & Liên hệ Header */}
         <Route path="about" element={<AboutPage />} />

@@ -55,6 +55,11 @@ public class SecurityConfig {
                         .accessDeniedHandler(customAccessDeniedHandler)
                 )
                 .authorizeHttpRequests(auth -> auth
+                        // ---- WebSocket Handshake & Chat API ----
+                        // SockJS handshake cần permit để không bị 401 chặn TCP upgrade
+                        .requestMatchers("/ws-chat/**").permitAll()
+                        // Chat REST API - yêu cầu đăng nhập
+                        .requestMatchers("/api/chat/**").authenticated()
                         // Public Catalog Read-only Endpoints
                         .requestMatchers(
                                 org.springframework.http.HttpMethod.GET,
