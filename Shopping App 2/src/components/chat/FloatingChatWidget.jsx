@@ -37,6 +37,7 @@ export const FloatingChatWidget = () => {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const activeRoomIdRef = useRef(null);
+  const isSendingRef = useRef(false);
 
   /* Cuộn xuống tin mới nhất */
   useEffect(() => {
@@ -65,22 +66,31 @@ export const FloatingChatWidget = () => {
 
   /* ─── Gửi tin nhắn văn bản ─── */
   const handleSend = useCallback((text) => {
+    if (isSendingRef.current) return;
     const content = (text ?? inputText).trim();
     if (!content || !user?.id || !activeSeller?.id) return;
 
+    isSendingRef.current = true;
+    setTimeout(() => {
+      isSendingRef.current = false;
+    }, 350);
+
+    const clientMsgId = `cmsg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
     const payload = {
+      clientMsgId,
       senderId: user.id,
       receiverId: activeSeller.id,
       content,
       messageType: 'TEXT',
     };
 
-    // Optimistic update (hiển thị ngay lập tức)
+    // Optimistic update có kèm clientMsgId để thay thế khi WS trả về
     addLocalMessage({
       ...payload,
-      id: `local-${Date.now()}`,
-      roomId: null,
-      senderName: user.name,
+      id: null,
+      roomId: activeRoomIdRef.current || null,
+      senderName: user.name || user.fullName,
       senderAvatar: user.avatar,
       isRead: false,
       createdAt: new Date().toISOString(),
@@ -92,9 +102,18 @@ export const FloatingChatWidget = () => {
 
   /* ─── Gửi thẻ sản phẩm ─── */
   const handleSendProduct = useCallback(() => {
+    if (isSendingRef.current) return;
     if (!productContext || !user?.id || !activeSeller?.id) return;
 
+    isSendingRef.current = true;
+    setTimeout(() => {
+      isSendingRef.current = false;
+    }, 350);
+
+    const clientMsgId = `cmsg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
     const payload = {
+      clientMsgId,
       senderId: user.id,
       receiverId: activeSeller.id,
       content: `Hỏi về sản phẩm: ${productContext.name}`,
@@ -107,9 +126,9 @@ export const FloatingChatWidget = () => {
 
     addLocalMessage({
       ...payload,
-      id: `local-${Date.now()}`,
-      roomId: null,
-      senderName: user.name,
+      id: null,
+      roomId: activeRoomIdRef.current || null,
+      senderName: user.name || user.fullName,
       senderAvatar: user.avatar,
       isRead: false,
       createdAt: new Date().toISOString(),
@@ -122,6 +141,7 @@ export const FloatingChatWidget = () => {
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      if (e.repeat) return;
       handleSend();
     }
   };
@@ -256,7 +276,7 @@ export const FloatingChatWidget = () => {
           {/* ─── QUICK REPLIES ─── */}
           <div className="fcw-quick-replies">
             {QUICK_REPLIES.map((qr) => (
-              <button key={qr} className="fcw-qr-chip" onClick={() => handleSend(qr)}>
+              <button key={qr} type="button" className="fcw-qr-chip" onClick={() => handleSend(qr)}>
                 {qr}
               </button>
             ))}
@@ -274,6 +294,7 @@ export const FloatingChatWidget = () => {
               rows={1}
             />
             <button
+              type="button"
               className="fcw-send-btn"
               onClick={() => handleSend()}
               disabled={!inputText.trim()}

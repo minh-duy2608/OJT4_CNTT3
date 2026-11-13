@@ -89,7 +89,9 @@ public class ChatServiceImpl implements ChatService {
         // 4. Lấy thông tin người gửi để đính vào response
         User sender = userRepository.findById(senderId).orElse(null);
 
-        return toMessageResponse(message, sender);
+        ChatMessageResponse response = toMessageResponse(message, sender);
+        response.setClientMsgId(req.getClientMsgId());
+        return response;
     }
 
     @Override
