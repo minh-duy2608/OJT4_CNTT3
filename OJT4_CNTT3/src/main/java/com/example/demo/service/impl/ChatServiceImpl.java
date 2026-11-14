@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -162,7 +161,7 @@ public class ChatServiceImpl implements ChatService {
                             .unreadCount(unread)
                             .build();
                 })
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
@@ -193,7 +192,7 @@ public class ChatServiceImpl implements ChatService {
 
         return messages.stream()
                 .map(msg -> toMessageResponse(msg, userMap.get(msg.getSenderId())))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
