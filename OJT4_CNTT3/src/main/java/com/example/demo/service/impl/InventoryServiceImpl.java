@@ -110,6 +110,9 @@ public class InventoryServiceImpl implements InventoryService {
             }
         }
 
+        int fallbackQuantity = request.getQuantity() != null ? request.getQuantity() : 0;
+        int adjustmentAmount = change != null ? change : fallbackQuantity;
+
         int targetQty = currentQty;
         if ("SET".equals(op)) {
             if (request.getQuantity() != null) {
@@ -118,11 +121,9 @@ public class InventoryServiceImpl implements InventoryService {
                 targetQty = currentQty + change;
             }
         } else if ("INCREMENT".equals(op) || "ADD".equals(op)) {
-            int adj = change != null ? change : (request.getQuantity() != null ? request.getQuantity() : 0);
-            targetQty = currentQty + adj;
+            targetQty = currentQty + adjustmentAmount;
         } else if ("DECREMENT".equals(op) || "SUBTRACT".equals(op)) {
-            int adj = change != null ? change : (request.getQuantity() != null ? request.getQuantity() : 0);
-            targetQty = currentQty - Math.abs(adj);
+            targetQty = currentQty - Math.abs(adjustmentAmount);
         } else if ("ADJUST".equals(op)) {
             int adj = change != null ? change : 0;
             targetQty = currentQty + adj;
