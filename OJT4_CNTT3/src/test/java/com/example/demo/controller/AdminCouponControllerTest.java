@@ -82,7 +82,7 @@ class AdminCouponControllerTest {
         CouponResponse coupon = CouponResponse.builder().id(1L).code("SALE10").build();
 
         when(principal.getName()).thenReturn("admin");
-        when(couponService.getAdminCouponById(eq(1L), eq("admin"))).thenReturn(coupon);
+        when(couponService.getAdminCouponById(1L, "admin")).thenReturn(coupon);
 
         mockMvc.perform(get("/admin/coupons/1").principal(principal))
                 .andExpect(status().isOk())
@@ -125,6 +125,6 @@ class AdminCouponControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
-        verify(couponService).deleteCoupon(eq(1L), eq("admin"));
+        verify(couponService).deleteCoupon(1L, "admin");
     }
 }

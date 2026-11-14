@@ -89,7 +89,7 @@ class CartControllerTest {
         CartResponse cartResponse = CartResponse.builder().id(1L).totalItems(3).build();
 
         when(principal.getName()).thenReturn("testuser");
-        when(cartService.updateItemQuantity(eq(5L), eq(3), eq("testuser"))).thenReturn(cartResponse);
+        when(cartService.updateItemQuantity(5L, 3, "testuser")).thenReturn(cartResponse);
 
         mockMvc.perform(patch("/cart/items/5")
                         .principal(principal)
@@ -106,7 +106,7 @@ class CartControllerTest {
         CartResponse cartResponse = CartResponse.builder().id(1L).totalItems(0).build();
 
         when(principal.getName()).thenReturn("testuser");
-        when(cartService.removeItem(eq(5L), eq("testuser"))).thenReturn(cartResponse);
+        when(cartService.removeItem(5L, "testuser")).thenReturn(cartResponse);
 
         mockMvc.perform(delete("/cart/items/5").principal(principal))
                 .andExpect(status().isOk())

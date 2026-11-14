@@ -109,7 +109,7 @@ class OrderControllerTest {
         OrderResponse orderRes = OrderResponse.builder().id(10L).orderCode("ORD-10").build();
 
         when(principal.getName()).thenReturn("testuser");
-        when(orderService.getOrderDetail(eq(10L), eq("testuser"))).thenReturn(orderRes);
+        when(orderService.getOrderDetail(10L, "testuser")).thenReturn(orderRes);
 
         mockMvc.perform(get("/orders/10").principal(principal))
                 .andExpect(status().isOk())
@@ -127,7 +127,7 @@ class OrderControllerTest {
                 .build();
 
         when(principal.getName()).thenReturn("testuser");
-        when(orderService.getOrderTracking(eq(10L), eq("testuser"))).thenReturn(trackingRes);
+        when(orderService.getOrderTracking(10L, "testuser")).thenReturn(trackingRes);
 
         mockMvc.perform(get("/orders/10/tracking").principal(principal))
                 .andExpect(status().isOk())
@@ -141,7 +141,7 @@ class OrderControllerTest {
         OrderResponse orderRes = OrderResponse.builder().id(10L).status(OrderStatus.DELIVERED).build();
 
         when(principal.getName()).thenReturn("testuser");
-        when(orderService.confirmOrderDelivery(eq(10L), eq("testuser"))).thenReturn(orderRes);
+        when(orderService.confirmOrderDelivery(10L, "testuser")).thenReturn(orderRes);
 
         mockMvc.perform(patch("/orders/10/confirm-delivery").principal(principal))
                 .andExpect(status().isOk())

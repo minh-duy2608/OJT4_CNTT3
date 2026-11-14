@@ -117,36 +117,45 @@ public class RevenueServiceImpl implements RevenueService {
         return new PlatformMetrics(totalRevenue, grossMerchandiseValue, totalOrders, completedOrders, processingOrders, cancelledOrders, averageOrderValue);
     }
 
+    private record ShopOrderAmounts(BigDecimal revenue, BigDecimal pendingRevenue) {}
+
+    private ShopOrderAmounts calculateShopOrderAmounts(List<Order> shopOrders) {
+        BigDecimal revenue = BigDecimal.ZERO;
+        BigDecimal pending = BigDecimal.ZERO;
+        for (Order o : shopOrders) {
+            BigDecimal a = o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO;
+            if (o.getStatus() != OrderStatus.CANCELLED) {
+                if (o.getStatus() == OrderStatus.DELIVERED || o.getPaymentStatus() == PaymentStatus.PAID) {
+                    revenue = revenue.add(a);
+                } else {
+                    pending = pending.add(a);
+                }
+            }
+        }
+        return new ShopOrderAmounts(revenue, pending);
+    }
+
+    private ShopRevenueSummary buildSingleShopRevenueSummary(Shop shop, List<Order> shopOrders) {
+        ShopOrderAmounts amounts = calculateShopOrderAmounts(shopOrders);
+        User owner = shop.getOwnerId() != null ? userRepository.findById(shop.getOwnerId()).orElse(null) : null;
+        return ShopRevenueSummary.builder()
+                .shopId(shop.getId())
+                .shopName(shop.getName())
+                .ownerName(resolveOwnerDisplayName(owner))
+                .ownerEmail(owner != null ? owner.getEmail() : shop.getEmail())
+                .shopPhone(shop.getPhone())
+                .shopStatus(shop.getStatus() != null ? shop.getStatus().name() : "ACTIVE")
+                .totalOrders(shopOrders.size())
+                .totalRevenue(amounts.revenue())
+                .pendingRevenue(amounts.pendingRevenue())
+                .build();
+    }
+
     private List<ShopRevenueSummary> buildShopRevenueSummaries(List<Shop> allShops, Map<Long, List<Order>> ordersByShop) {
         List<ShopRevenueSummary> shopRevenues = new ArrayList<>();
         for (Shop shop : allShops) {
             List<Order> shopOrders = ordersByShop.getOrDefault(shop.getId(), Collections.emptyList());
-            BigDecimal sRev = BigDecimal.ZERO;
-            BigDecimal sPending = BigDecimal.ZERO;
-
-            for (Order o : shopOrders) {
-                BigDecimal a = o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO;
-                if (o.getStatus() != OrderStatus.CANCELLED) {
-                    if (o.getStatus() == OrderStatus.DELIVERED || o.getPaymentStatus() == PaymentStatus.PAID) {
-                        sRev = sRev.add(a);
-                    } else {
-                        sPending = sPending.add(a);
-                    }
-                }
-            }
-
-            User owner = shop.getOwnerId() != null ? userRepository.findById(shop.getOwnerId()).orElse(null) : null;
-            shopRevenues.add(ShopRevenueSummary.builder()
-                    .shopId(shop.getId())
-                    .shopName(shop.getName())
-                    .ownerName(resolveOwnerDisplayName(owner))
-                    .ownerEmail(owner != null ? owner.getEmail() : shop.getEmail())
-                    .shopPhone(shop.getPhone())
-                    .shopStatus(shop.getStatus() != null ? shop.getStatus().name() : "ACTIVE")
-                    .totalOrders((long) shopOrders.size())
-                    .totalRevenue(sRev)
-                    .pendingRevenue(sPending)
-                    .build());
+            shopRevenues.add(buildSingleShopRevenueSummary(shop, shopOrders));
         }
         shopRevenues.sort((a, b) -> b.getTotalRevenue().compareTo(a.getTotalRevenue()));
         return shopRevenues;
