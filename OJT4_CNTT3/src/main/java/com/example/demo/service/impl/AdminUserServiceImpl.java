@@ -361,7 +361,8 @@ public class AdminUserServiceImpl implements AdminUserService {
             return true;
         }
         if (user.getRoles() != null) {
-            return user.getRoles().stream().anyMatch(r -> "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode()));
+            return user.getRoles().stream().anyMatch(r ->
+                    ROLE_ADMIN_CODE.equalsIgnoreCase(r.getCode()) || ("ROLE_" + ROLE_ADMIN_CODE).equalsIgnoreCase(r.getCode()));
         }
         return false;
     }
@@ -373,13 +374,13 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     private String normalizeRoleCode(String raw) {
-        if (raw == null) return "CLIENT";
+        if (raw == null) return ROLE_CLIENT_CODE;
         String upper = raw.trim().toUpperCase(Locale.ROOT);
         if (upper.startsWith("ROLE_")) {
             upper = upper.substring(5);
         }
         if ("USER".equalsIgnoreCase(upper)) {
-            return "CLIENT";
+            return ROLE_CLIENT_CODE;
         }
         return upper;
     }
