@@ -66,33 +66,46 @@ public class OrderServiceImpl implements OrderService {
     private record RecipientInfo(String name, String phone, String address, Long addressId) {}
 
     private RecipientInfo resolveRecipientInfo(CreateOrderRequest request, User user) {
-        String recipientName = request.getRecipientName();
-        String recipientPhone = request.getRecipientPhone();
-        String shippingAddress = request.getShippingAddress();
-        Long addressId = request.getAddressId();
+        Address savedAddress = request.getAddressId() != null
+                ? addressRepository.findByIdAndUser(request.getAddressId(), user).orElse(null)
+                : null;
 
-        if (addressId != null) {
-            Address address = addressRepository.findByIdAndUser(addressId, user).orElse(null);
-            if (address != null) {
-                if (recipientName == null || recipientName.isBlank()) recipientName = address.getRecipientName();
-                if (recipientPhone == null || recipientPhone.isBlank()) recipientPhone = address.getPhone();
-                if (shippingAddress == null || shippingAddress.isBlank()) {
-                    shippingAddress = String.format("%s, %s, %s, %s",
-                            address.getAddressDetail(), address.getWard(), address.getDistrict(), address.getProvince());
-                }
-            }
-        }
+        String recipientName = resolveRecipientName(request.getRecipientName(), savedAddress, user);
+        String recipientPhone = resolveRecipientPhone(request.getRecipientPhone(), savedAddress, user);
+        String shippingAddress = resolveShippingAddress(request.getShippingAddress(), savedAddress);
 
-        if (recipientName == null || recipientName.isBlank()) {
-            recipientName = user.getFullName() != null ? user.getFullName() : user.getUsername();
+        return new RecipientInfo(recipientName, recipientPhone, shippingAddress, request.getAddressId());
+    }
+
+    private String resolveRecipientName(String requestedName, Address address, User user) {
+        if (requestedName != null && !requestedName.isBlank()) {
+            return requestedName;
         }
-        if (recipientPhone == null || recipientPhone.isBlank()) {
-            recipientPhone = user.getPhone() != null ? user.getPhone() : "0362490374";
+        if (address != null && address.getRecipientName() != null && !address.getRecipientName().isBlank()) {
+            return address.getRecipientName();
         }
-        if (shippingAddress == null || shippingAddress.isBlank()) {
-            shippingAddress = "Địa chỉ nhận hàng mặc định";
+        return (user.getFullName() != null && !user.getFullName().isBlank()) ? user.getFullName() : user.getUsername();
+    }
+
+    private String resolveRecipientPhone(String requestedPhone, Address address, User user) {
+        if (requestedPhone != null && !requestedPhone.isBlank()) {
+            return requestedPhone;
         }
-        return new RecipientInfo(recipientName, recipientPhone, shippingAddress, addressId);
+        if (address != null && address.getPhone() != null && !address.getPhone().isBlank()) {
+            return address.getPhone();
+        }
+        return (user.getPhone() != null && !user.getPhone().isBlank()) ? user.getPhone() : "0362490374";
+    }
+
+    private String resolveShippingAddress(String requestedAddress, Address address) {
+        if (requestedAddress != null && !requestedAddress.isBlank()) {
+            return requestedAddress;
+        }
+        if (address != null) {
+            return String.format("%s, %s, %s, %s",
+                    address.getAddressDetail(), address.getWard(), address.getDistrict(), address.getProvince());
+        }
+        return "Địa chỉ nhận hàng mặc định";
     }
 
     private Product resolveProductForItem(CreateOrderItemRequest itemReq) {
@@ -128,7 +141,9 @@ public class OrderServiceImpl implements OrderService {
         return resolvedShopId;
     }
 
-    private OrderItem buildOrderItemAndDeductInventory(CreateOrderItemRequest itemReq) {
+    private record VariantProductPair(ProductVariant variant, Product product) {}
+
+    private VariantProductPair resolveVariantAndProduct(CreateOrderItemRequest itemReq) {
         ProductVariant variant = null;
         if (itemReq.getVariantId() != null) {
             variant = productVariantRepository.findById(itemReq.getVariantId()).orElse(null);
@@ -143,41 +158,67 @@ public class OrderServiceImpl implements OrderService {
                 variant = product.getVariants().get(0);
             }
         }
+        return new VariantProductPair(variant, product);
+    }
 
-        int qty = itemReq.getQuantity() != null && itemReq.getQuantity() > 0 ? itemReq.getQuantity() : 1;
-        String prodName = (itemReq.getProductName() != null && !itemReq.getProductName().isBlank())
-                ? itemReq.getProductName()
-                : (product != null ? product.getName() : "Sản phẩm Cyber");
-        String varName = (itemReq.getVariantName() != null && !itemReq.getVariantName().isBlank())
-                ? itemReq.getVariantName()
-                : (variant != null && variant.getVariantName() != null ? variant.getVariantName() : "Tiêu chuẩn");
+    private String resolveProductName(CreateOrderItemRequest itemReq, Product product) {
+        if (itemReq.getProductName() != null && !itemReq.getProductName().isBlank()) {
+            return itemReq.getProductName();
+        }
+        if (product != null && product.getName() != null && !product.getName().isBlank()) {
+            return product.getName();
+        }
+        return "Sản phẩm Cyber";
+    }
 
+    private String resolveVariantName(CreateOrderItemRequest itemReq, ProductVariant variant) {
+        if (itemReq.getVariantName() != null && !itemReq.getVariantName().isBlank()) {
+            return itemReq.getVariantName();
+        }
+        if (variant != null && variant.getVariantName() != null && !variant.getVariantName().isBlank()) {
+            return variant.getVariantName();
+        }
+        return "Tiêu chuẩn";
+    }
+
+    private String resolveSku(CreateOrderItemRequest itemReq, ProductVariant variant) {
+        if (itemReq.getSku() != null && !itemReq.getSku().isBlank()) {
+            return itemReq.getSku();
+        }
+        if (variant.getSku() != null && !variant.getSku().isBlank()) {
+            return variant.getSku();
+        }
+        return "SKU-" + variant.getId();
+    }
+
+    private String resolveImageUrl(CreateOrderItemRequest itemReq, Product product) {
+        if (itemReq.getImageUrl() != null && !itemReq.getImageUrl().isBlank()) {
+            return itemReq.getImageUrl();
+        }
+        return product != null ? product.getPrimaryImageUrl() : null;
+    }
+
+    private BigDecimal resolveUnitPrice(CreateOrderItemRequest itemReq, ProductVariant variant) {
+        BigDecimal unitPrice = variant.getSalePrice() != null ? variant.getSalePrice() : variant.getPrice();
+        if (unitPrice == null && itemReq.getPrice() != null) {
+            unitPrice = itemReq.getPrice();
+        }
+        return unitPrice != null ? unitPrice : BigDecimal.ZERO;
+    }
+
+    private void validateProductAndVariant(Product product, ProductVariant variant, String prodName, String varName) {
         if (product != null && (product.getStatus() != ProductStatus.ACTIVE || product.getDeletedAt() != null)) {
             throw new BadRequestException("Sản phẩm '" + product.getName() + "' hiện đã ngừng kinh doanh hoặc không còn tồn tại trên hệ thống!");
         }
-
         if (variant == null) {
             throw new BadRequestException("Không tìm thấy phiên bản hợp lệ cho sản phẩm '" + prodName + "'!");
         }
         if (variant.getStatus() != ProductVariantStatus.ACTIVE) {
             throw new BadRequestException("Phiên bản '" + varName + "' của sản phẩm '" + prodName + "' hiện đã ngừng kinh doanh!");
         }
+    }
 
-        String sku = (itemReq.getSku() != null && !itemReq.getSku().isBlank())
-                ? itemReq.getSku()
-                : (variant.getSku() != null ? variant.getSku() : "SKU-" + variant.getId());
-        String imgUrl = (itemReq.getImageUrl() != null && !itemReq.getImageUrl().isBlank())
-                ? itemReq.getImageUrl()
-                : (product != null ? product.getPrimaryImageUrl() : null);
-
-        BigDecimal unitPrice = variant.getSalePrice() != null ? variant.getSalePrice() : variant.getPrice();
-        if (unitPrice == null && itemReq.getPrice() != null) {
-            unitPrice = itemReq.getPrice();
-        }
-        if (unitPrice == null) {
-            unitPrice = BigDecimal.ZERO;
-        }
-
+    private void deductInventory(ProductVariant variant, int qty, String prodName, String varName) {
         Inventory inv = inventoryRepository.findById(variant.getId()).orElse(null);
         if (inv == null || inv.getAvailableQuantity() <= 0) {
             throw new BadRequestException("Sản phẩm '" + prodName + " (" + varName + ")' hiện đã hết hàng trong kho. Không thể đặt mua!");
@@ -189,6 +230,24 @@ public class OrderServiceImpl implements OrderService {
         inv.setQuantity(Math.max(0, inv.getQuantity() - qty));
         inventoryRepository.save(inv);
         log.info("Deducted {} from variant #{} stock. Remaining: {}", qty, variant.getId(), inv.getQuantity());
+    }
+
+    private OrderItem buildOrderItemAndDeductInventory(CreateOrderItemRequest itemReq) {
+        VariantProductPair pair = resolveVariantAndProduct(itemReq);
+        ProductVariant variant = pair.variant();
+        Product product = pair.product();
+
+        int qty = itemReq.getQuantity() != null && itemReq.getQuantity() > 0 ? itemReq.getQuantity() : 1;
+        String prodName = resolveProductName(itemReq, product);
+        String varName = resolveVariantName(itemReq, variant);
+
+        validateProductAndVariant(product, variant, prodName, varName);
+
+        String sku = resolveSku(itemReq, variant);
+        String imgUrl = resolveImageUrl(itemReq, product);
+        BigDecimal unitPrice = resolveUnitPrice(itemReq, variant);
+
+        deductInventory(variant, qty, prodName, varName);
 
         BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(qty));
 
