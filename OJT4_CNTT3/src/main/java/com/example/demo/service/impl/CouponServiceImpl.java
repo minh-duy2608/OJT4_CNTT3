@@ -917,32 +917,49 @@ public class CouponServiceImpl implements CouponService {
     }
 
     private void validateCouponRules(CouponRuleDto rules) {
-        if (rules.code() == null || rules.code().trim().length() < 2) {
+        validateCode(rules.code());
+        validateDiscount(rules.discountType(), rules.discountValue());
+        validateDates(rules.startAt(), rules.endAt());
+        validateAmountsAndLimits(rules.minOrderAmount(), rules.maxDiscountAmount(), rules.usageLimit(), rules.perUserLimit());
+    }
+
+    private void validateCode(String code) {
+        if (code == null || code.trim().length() < 2) {
             throw new BadRequestException("Mã giảm giá phải có ít nhất 2 ký tự");
         }
-        if (rules.discountType() == CouponDiscountType.PERCENTAGE &&
-                (rules.discountValue() == null || rules.discountValue().compareTo(BigDecimal.ZERO) <= 0 || rules.discountValue().compareTo(BigDecimal.valueOf(100)) > 0)) {
-            throw new BadRequestException("Phần trăm giảm giá phải nằm trong khoảng từ 0.01% đến 100%");
-        } else if (rules.discountType() == CouponDiscountType.FIXED_AMOUNT &&
-                (rules.discountValue() == null || rules.discountValue().compareTo(BigDecimal.ZERO) <= 0)) {
+    }
+
+    private void validateDiscount(CouponDiscountType discountType, BigDecimal discountValue) {
+        if (discountType == CouponDiscountType.PERCENTAGE) {
+            if (discountValue == null || discountValue.compareTo(BigDecimal.ZERO) <= 0 || discountValue.compareTo(BigDecimal.valueOf(100)) > 0) {
+                throw new BadRequestException("Phần trăm giảm giá phải nằm trong khoảng từ 0.01% đến 100%");
+            }
+        } else if (discountType == CouponDiscountType.FIXED_AMOUNT &&
+                (discountValue == null || discountValue.compareTo(BigDecimal.ZERO) <= 0)) {
             throw new BadRequestException("Số tiền giảm giá phải lớn hơn 0");
         }
-        if (rules.startAt() == null || rules.endAt() == null) {
+    }
+
+    private void validateDates(LocalDateTime startAt, LocalDateTime endAt) {
+        if (startAt == null || endAt == null) {
             throw new BadRequestException("Thời gian bắt đầu và kết thúc không được để trống");
         }
-        if (!rules.endAt().isAfter(rules.startAt())) {
+        if (!endAt.isAfter(startAt)) {
             throw new BadRequestException("Thời gian kết thúc phải sau thời gian bắt đầu");
         }
-        if (rules.minOrderAmount() != null && rules.minOrderAmount().compareTo(BigDecimal.ZERO) < 0) {
+    }
+
+    private void validateAmountsAndLimits(BigDecimal minOrderAmount, BigDecimal maxDiscountAmount, Integer usageLimit, Integer perUserLimit) {
+        if (minOrderAmount != null && minOrderAmount.compareTo(BigDecimal.ZERO) < 0) {
             throw new BadRequestException("Giá trị đơn hàng tối thiểu không được âm");
         }
-        if (rules.maxDiscountAmount() != null && rules.maxDiscountAmount().compareTo(BigDecimal.ZERO) < 0) {
+        if (maxDiscountAmount != null && maxDiscountAmount.compareTo(BigDecimal.ZERO) < 0) {
             throw new BadRequestException("Số tiền giảm tối đa không được âm");
         }
-        if (rules.usageLimit() != null && rules.usageLimit() <= 0) {
+        if (usageLimit != null && usageLimit <= 0) {
             throw new BadRequestException("Giới hạn lượt sử dụng phải lớn hơn 0");
         }
-        if (rules.perUserLimit() != null && rules.perUserLimit() <= 0) {
+        if (perUserLimit != null && perUserLimit <= 0) {
             throw new BadRequestException("Giới hạn lượt dùng trên mỗi khách hàng phải lớn hơn 0");
         }
     }
