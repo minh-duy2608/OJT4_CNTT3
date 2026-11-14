@@ -284,8 +284,11 @@ public class CartServiceImpl implements CartService {
             }
 
             CartItemResponse response = buildCartItemResponse(ci, variant);
-            subtotal = subtotal.add(response.getLineTotal());
-            totalItems += ci.getQuantity();
+            boolean inStock = response.getStockQuantity() != null && response.getStockQuantity() > 0;
+            if (inStock) {
+                subtotal = subtotal.add(response.getLineTotal());
+                totalItems += ci.getQuantity();
+            }
             itemResponses.add(response);
         }
 

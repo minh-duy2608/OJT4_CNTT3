@@ -120,6 +120,31 @@ class CartServiceTest extends BaseUnitTest {
     }
 
     @Test
+    @DisplayName("getCart: out of stock items are returned in list but excluded from subtotal and totalItems")
+    void getCart_outOfStockItem_notCountedInSubtotalAndTotalItems() {
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
+        when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
+
+        CartItem item = CartItem.builder().id(50L).cart(cart).variantId(200L).quantity(3).build();
+        when(cartItemRepository.findByCartId(10L)).thenReturn(List.of(item));
+        when(productVariantRepository.findById(200L)).thenReturn(Optional.of(variant));
+        when(shopRepository.findById(20L)).thenReturn(Optional.of(shop));
+        // Inventory has 0 stock (out of stock)
+        Inventory outOfStockInventory = Inventory.builder().variantId(200L).quantity(0).reservedQuantity(0).build();
+        when(inventoryRepository.findById(200L)).thenReturn(Optional.of(outOfStockInventory));
+        when(productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(100L)).thenReturn(Collections.emptyList());
+
+        CartResponse response = cartService.getCart("testuser");
+
+        assertNotNull(response);
+        assertEquals(1, response.getItems().size());
+        assertEquals(0, response.getItems().get(0).getStockQuantity());
+        // Must NOT be counted in total items or subtotal
+        assertEquals(0, response.getTotalItems());
+        assertEquals(BigDecimal.ZERO, response.getSubtotal());
+    }
+
+    @Test
     @DisplayName("getCart: creates new cart if not exists")
     void getCart_createNewCart() {
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));

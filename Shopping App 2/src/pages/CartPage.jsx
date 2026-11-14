@@ -162,8 +162,9 @@ export const CartPage = () => {
                           checked={isSelected && !isItemOutOfStock}
                           disabled={isItemOutOfStock}
                           onChange={() => toggleSelectItem(item.id)}
-                          style={{ width: '18px', height: '18px', accentColor: '#000000', cursor: isItemOutOfStock ? 'not-allowed' : 'pointer', verticalAlign: 'middle' }}
+                          style={{ width: '18px', height: '18px', accentColor: '#000000', cursor: isItemOutOfStock ? 'not-allowed' : 'pointer', verticalAlign: 'middle', opacity: isItemOutOfStock ? 0.35 : 1 }}
                           aria-label={`Chọn sản phẩm ${item.name} để thanh toán`}
+                          title={isItemOutOfStock ? 'Sản phẩm đã hết hàng trong kho, không thể chọn thanh toán' : ''}
                         />
                       </td>
                       <td style={{ padding: '1.25rem 0', fontWeight: 600 }}>
@@ -172,14 +173,14 @@ export const CartPage = () => {
                             <img 
                               src={item.image} 
                               alt={item.name} 
-                              style={{ width: '48px', height: '48px', objectFit: 'contain' }} 
+                              style={{ width: '48px', height: '48px', objectFit: 'contain', filter: isItemOutOfStock ? 'grayscale(40%)' : 'none' }} 
                             />
                           )}
                           <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span style={{ color: isSelected ? '#000000' : '#71717a' }}>{item.name}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span style={{ color: isItemOutOfStock ? '#71717a' : (isSelected ? '#000000' : '#71717a') }}>{item.name}</span>
                               {isItemOutOfStock && (
-                                <span style={{ background: '#fee2e2', color: '#dc2626', fontSize: '0.72rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px' }}>
+                                <span style={{ background: '#fee2e2', color: '#dc2626', fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', border: '1px solid #fecaca' }}>
                                   Hết hàng
                                 </span>
                               )}
@@ -241,8 +242,21 @@ export const CartPage = () => {
                           )}
                         </div>
                       </td>
-                      <td style={{ padding: '1.25rem 0', fontWeight: 700, color: '#000000' }}>
-                        {formatVND((item.price || 0) * item.quantity)}
+                      <td style={{ padding: '1.25rem 0' }}>
+                        {isItemOutOfStock ? (
+                          <div>
+                            <div style={{ fontWeight: 700, color: '#94a3b8', textDecoration: 'line-through' }}>
+                              {formatVND((item.price || 0) * item.quantity)}
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: 600, marginTop: '2px' }}>
+                              (Hết hàng • Không tính tiền)
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ fontWeight: 700, color: '#000000' }}>
+                            {formatVND((item.price || 0) * item.quantity)}
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '1.25rem 0', textAlign: 'right' }}>
                         <button
@@ -283,6 +297,11 @@ export const CartPage = () => {
                 <div style={{ fontSize: '0.875rem', color: '#71717a', marginBottom: '4px' }}>
                   Đã chọn: <strong style={{ color: '#000000' }}>{selectedCount}</strong> / {cartCount} sản phẩm
                 </div>
+                {cartItems.some(it => it.inStock === false || it.stockQuantity === 0 || (it.availableQuantity !== undefined && it.availableQuantity <= 0)) && (
+                  <div style={{ fontSize: '0.75rem', color: '#dc2626', marginBottom: '6px', fontWeight: 500 }}>
+                    * Sản phẩm hết hàng đã được tự động loại bỏ khỏi tổng tiền và không thể thanh toán.
+                  </div>
+                )}
                 <p style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.75rem' }}>
                   Tổng thanh toán: <span style={{ color: '#000000', fontSize: '1.5rem' }}>{formatVND(selectedTotal)}</span>
                 </p>
@@ -291,9 +310,23 @@ export const CartPage = () => {
                   className="btn"
                   disabled={selectedCount === 0}
                   onClick={() => {
-                    const hasOutOfStockSelected = cartItems.some(it => selectedItemIds.includes(it.id) && (it.inStock === false || it.stockQuantity === 0 || (it.availableQuantity !== undefined && it.availableQuantity <= 0)));
-                    if (hasOutOfStockSelected) {
-                      showToast('Có sản phẩm đã hết hàng trong danh sách đã chọn. Vui lòng bỏ chọn để thanh toán!', 'error');
+                    if (selectedCount === 0) {
+                      const allOutOfStock = cartItems.length > 0 && cartItems.every(it => it.inStock === false || it.stockQuantity === 0 || (it.availableQuantity !== undefined && it.availableQuantity <= 0));
+                      if (allOutOfStock) {
+                        showToast('Tất cả sản phẩm trong giỏ hàng đều đã hết hàng! Không thể thanh toán.', 'error');
+                      } else {
+                        showToast('Vui lòng chọn ít nhất 1 sản phẩm còn hàng để thanh toán!', 'warning');
+                      }
+                      return;
+                    }
+                    const outOfStockSelected = cartItems.filter(it => 
+                      selectedItemIds.includes(it.id) && 
+                      (it.inStock === false || it.stockQuantity === 0 || (it.availableQuantity !== undefined && it.availableQuantity <= 0))
+                    );
+                    if (outOfStockSelected.length > 0) {
+                      const names = outOfStockSelected.map(i => `"${i.name}"`).join(', ');
+                      showToast(`Sản phẩm ${names} hiện đã hết hàng trong kho! Không thể thanh toán.`, 'error');
+                      selectAllItems();
                       return;
                     }
                     setShowCheckoutConfirmModal(true);
@@ -306,7 +339,7 @@ export const CartPage = () => {
                     opacity: selectedCount === 0 ? 0.45 : 1,
                     cursor: selectedCount === 0 ? 'not-allowed' : 'pointer'
                   }}
-                  title={selectedCount === 0 ? 'Vui lòng chọn ít nhất 1 sản phẩm để thanh toán' : ''}
+                  title={selectedCount === 0 ? 'Vui lòng chọn ít nhất 1 sản phẩm còn hàng để thanh toán' : ''}
                 >
                   Tiến hành thanh toán ({selectedCount}) <ArrowRight size={16} />
                 </button>

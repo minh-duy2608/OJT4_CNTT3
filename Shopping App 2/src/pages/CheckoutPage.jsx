@@ -426,7 +426,8 @@ export const CheckoutPage = () => {
       showToast('Đặt hàng thành công!', 'success');
       navigate('/orders');
     } catch (err) {
-      showToast(err.message || 'Lỗi đặt hàng', 'error');
+      const errMsg = err.response?.data?.message || err.data?.message || err.message || 'Lỗi đặt hàng';
+      showToast(errMsg, 'error');
     } finally {
       setIsSubmitting(false);
     }
