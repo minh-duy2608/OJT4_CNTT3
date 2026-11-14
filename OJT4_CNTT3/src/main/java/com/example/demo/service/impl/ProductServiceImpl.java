@@ -390,57 +390,73 @@ public class ProductServiceImpl implements ProductService {
         return findProductDetailById(savedProduct.getId());
     }
 
+    private String resolveVariantAttributesJson(com.example.demo.dto.request.CreateProductVariantRequest vReq) {
+        String attributesJson = vReq.getAttributes();
+        if (attributesJson == null && (vReq.getColor() != null || vReq.getStorage() != null)) {
+            String color = vReq.getColor() != null ? vReq.getColor() : "";
+            String storage = vReq.getStorage() != null ? vReq.getStorage() : "";
+            return String.format("{\"color\":\"%s\",\"storage\":\"%s\"}", color, storage);
+        }
+        return attributesJson;
+    }
+
+    private String generateVariantSku(Long productId, String requestedSku) {
+        if (requestedSku != null && !requestedSku.isBlank()) {
+            return requestedSku.trim();
+        }
+        return "SKU-" + productId + "-" + (System.currentTimeMillis() % 100000) + "-" + (100 + SECURE_RANDOM.nextInt(900));
+    }
+
+    private void createSingleVariant(Product savedProduct, com.example.demo.dto.request.CreateProductVariantRequest vReq) {
+        String sku = generateVariantSku(savedProduct.getId(), vReq.getSku());
+        String attributesJson = resolveVariantAttributesJson(vReq);
+
+        ProductVariant variant = ProductVariant.builder()
+                .product(savedProduct)
+                .variantName(vReq.getVariantName())
+                .sku(sku)
+                .price(vReq.getPrice())
+                .salePrice(vReq.getSalePrice())
+                .weightGrams(vReq.getWeightGrams())
+                .attributes(attributesJson)
+                .status(vReq.getStatus() != null ? vReq.getStatus() : ProductVariantStatus.ACTIVE)
+                .build();
+
+        ProductVariant savedVariant = productVariantRepository.save(variant);
+
+        int qty = vReq.getStockQuantity() != null ? vReq.getStockQuantity() : 100;
+        Inventory inventory = Inventory.builder()
+                .variantId(savedVariant.getId())
+                .quantity(qty)
+                .reservedQuantity(0)
+                .build();
+        inventoryRepository.save(inventory);
+    }
+
+    private void createDefaultVariant(Product savedProduct) {
+        String defaultSku = "SKU-" + savedProduct.getId() + "-STD";
+        ProductVariant defaultVariant = ProductVariant.builder()
+                .product(savedProduct)
+                .variantName(savedProduct.getName() + " - Tiêu chuẩn")
+                .sku(defaultSku)
+                .price(BigDecimal.valueOf(1000000))
+                .status(ProductVariantStatus.ACTIVE)
+                .build();
+        ProductVariant savedVariant = productVariantRepository.save(defaultVariant);
+        inventoryRepository.save(Inventory.builder()
+                .variantId(savedVariant.getId())
+                .quantity(100)
+                .reservedQuantity(0)
+                .build());
+    }
+
     private void saveCreatedVariants(Product savedProduct, List<com.example.demo.dto.request.CreateProductVariantRequest> variants) {
         if (variants != null && !variants.isEmpty()) {
             for (com.example.demo.dto.request.CreateProductVariantRequest vReq : variants) {
-                String sku = vReq.getSku();
-                if (sku == null || sku.isBlank()) {
-                    sku = "SKU-" + savedProduct.getId() + "-" + (System.currentTimeMillis() % 100000) + "-" + (100 + SECURE_RANDOM.nextInt(900));
-                }
-
-                String attributesJson = vReq.getAttributes();
-                if (attributesJson == null && (vReq.getColor() != null || vReq.getStorage() != null)) {
-                    attributesJson = String.format("{\"color\":\"%s\",\"storage\":\"%s\"}",
-                            vReq.getColor() != null ? vReq.getColor() : "",
-                            vReq.getStorage() != null ? vReq.getStorage() : "");
-                }
-
-                ProductVariant variant = ProductVariant.builder()
-                        .product(savedProduct)
-                        .variantName(vReq.getVariantName())
-                        .sku(sku)
-                        .price(vReq.getPrice())
-                        .salePrice(vReq.getSalePrice())
-                        .weightGrams(vReq.getWeightGrams())
-                        .attributes(attributesJson)
-                        .status(vReq.getStatus() != null ? vReq.getStatus() : ProductVariantStatus.ACTIVE)
-                        .build();
-
-                ProductVariant savedVariant = productVariantRepository.save(variant);
-
-                int qty = vReq.getStockQuantity() != null ? vReq.getStockQuantity() : 100;
-                Inventory inventory = Inventory.builder()
-                        .variantId(savedVariant.getId())
-                        .quantity(qty)
-                        .reservedQuantity(0)
-                        .build();
-                inventoryRepository.save(inventory);
+                createSingleVariant(savedProduct, vReq);
             }
         } else {
-            String defaultSku = "SKU-" + savedProduct.getId() + "-STD";
-            ProductVariant defaultVariant = ProductVariant.builder()
-                    .product(savedProduct)
-                    .variantName(savedProduct.getName() + " - Tiêu chuẩn")
-                    .sku(defaultSku)
-                    .price(BigDecimal.valueOf(1000000))
-                    .status(ProductVariantStatus.ACTIVE)
-                    .build();
-            ProductVariant savedVariant = productVariantRepository.save(defaultVariant);
-            inventoryRepository.save(Inventory.builder()
-                    .variantId(savedVariant.getId())
-                    .quantity(100)
-                    .reservedQuantity(0)
-                    .build());
+            createDefaultVariant(savedProduct);
         }
     }
 
@@ -492,52 +508,185 @@ public class ProductServiceImpl implements ProductService {
         if (request.getName() != null && !request.getName().isBlank()) {
             product.setName(request.getName().trim());
         }
+        updateProductSlug(product, request);
+        updateCategoryAndBrand(product, request);
 
+        if (request.getShortDescription() != null) {
+            product.setShortDescription(request.getShortDescription());
+        }
+        if (request.getDescription() != null) {
+            product.setDescription(request.getDescription());
+        }
+        if (request.getWarrantyMonths() != null) {
+            product.setWarrantyMonths(request.getWarrantyMonths());
+        }
+        if (request.getStatus() != null) {
+            product.setStatus(request.getStatus());
+        }
+    }
+
+    private void updateProductSlug(Product product, com.example.demo.dto.request.UpdateProductRequest request) {
+        String baseSlug = null;
         if (request.getSlug() != null && !request.getSlug().isBlank()) {
-            String targetSlug = request.getSlug().trim();
-            String uniqueSlug = targetSlug;
-            int counter = 1;
-            while (productRepository.existsByShopIdAndSlugAndIdNot(product.getShopId(), uniqueSlug, product.getId())) {
-                uniqueSlug = targetSlug + "-" + counter++;
-            }
-            product.setSlug(uniqueSlug);
+            baseSlug = request.getSlug().trim();
         } else if (request.getName() != null && !request.getName().isBlank()) {
-            String targetSlug = toSlug(request.getName());
-            String uniqueSlug = targetSlug;
+            baseSlug = toSlug(request.getName());
+        }
+
+        if (baseSlug != null) {
+            String uniqueSlug = baseSlug;
             int counter = 1;
             while (productRepository.existsByShopIdAndSlugAndIdNot(product.getShopId(), uniqueSlug, product.getId())) {
-                uniqueSlug = targetSlug + "-" + counter++;
+                uniqueSlug = baseSlug + "-" + counter++;
             }
             product.setSlug(uniqueSlug);
         }
+    }
 
+    private void updateCategoryAndBrand(Product product, com.example.demo.dto.request.UpdateProductRequest request) {
         if (request.getCategoryId() != null) {
             com.example.demo.entity.Category category = categoryRepository.findById(request.getCategoryId())
                     .orElseThrow(() -> new ResourceNotFoundException("Danh mục không tồn tại: " + request.getCategoryId()));
             product.setCategory(category);
         }
-
         if (request.getBrandId() != null) {
             com.example.demo.entity.Brand brand = brandRepository.findById(request.getBrandId())
                     .orElseThrow(() -> new ResourceNotFoundException("Thương hiệu không tồn tại: " + request.getBrandId()));
             product.setBrand(brand);
             product.setBrandId(brand.getId());
         }
+    }
 
-        if (request.getShortDescription() != null) {
-            product.setShortDescription(request.getShortDescription());
+    private ProductVariant findMatchingVariant(
+            com.example.demo.dto.request.CreateProductVariantRequest vReq,
+            int index,
+            Map<Long, ProductVariant> existingById,
+            Map<String, ProductVariant> existingBySku,
+            List<ProductVariant> existingVariants
+    ) {
+        if (vReq.getId() != null && existingById.containsKey(vReq.getId())) {
+            return existingById.get(vReq.getId());
         }
-
-        if (request.getDescription() != null) {
-            product.setDescription(request.getDescription());
+        if (vReq.getSku() != null && !vReq.getSku().isBlank() && existingBySku.containsKey(vReq.getSku().trim())) {
+            return existingBySku.get(vReq.getSku().trim());
         }
-
-        if (request.getWarrantyMonths() != null) {
-            product.setWarrantyMonths(request.getWarrantyMonths());
+        if (index < existingVariants.size() && vReq.getId() == null && (vReq.getSku() == null || vReq.getSku().isBlank())) {
+            return existingVariants.get(index);
         }
+        return null;
+    }
 
-        if (request.getStatus() != null) {
-            product.setStatus(request.getStatus());
+    private void updateExistingVariantSku(
+            Long productId,
+            ProductVariant variant,
+            String requestedSku,
+            int index,
+            Set<String> usedSkusInBatch
+    ) {
+        if (requestedSku != null && !requestedSku.isBlank()) {
+            String newSku = requestedSku.trim();
+            if (!newSku.equals(variant.getSku())) {
+                if (!productVariantRepository.existsBySkuAndIdNot(newSku, variant.getId()) && !usedSkusInBatch.contains(newSku)) {
+                    variant.setSku(newSku);
+                    usedSkusInBatch.add(newSku);
+                } else {
+                    String fallbackSku = "SKU-" + productId + "-" + System.currentTimeMillis() + "-" + (index + 1);
+                    variant.setSku(fallbackSku);
+                    usedSkusInBatch.add(fallbackSku);
+                }
+            } else {
+                usedSkusInBatch.add(variant.getSku());
+            }
+        } else if (variant.getSku() != null) {
+            usedSkusInBatch.add(variant.getSku());
+        }
+    }
+
+    private void updateVariantInventory(Long variantId, int qty) {
+        inventoryRepository.findById(variantId).ifPresentOrElse(inv -> {
+            inv.setQuantity(qty);
+            inventoryRepository.save(inv);
+        }, () -> inventoryRepository.save(Inventory.builder()
+                .variantId(variantId)
+                .quantity(qty)
+                .reservedQuantity(0)
+                .build()));
+    }
+
+    private void updateExistingVariant(
+            Product savedProduct,
+            ProductVariant variant,
+            com.example.demo.dto.request.CreateProductVariantRequest vReq,
+            int index,
+            Set<String> usedSkusInBatch,
+            String attributesJson
+    ) {
+        variant.setVariantName(vReq.getVariantName());
+        variant.setPrice(vReq.getPrice());
+        variant.setSalePrice(vReq.getSalePrice());
+        variant.setWeightGrams(vReq.getWeightGrams());
+        variant.setAttributes(attributesJson);
+        if (vReq.getStatus() != null) {
+            variant.setStatus(vReq.getStatus());
+        }
+        updateExistingVariantSku(savedProduct.getId(), variant, vReq.getSku(), index, usedSkusInBatch);
+
+        ProductVariant savedVariant = productVariantRepository.save(variant);
+        int qty = vReq.getStockQuantity() != null ? vReq.getStockQuantity() : 100;
+        updateVariantInventory(savedVariant.getId(), qty);
+    }
+
+    private void createNewVariantInUpdate(
+            Product savedProduct,
+            com.example.demo.dto.request.CreateProductVariantRequest vReq,
+            int index,
+            Set<Long> processedVariantIds,
+            Set<String> usedSkusInBatch,
+            String attributesJson
+    ) {
+        String sku = vReq.getSku();
+        if (sku == null || sku.isBlank() || productVariantRepository.existsBySku(sku.trim()) || usedSkusInBatch.contains(sku.trim())) {
+            sku = "SKU-" + savedProduct.getId() + "-" + System.currentTimeMillis() + "-" + (index + 1);
+        } else {
+            sku = sku.trim();
+        }
+        usedSkusInBatch.add(sku);
+
+        ProductVariant newVariant = ProductVariant.builder()
+                .product(savedProduct)
+                .variantName(vReq.getVariantName())
+                .sku(sku)
+                .price(vReq.getPrice())
+                .salePrice(vReq.getSalePrice())
+                .weightGrams(vReq.getWeightGrams())
+                .attributes(attributesJson)
+                .status(vReq.getStatus() != null ? vReq.getStatus() : ProductVariantStatus.ACTIVE)
+                .build();
+
+        ProductVariant savedVariant = productVariantRepository.save(newVariant);
+        processedVariantIds.add(savedVariant.getId());
+
+        int qty = vReq.getStockQuantity() != null ? vReq.getStockQuantity() : 100;
+        inventoryRepository.save(Inventory.builder()
+                .variantId(savedVariant.getId())
+                .quantity(qty)
+                .reservedQuantity(0)
+                .build());
+    }
+
+    private void cleanupRemovedVariants(List<ProductVariant> existingVariants, Set<Long> processedVariantIds) {
+        for (ProductVariant ev : existingVariants) {
+            if (!processedVariantIds.contains(ev.getId())) {
+                try {
+                    inventoryRepository.deleteById(ev.getId());
+                    productVariantRepository.delete(ev);
+                    productVariantRepository.flush();
+                } catch (Exception ex) {
+                    log.warn("Không thể xóa biến thể ID {} do có ràng buộc đơn hàng/giỏ hàng, chuyển trạng thái INACTIVE: {}", ev.getId(), ex.getMessage());
+                    ev.setStatus(ProductVariantStatus.INACTIVE);
+                    productVariantRepository.save(ev);
+                }
+            }
         }
     }
 
@@ -556,109 +705,18 @@ public class ProductServiceImpl implements ProductService {
 
         for (int i = 0; i < variantRequests.size(); i++) {
             com.example.demo.dto.request.CreateProductVariantRequest vReq = variantRequests.get(i);
-
-            ProductVariant variant = null;
-            if (vReq.getId() != null && existingById.containsKey(vReq.getId())) {
-                variant = existingById.get(vReq.getId());
-            } else if (vReq.getSku() != null && !vReq.getSku().isBlank() && existingBySku.containsKey(vReq.getSku().trim())) {
-                variant = existingBySku.get(vReq.getSku().trim());
-            } else if (i < existingVariants.size() && vReq.getId() == null && (vReq.getSku() == null || vReq.getSku().isBlank())) {
-                variant = existingVariants.get(i);
-            }
-
-            String attributesJson = vReq.getAttributes();
-            if (attributesJson == null && (vReq.getColor() != null || vReq.getStorage() != null)) {
-                attributesJson = String.format("{\"color\":\"%s\",\"storage\":\"%s\"}",
-                        vReq.getColor() != null ? vReq.getColor() : "",
-                        vReq.getStorage() != null ? vReq.getStorage() : "");
-            }
+            ProductVariant variant = findMatchingVariant(vReq, i, existingById, existingBySku, existingVariants);
+            String attributesJson = resolveVariantAttributesJson(vReq);
 
             if (variant != null) {
-                // Cập nhật biến thể hiện có (in-place update - không gây duplicate SKU)
                 processedVariantIds.add(variant.getId());
-                variant.setVariantName(vReq.getVariantName());
-                variant.setPrice(vReq.getPrice());
-                variant.setSalePrice(vReq.getSalePrice());
-                variant.setWeightGrams(vReq.getWeightGrams());
-                variant.setAttributes(attributesJson);
-                if (vReq.getStatus() != null) {
-                    variant.setStatus(vReq.getStatus());
-                }
-                if (vReq.getSku() != null && !vReq.getSku().isBlank()) {
-                    String newSku = vReq.getSku().trim();
-                    if (!newSku.equals(variant.getSku())) {
-                        if (!productVariantRepository.existsBySkuAndIdNot(newSku, variant.getId()) && !usedSkusInBatch.contains(newSku)) {
-                            variant.setSku(newSku);
-                            usedSkusInBatch.add(newSku);
-                        } else {
-                            String fallbackSku = "SKU-" + savedProduct.getId() + "-" + System.currentTimeMillis() + "-" + (i + 1);
-                            variant.setSku(fallbackSku);
-                            usedSkusInBatch.add(fallbackSku);
-                        }
-                    } else {
-                        usedSkusInBatch.add(variant.getSku());
-                    }
-                } else if (variant.getSku() != null) {
-                    usedSkusInBatch.add(variant.getSku());
-                }
-                ProductVariant savedVariant = productVariantRepository.save(variant);
-
-                int qty = vReq.getStockQuantity() != null ? vReq.getStockQuantity() : 100;
-                inventoryRepository.findById(savedVariant.getId()).ifPresentOrElse(inv -> {
-                    inv.setQuantity(qty);
-                    inventoryRepository.save(inv);
-                }, () -> inventoryRepository.save(Inventory.builder()
-                        .variantId(savedVariant.getId())
-                        .quantity(qty)
-                        .reservedQuantity(0)
-                        .build()));
+                updateExistingVariant(savedProduct, variant, vReq, i, usedSkusInBatch, attributesJson);
             } else {
-                // Thêm mới biến thể
-                String sku = vReq.getSku();
-                if (sku == null || sku.isBlank() || productVariantRepository.existsBySku(sku.trim()) || usedSkusInBatch.contains(sku.trim())) {
-                    sku = "SKU-" + savedProduct.getId() + "-" + System.currentTimeMillis() + "-" + (i + 1);
-                } else {
-                    sku = sku.trim();
-                }
-                usedSkusInBatch.add(sku);
-
-                ProductVariant newVariant = ProductVariant.builder()
-                        .product(savedProduct)
-                        .variantName(vReq.getVariantName())
-                        .sku(sku)
-                        .price(vReq.getPrice())
-                        .salePrice(vReq.getSalePrice())
-                        .weightGrams(vReq.getWeightGrams())
-                        .attributes(attributesJson)
-                        .status(vReq.getStatus() != null ? vReq.getStatus() : ProductVariantStatus.ACTIVE)
-                        .build();
-
-                ProductVariant savedVariant = productVariantRepository.save(newVariant);
-                processedVariantIds.add(savedVariant.getId());
-
-                int qty = vReq.getStockQuantity() != null ? vReq.getStockQuantity() : 100;
-                inventoryRepository.save(Inventory.builder()
-                        .variantId(savedVariant.getId())
-                        .quantity(qty)
-                        .reservedQuantity(0)
-                        .build());
+                createNewVariantInUpdate(savedProduct, vReq, i, processedVariantIds, usedSkusInBatch, attributesJson);
             }
         }
 
-        // Xóa các biến thể cũ đã bị xóa khỏi danh sách
-        for (ProductVariant ev : existingVariants) {
-            if (!processedVariantIds.contains(ev.getId())) {
-                try {
-                    inventoryRepository.deleteById(ev.getId());
-                    productVariantRepository.delete(ev);
-                    productVariantRepository.flush();
-                } catch (Exception ex) {
-                    log.warn("Không thể xóa biến thể ID {} do có ràng buộc đơn hàng/giỏ hàng, chuyển trạng thái INACTIVE: {}", ev.getId(), ex.getMessage());
-                    ev.setStatus(ProductVariantStatus.INACTIVE);
-                    productVariantRepository.save(ev);
-                }
-            }
-        }
+        cleanupRemovedVariants(existingVariants, processedVariantIds);
     }
 
     private void updateProductImages(Product savedProduct, List<com.example.demo.dto.request.CreateProductImageRequest> imageRequests) {
@@ -792,7 +850,7 @@ public class ProductServiceImpl implements ProductService {
         int page = Math.max(0, finalCriteria.getPage());
         int size = finalCriteria.getSize() > 0 ? finalCriteria.getSize() : 12;
 
-        String sortBy = "createdAt";
+        String sortBy = SORT_BY_CREATED_AT;
         if (finalCriteria.getSortBy() != null && ALLOWED_SORT_FIELDS.contains(finalCriteria.getSortBy())) {
             sortBy = finalCriteria.getSortBy();
         }
@@ -805,7 +863,7 @@ public class ProductServiceImpl implements ProductService {
             predicates.add(cb.equal(root.get("shopId"), shopId));
 
             if (finalCriteria.getStatus() != null) {
-                predicates.add(cb.equal(root.get("status"), finalCriteria.getStatus()));
+                predicates.add(cb.equal(root.get(STATUS_FIELD), finalCriteria.getStatus()));
             } else {
                 predicates.add(cb.isNull(root.get("deletedAt")));
             }
