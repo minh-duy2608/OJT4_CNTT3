@@ -36,6 +36,8 @@ export const SellerChatPage = ({ embedded = false }) => {
   const messagesContainerRef = useRef(null);
   const inputRef = useRef(null);
   const isSendingRef = useRef(false);
+  const isComposingRef = useRef(false);
+  const lastProcessedMsgRef = useRef(null);
 
   // 1. Tải danh sách phòng chat của người dùng hiện tại
   const fetchRooms = useCallback(async () => {
@@ -60,23 +62,37 @@ export const SellerChatPage = ({ embedded = false }) => {
       const latestMsg = messages[messages.length - 1];
       if (!latestMsg) return;
 
+      // Tránh xử lý lặp lại tin nhắn cũ khi effect kích hoạt do selectedPartner thay đổi
+      const msgKey = latestMsg.id
+        ? `id_${latestMsg.id}`
+        : (latestMsg.clientMsgId ? `cmsg_${latestMsg.clientMsgId}` : `${latestMsg.createdAt}_${latestMsg.content}`);
+      if (lastProcessedMsgRef.current === msgKey) return;
+      lastProcessedMsgRef.current = msgKey;
+
       // Cập nhật tin nhắn trong phòng đang mở (loại bỏ trùng lặp triệt để)
-      if (selectedPartner && (latestMsg.senderId === selectedPartner.id || latestMsg.receiverId === selectedPartner.id)) {
+      const isForCurrentRoom =
+        selectedPartner?.id &&
+        (String(latestMsg.senderId) === String(selectedPartner.id) ||
+         String(latestMsg.receiverId) === String(selectedPartner.id));
+
+      if (isForCurrentRoom) {
         setRoomMessages((prev) => {
           // a. Trùng lặp theo DB id
-          if (latestMsg.id && prev.some((m) => m.id === latestMsg.id)) return prev;
+          if (latestMsg.id && prev.some((m) => m.id && String(m.id) === String(latestMsg.id))) {
+            return prev;
+          }
 
           // b. Trùng lặp theo clientMsgId -> thay thế tin nhắn tạm
-          if (latestMsg.clientMsgId && prev.some((m) => m.clientMsgId === latestMsg.clientMsgId)) {
+          if (latestMsg.clientMsgId && prev.some((m) => m.clientMsgId && m.clientMsgId === latestMsg.clientMsgId)) {
             return prev.map((m) => (m.clientMsgId === latestMsg.clientMsgId ? latestMsg : m));
           }
 
-          // c. Trùng lặp tin nhắn tạm cùng người gửi và nội dung
+          // c. Trùng lặp tin nhắn tạm cùng người gửi, người nhận và nội dung
           const localIdx = prev.findIndex(
             (m) =>
               !m.id &&
-              m.senderId === latestMsg.senderId &&
-              m.receiverId === latestMsg.receiverId &&
+              String(m.senderId) === String(latestMsg.senderId) &&
+              String(m.receiverId) === String(latestMsg.receiverId) &&
               m.content === latestMsg.content
           );
           if (localIdx !== -1) {
@@ -122,7 +138,7 @@ export const SellerChatPage = ({ embedded = false }) => {
       // Khử trùng lặp theo id khi tải từ server
       const map = new Map();
       list.forEach((m) => {
-        if (m.id) map.set(m.id, m);
+        if (m.id) map.set(String(m.id), m);
       });
       setRoomMessages(Array.from(map.values()));
 
@@ -154,6 +170,12 @@ export const SellerChatPage = ({ embedded = false }) => {
       isSendingRef.current = false;
     }, 350);
 
+    // Xóa ngay lập tức ô nhập văn bản (cả React state và DOM) để tránh hiện lại
+    setInputText('');
+    if (inputRef.current) {
+      inputRef.current.value = '';
+    }
+
     const clientMsgId = `cmsg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     const payload = {
@@ -176,15 +198,14 @@ export const SellerChatPage = ({ embedded = false }) => {
 
     setRoomMessages((prev) => [...prev, localMsg]);
     sendMessage(payload);
-    setInputText('');
 
     // Đưa phòng chat này lên đầu danh sách
     setRooms((prev) => {
-      const existing = prev.find((r) => r.partnerId === selectedPartner.id);
+      const existing = prev.find((r) => String(r.partnerId) === String(selectedPartner.id));
       if (existing) {
         return [
           { ...existing, lastMessage: content, lastMessageTime: new Date().toISOString() },
-          ...prev.filter((r) => r.partnerId !== selectedPartner.id)
+          ...prev.filter((r) => String(r.partnerId) !== String(selectedPartner.id))
         ];
       }
       return prev;
@@ -192,6 +213,9 @@ export const SellerChatPage = ({ embedded = false }) => {
   };
 
   const handleKeyDown = (e) => {
+    // Tránh gửi nhầm hoặc lưu lại chữ khi đang gõ tiếng Việt (IME composition trên macOS/Windows)
+    if (e.nativeEvent.isComposing || e.keyCode === 229 || isComposingRef.current) return;
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (e.repeat) return;
@@ -258,7 +282,7 @@ export const SellerChatPage = ({ embedded = false }) => {
             </div>
           ) : (
             filteredRooms.map((room) => {
-              const isSelected = selectedPartner?.id === room.partnerId;
+              const isSelected = selectedPartner?.id && String(selectedPartner.id) === String(room.partnerId);
               const hasUnread = room.unreadCount > 0;
 
               return (
@@ -342,7 +366,7 @@ export const SellerChatPage = ({ embedded = false }) => {
                   const isLast = idx === roomMessages.length - 1;
 
                   return (
-                    <div key={msg.id ?? idx} className={`chat-bubble-row ${isMe ? 'is-me' : 'is-partner'}`}>
+                    <div key={msg.id ?? msg.clientMsgId ?? idx} className={`chat-bubble-row ${isMe ? 'is-me' : 'is-partner'}`}>
                       {!isMe && (
                         <div className="chat-bubble-avatar">
                           {selectedPartner.avatar ? (
@@ -425,6 +449,8 @@ export const SellerChatPage = ({ embedded = false }) => {
                 placeholder={`Nhắn tin cho ${selectedPartner.name}... (Nhấn Enter để gửi)`}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
+                onCompositionStart={() => { isComposingRef.current = true; }}
+                onCompositionEnd={() => { setTimeout(() => { isComposingRef.current = false; }, 50); }}
                 onKeyDown={handleKeyDown}
               />
               <button

@@ -39,6 +39,7 @@ export const FloatingChatWidget = () => {
   const inputRef = useRef(null);
   const activeRoomIdRef = useRef(null);
   const isSendingRef = useRef(false);
+  const isComposingRef = useRef(false);
 
   /* Cuộn xuống tin mới nhất (chỉ cuộn trong container, không cuộn window) */
   useEffect(() => {
@@ -79,6 +80,12 @@ export const FloatingChatWidget = () => {
       isSendingRef.current = false;
     }, 350);
 
+    // Xóa ngay lập tức ô nhập văn bản (cả React state và DOM) để tránh hiện lại
+    setInputText('');
+    if (inputRef.current) {
+      inputRef.current.value = '';
+    }
+
     const clientMsgId = `cmsg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     const payload = {
@@ -101,7 +108,6 @@ export const FloatingChatWidget = () => {
     });
 
     sendMessage(payload);
-    setInputText('');
   }, [inputText, user, activeSeller, sendMessage, addLocalMessage]);
 
   /* ─── Gửi thẻ sản phẩm ─── */
@@ -143,6 +149,9 @@ export const FloatingChatWidget = () => {
 
   /* ─── Enter để gửi ─── */
   const handleKeyDown = (e) => {
+    // Tránh gửi nhầm hoặc lưu lại chữ khi đang gõ tiếng Việt (IME composition trên macOS/Windows)
+    if (e.nativeEvent.isComposing || e.keyCode === 229 || isComposingRef.current) return;
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (e.repeat) return;
@@ -219,7 +228,7 @@ export const FloatingChatWidget = () => {
               const isLast = idx === messages.length - 1;
 
               return (
-                <div key={msg.id ?? idx} className={`fcw-msg-row ${isMe ? 'me' : 'them'}`}>
+                <div key={msg.id ?? msg.clientMsgId ?? idx} className={`fcw-msg-row ${isMe ? 'me' : 'them'}`}>
                   {/* Avatar đối phương */}
                   {!isMe && (
                     <div className="fcw-msg-avatar">
@@ -294,6 +303,8 @@ export const FloatingChatWidget = () => {
               placeholder="Nhập tin nhắn..."
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
+              onCompositionStart={() => { isComposingRef.current = true; }}
+              onCompositionEnd={() => { setTimeout(() => { isComposingRef.current = false; }, 50); }}
               onKeyDown={handleKeyDown}
               rows={1}
             />

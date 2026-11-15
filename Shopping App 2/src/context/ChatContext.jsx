@@ -93,12 +93,12 @@ export const ChatProvider = ({ children }) => {
 
               setMessages((prev) => {
                 // a. Nếu đã tồn tại tin nhắn cùng id (từ DB) -> bỏ qua
-                if (incoming.id && prev.some((m) => m.id === incoming.id)) {
+                if (incoming.id && prev.some((m) => m.id && String(m.id) === String(incoming.id))) {
                   return prev;
                 }
 
                 // b. Nếu có clientMsgId, thay thế tin nhắn tạm (optimistic) có cùng clientMsgId
-                if (incoming.clientMsgId && prev.some((m) => m.clientMsgId === incoming.clientMsgId)) {
+                if (incoming.clientMsgId && prev.some((m) => m.clientMsgId && m.clientMsgId === incoming.clientMsgId)) {
                   return prev.map((m) => (m.clientMsgId === incoming.clientMsgId ? incoming : m));
                 }
 
@@ -106,8 +106,8 @@ export const ChatProvider = ({ children }) => {
                 const localIdx = prev.findIndex(
                   (m) =>
                     !m.id &&
-                    m.senderId === incoming.senderId &&
-                    m.receiverId === incoming.receiverId &&
+                    String(m.senderId) === String(incoming.senderId) &&
+                    String(m.receiverId) === String(incoming.receiverId) &&
                     m.content === incoming.content
                 );
                 if (localIdx !== -1) {
@@ -208,7 +208,7 @@ export const ChatProvider = ({ children }) => {
       const list = Array.isArray(history) ? history : [];
       const map = new Map();
       list.forEach((m) => {
-        if (m.id) map.set(m.id, m);
+        if (m.id) map.set(String(m.id), m);
       });
       setMessages(Array.from(map.values()));
     } catch {
@@ -230,10 +230,10 @@ export const ChatProvider = ({ children }) => {
   /* ─── Thêm tin nhắn local (Optimistic UI có kiểm tra trùng lặp) ─── */
   const addLocalMessage = useCallback((msg) => {
     setMessages((prev) => {
-      if (msg.clientMsgId && prev.some((m) => m.clientMsgId === msg.clientMsgId)) {
+      if (msg.clientMsgId && prev.some((m) => m.clientMsgId && m.clientMsgId === msg.clientMsgId)) {
         return prev;
       }
-      if (msg.id && prev.some((m) => m.id === msg.id)) {
+      if (msg.id && prev.some((m) => m.id && String(m.id) === String(msg.id))) {
         return prev;
       }
       return [...prev, msg];
