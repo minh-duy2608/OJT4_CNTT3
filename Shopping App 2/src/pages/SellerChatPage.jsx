@@ -33,6 +33,7 @@ export const SellerChatPage = ({ embedded = false }) => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const inputRef = useRef(null);
   const isSendingRef = useRef(false);
 
@@ -93,9 +94,14 @@ export const SellerChatPage = ({ embedded = false }) => {
     }
   }, [messages, selectedPartner, fetchRooms]);
 
-  // 3. Tự động cuộn xuống cuối khi có tin nhắn mới
+  // 3. Tự động cuộn xuống cuối bên trong container tin nhắn (KHÔNG cuộn toàn bộ window trang)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
   }, [roomMessages]);
 
   // 4. Chọn một khách hàng / đối phương để trò chuyện
@@ -133,7 +139,7 @@ export const SellerChatPage = ({ embedded = false }) => {
       setRoomMessages([]);
     } finally {
       setIsLoadingHistory(false);
-      setTimeout(() => inputRef.current?.focus(), 100);
+      setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 100);
     }
   };
 
@@ -319,7 +325,7 @@ export const SellerChatPage = ({ embedded = false }) => {
             </div>
 
             {/* Vùng tin nhắn */}
-            <div className="chat-main-messages">
+            <div className="chat-main-messages" ref={messagesContainerRef}>
               {isLoadingHistory ? (
                 <div className="chat-messages-loading">
                   <div className="chat-spinner" />

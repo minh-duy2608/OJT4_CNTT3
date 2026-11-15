@@ -35,14 +35,18 @@ export const FloatingChatWidget = () => {
 
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const inputRef = useRef(null);
   const activeRoomIdRef = useRef(null);
   const isSendingRef = useRef(false);
 
-  /* Cuộn xuống tin mới nhất */
+  /* Cuộn xuống tin mới nhất (chỉ cuộn trong container, không cuộn window) */
   useEffect(() => {
-    if (isChatOpen && !isMinimized) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isChatOpen && !isMinimized && messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
     }
   }, [messages, isChatOpen, isMinimized]);
 
@@ -57,10 +61,10 @@ export const FloatingChatWidget = () => {
     }
   }, [isChatOpen, isMinimized, messages, user?.id, markAsRead]);
 
-  /* Focus input khi mở */
+  /* Focus input khi mở (không cuộn window) */
   useEffect(() => {
     if (isChatOpen && !isMinimized) {
-      setTimeout(() => inputRef.current?.focus(), 150);
+      setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 150);
     }
   }, [isChatOpen, isMinimized]);
 
@@ -202,7 +206,7 @@ export const FloatingChatWidget = () => {
           )}
 
           {/* ─── MESSAGES AREA ─── */}
-          <div className="fcw-messages">
+          <div className="fcw-messages" ref={messagesContainerRef}>
             {messages.length === 0 && (
               <div className="fcw-empty-state">
                 <MessageCircle size={36} className="fcw-empty-icon" />
