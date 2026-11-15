@@ -303,5 +303,32 @@ class ProductServiceTest extends BaseUnitTest {
         assertNotNull(product1.getDeletedAt());
         verify(productRepository, times(1)).save(product1);
     }
+
+    @Test
+    @DisplayName("Admin: approveProduct sets status to ACTIVE")
+    void approveProduct_success() {
+        product1.setStatus(ProductStatus.PENDING);
+        when(productRepository.findById(100L)).thenReturn(Optional.of(product1));
+        when(productRepository.save(any(Product.class))).thenReturn(product1);
+
+        ProductDetailResponse response = productService.approveProduct(100L);
+
+        assertEquals(ProductStatus.ACTIVE, product1.getStatus());
+        assertNull(product1.getDeletedAt());
+        verify(productRepository).save(product1);
+    }
+
+    @Test
+    @DisplayName("Admin: rejectProduct sets status to REJECTED")
+    void rejectProduct_success() {
+        product1.setStatus(ProductStatus.PENDING);
+        when(productRepository.findById(100L)).thenReturn(Optional.of(product1));
+        when(productRepository.save(any(Product.class))).thenReturn(product1);
+
+        ProductDetailResponse response = productService.rejectProduct(100L, "Sai thông tin");
+
+        assertEquals(ProductStatus.REJECTED, product1.getStatus());
+        verify(productRepository).save(product1);
+    }
 }
 

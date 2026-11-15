@@ -12,8 +12,10 @@ import com.example.demo.entity.ProductImage;
 import com.example.demo.entity.ProductStatus;
 import com.example.demo.entity.ProductVariant;
 import com.example.demo.entity.ProductVariantStatus;
+import com.example.demo.entity.Role;
 import com.example.demo.entity.Shop;
 import com.example.demo.entity.ShopStatus;
+import com.example.demo.entity.User;
 import com.example.demo.exception.BadRequestException;
 import com.example.demo.exception.ResourceNotFoundException;
 import com.example.demo.repository.InventoryRepository;
@@ -801,6 +803,14 @@ public class ProductServiceImpl implements ProductService {
         return ProductDetailResponse.fromEntity(product, variants, images, minPrice, maxPrice);
     }
 
+    private boolean isUserAdmin(User user) {
+        if (user == null) return false;
+        return user.getRole() == Role.ADMIN ||
+                user.getRole() == Role.ROLE_ADMIN ||
+                (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
+                        "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
+    }
+
     private com.example.demo.entity.Shop verifyShopAccess(Long shopId, String currentUsername) {
         if (currentUsername == null || currentUsername.isBlank()) {
             throw new com.example.demo.exception.UnauthorizedException("Yêu cầu đăng nhập để thực hiện thao tác");
@@ -811,12 +821,7 @@ public class ProductServiceImpl implements ProductService {
         com.example.demo.entity.Shop shop = shopRepository.findById(shopId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng với ID: " + shopId));
 
-        boolean isAdmin = user.getRole() == com.example.demo.entity.Role.ADMIN ||
-                user.getRole() == com.example.demo.entity.Role.ROLE_ADMIN ||
-                (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
-                        "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
-
-        if (isAdmin) {
+        if (isUserAdmin(user)) {
             return shop;
         }
 
@@ -905,6 +910,16 @@ public class ProductServiceImpl implements ProductService {
     public ProductDetailResponse createShopProduct(Long shopId, com.example.demo.dto.request.CreateProductRequest request, String currentUsername) {
         verifyShopAccess(shopId, currentUsername);
         request.setShopId(shopId);
+
+        User user = userRepository.findByUsername(currentUsername).orElse(null);
+        boolean isAdmin = isUserAdmin(user);
+
+        // Khi người bán (Shop Manager/Owner) đăng sản phẩm: BẮT BUỘC sản phẩm vào trạng thái PENDING chờ Admin duyệt
+        // Chỉ khi Admin phê duyệt (Approve) thì sản phẩm mới chuyển sang ACTIVE để bày bán chính thức
+        if (!isAdmin) {
+            request.setStatus(ProductStatus.PENDING);
+        }
+
         return doCreateProduct(request);
     }
 
@@ -921,9 +936,15 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public ProductDetailResponse updateShopProduct(Long shopId, Long productId, com.example.demo.dto.request.UpdateProductRequest request, String currentUsername) {
         verifyShopAccess(shopId, currentUsername);
-        if (!productRepository.existsByIdAndShopId(productId, shopId)) {
-            throw new ResourceNotFoundException(PRODUCT_NOT_FOUND_PREFIX + productId + BELONGS_TO_SHOP_PREFIX + shopId);
+        Product product = productRepository.findByIdAndShopId(productId, shopId)
+                .orElseThrow(() -> new ResourceNotFoundException(PRODUCT_NOT_FOUND_PREFIX + productId + BELONGS_TO_SHOP_PREFIX + shopId));
+
+        if (product.getStatus() == ProductStatus.REJECTED) {
+            product.setStatus(ProductStatus.PENDING);
+            productRepository.save(product);
+            log.info("Product #{} in shop #{} was REJECTED, automatically transitioned back to PENDING upon shop update", productId, shopId);
         }
+
         return doUpdateProduct(productId, request);
     }
 
@@ -1202,6 +1223,107 @@ public class ProductServiceImpl implements ProductService {
                 .replaceAll("-+", "-")
                 .replaceAll("(^-)|(-$)", "");
         return slug.isBlank() ? "product-" + System.currentTimeMillis() : slug;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ProductSummaryResponse> getAdminProducts(ProductFilterCriteria criteria) {
+        ProductFilterCriteria finalCriteria = criteria != null ? criteria : ProductFilterCriteria.builder().build();
+
+        int page = Math.max(0, finalCriteria.getPage());
+        int size = finalCriteria.getSize() > 0 ? finalCriteria.getSize() : 12;
+
+        String sortBy = SORT_BY_CREATED_AT;
+        if (finalCriteria.getSortBy() != null && ALLOWED_SORT_FIELDS.contains(finalCriteria.getSortBy())) {
+            sortBy = finalCriteria.getSortBy();
+        }
+
+        Sort.Direction direction = "asc".equalsIgnoreCase(finalCriteria.getSortDir()) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+
+        Specification<Product> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.isNull(root.get("deletedAt")));
+
+            if (finalCriteria.getShopId() != null) {
+                predicates.add(cb.equal(root.get("shopId"), finalCriteria.getShopId()));
+            }
+
+            if (finalCriteria.getStatus() != null) {
+                predicates.add(cb.equal(root.get(STATUS_FIELD), finalCriteria.getStatus()));
+            }
+
+            if (finalCriteria.getKeyword() != null && !finalCriteria.getKeyword().isBlank()) {
+                String pattern = "%" + finalCriteria.getKeyword().trim().toLowerCase() + "%";
+                Predicate namePred = cb.like(cb.lower(root.get("name")), pattern);
+                Predicate slugPred = cb.like(cb.lower(root.get("slug")), pattern);
+                predicates.add(cb.or(namePred, slugPred));
+            }
+
+            if (finalCriteria.getCategoryId() != null) {
+                predicates.add(cb.equal(root.get("category").get("id"), finalCriteria.getCategoryId()));
+            }
+
+            if (finalCriteria.getBrandId() != null) {
+                predicates.add(cb.equal(root.get("brandId"), finalCriteria.getBrandId()));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Page<Product> productPage = productRepository.findAll(spec, pageable);
+        List<ProductSummaryResponse> content = productPage.getContent().stream()
+                .map(this::toSummaryResponse)
+                .collect(Collectors.toList());
+
+        return PageResponse.<ProductSummaryResponse>builder()
+                .content(content)
+                .page(productPage.getNumber())
+                .size(productPage.getSize())
+                .totalElements(productPage.getTotalElements())
+                .totalPages(productPage.getTotalPages())
+                .first(productPage.isFirst())
+                .last(productPage.isLast())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public ProductDetailResponse approveProduct(Long productId) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException(PRODUCT_NOT_FOUND_ID_PREFIX + productId));
+        product.setStatus(ProductStatus.ACTIVE);
+        product.setDeletedAt(null);
+        Product saved = productRepository.save(product);
+        log.info("Admin approved product #{} ('{}') from shop #{} -> ACTIVE", saved.getId(), saved.getName(), saved.getShopId());
+        return mapToDetailResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public ProductDetailResponse rejectProduct(Long productId, String reason) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException(PRODUCT_NOT_FOUND_ID_PREFIX + productId));
+        product.setStatus(ProductStatus.REJECTED);
+        Product saved = productRepository.save(product);
+        log.info("Admin rejected product #{} ('{}') from shop #{}. Reason: {}", saved.getId(), saved.getName(), saved.getShopId(), reason);
+        return mapToDetailResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public ProductDetailResponse updateProductStatus(Long productId, ProductStatus status) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException(PRODUCT_NOT_FOUND_ID_PREFIX + productId));
+        product.setStatus(status != null ? status : ProductStatus.ACTIVE);
+        if (product.getStatus() == ProductStatus.INACTIVE && product.getDeletedAt() == null) {
+            product.setDeletedAt(java.time.LocalDateTime.now());
+        } else if (product.getStatus() == ProductStatus.ACTIVE) {
+            product.setDeletedAt(null);
+        }
+        Product saved = productRepository.save(product);
+        log.info("Admin updated product #{} status to {}", saved.getId(), saved.getStatus());
+        return mapToDetailResponse(saved);
     }
 }
 
