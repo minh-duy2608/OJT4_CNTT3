@@ -580,6 +580,12 @@ export const ProductDetailPage = () => {
       return;
     }
 
+    const totalBuyNowPrice = currentPrice * quantity;
+    if (totalBuyNowPrice > 500000000) {
+      showToast(`Đơn hàng (${formatVND(totalBuyNowPrice)}) vượt quá hạn mức tối đa cho phép mua trực tuyến (500.000.000₫). Vui lòng liên hệ Hotline 1900 6868 để được hỗ trợ mua số lượng lớn theo hợp đồng doanh nghiệp!`, 'warning');
+      return;
+    }
+
     const configuredProduct = {
       ...product,
       id: matchedVariant ? `${product.id}-${matchedVariant.id}` : `${product.id}-${selectedColor}-${selectedStorage}`,
@@ -622,6 +628,12 @@ export const ProductDetailPage = () => {
 
     if (quantity > stockQuantity) {
       showToast(`Số lượng yêu cầu (${quantity}) vượt quá tồn kho khả dụng (${stockQuantity})!`, 'warning');
+      return;
+    }
+
+    const totalBuyNowPrice = currentPrice * quantity;
+    if (totalBuyNowPrice > 500000000) {
+      showToast(`Đơn hàng (${formatVND(totalBuyNowPrice)}) vượt quá hạn mức tối đa cho phép mua trực tuyến (500.000.000₫). Vui lòng liên hệ Hotline 1900 6868 để được hỗ trợ mua số lượng lớn theo hợp đồng doanh nghiệp!`, 'warning');
       return;
     }
 

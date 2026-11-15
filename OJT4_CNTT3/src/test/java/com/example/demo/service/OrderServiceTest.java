@@ -538,6 +538,127 @@ class OrderServiceTest extends BaseUnitTest {
     }
 
     @Test
+    @DisplayName("createOrder: throws BadRequestException when order amount exceeds 500 million VND limit")
+    void testCreateOrder_ExceedsMaxOrderLimit_ThrowsBadRequestException() {
+        Product product = Product.builder().id(50L).shopId(10L).name("Workstation").status(ProductStatus.ACTIVE).build();
+        ProductVariant variant = ProductVariant.builder()
+                .id(200L)
+                .product(product)
+                .variantName("Max Spec")
+                .sku("SKU-MAX")
+                .price(BigDecimal.valueOf(50000000))
+                .salePrice(BigDecimal.valueOf(50000000))
+                .build();
+
+        Inventory inv = Inventory.builder().variantId(200L).quantity(50).reservedQuantity(0).build();
+
+        when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
+        when(shopRepository.findById(10L)).thenReturn(Optional.of(shop));
+        when(productVariantRepository.findById(200L)).thenReturn(Optional.of(variant));
+        when(inventoryRepository.findById(200L)).thenReturn(Optional.of(inv));
+
+        // 20 units * 50,000,000 = 1,000,000,000 VND (1 billion - exceeds 500 million limit)
+        CreateOrderItemRequest itemReq = CreateOrderItemRequest.builder()
+                .variantId(200L)
+                .quantity(20)
+                .build();
+
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .shopId(10L)
+                .paymentMethod("BANK")
+                .items(List.of(itemReq))
+                .build();
+
+        BadRequestException ex = assertThrows(BadRequestException.class,
+                () -> orderService.createOrder(request, "customer"));
+
+        assertTrue(ex.getMessage().contains("vượt quá hạn mức tối đa cho phép mua trực tuyến"));
+    }
+
+    @Test
+    @DisplayName("createOrder: large order within 500 million VND limit via Bank transfer succeeds")
+    void testCreateOrder_LargeOrderWithinLimit_Success() {
+        Product product = Product.builder().id(50L).shopId(10L).name("Workstation").status(ProductStatus.ACTIVE).build();
+        ProductVariant variant = ProductVariant.builder()
+                .id(200L)
+                .product(product)
+                .variantName("High Spec")
+                .sku("SKU-HIGH")
+                .price(BigDecimal.valueOf(40000000))
+                .salePrice(BigDecimal.valueOf(40000000))
+                .build();
+
+        Inventory inv = Inventory.builder().variantId(200L).quantity(50).reservedQuantity(0).build();
+
+        when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
+        when(shopRepository.findById(10L)).thenReturn(Optional.of(shop));
+        when(productVariantRepository.findById(200L)).thenReturn(Optional.of(variant));
+        when(inventoryRepository.findById(200L)).thenReturn(Optional.of(inv));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+            Order o = invocation.getArgument(0);
+            o.setId(102L);
+            return o;
+        });
+
+        // 10 units * 40,000,000 = 400,000,000 VND (within 500 million limit)
+        CreateOrderItemRequest itemReq = CreateOrderItemRequest.builder()
+                .variantId(200L)
+                .quantity(10)
+                .build();
+
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .shopId(10L)
+                .paymentMethod("Chuyển khoản QR Ngân hàng")
+                .items(List.of(itemReq))
+                .build();
+
+        OrderResponse res = orderService.createOrder(request, "customer");
+
+        assertNotNull(res);
+        assertEquals(new BigDecimal("400000000"), res.getTotalAmount());
+        assertEquals(40, inv.getQuantity());
+    }
+
+    @Test
+    @DisplayName("createOrder: throws BadRequestException when COD order exceeds 20 million VND limit")
+    void testCreateOrder_CodExceedsMaxCodLimit_ThrowsBadRequestException() {
+        Product product = Product.builder().id(50L).shopId(10L).name("Phone").status(ProductStatus.ACTIVE).build();
+        ProductVariant variant = ProductVariant.builder()
+                .id(200L)
+                .product(product)
+                .variantName("Pro")
+                .sku("SKU-PRO")
+                .price(BigDecimal.valueOf(25000000))
+                .salePrice(BigDecimal.valueOf(25000000))
+                .build();
+
+        Inventory inv = Inventory.builder().variantId(200L).quantity(10).reservedQuantity(0).build();
+
+        when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
+        when(shopRepository.findById(10L)).thenReturn(Optional.of(shop));
+        when(productVariantRepository.findById(200L)).thenReturn(Optional.of(variant));
+        when(inventoryRepository.findById(200L)).thenReturn(Optional.of(inv));
+
+        // 1 unit * 25,000,000 = 25,000,000 VND (> 20M COD limit)
+        CreateOrderItemRequest itemReq = CreateOrderItemRequest.builder()
+                .variantId(200L)
+                .quantity(1)
+                .build();
+
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .shopId(10L)
+                .paymentMethod("COD (Thanh toán khi nhận hàng)")
+                .items(List.of(itemReq))
+                .build();
+
+        BadRequestException ex = assertThrows(BadRequestException.class,
+                () -> orderService.createOrder(request, "customer"));
+
+        assertTrue(ex.getMessage().contains("COD"));
+        assertTrue(ex.getMessage().contains("chỉ áp dụng cho đơn hàng có giá trị dưới"));
+    }
+
+    @Test
     @DisplayName("cancelOrder: cancels order and restores inventory")
     void testCancelOrder_RestoresInventory() {
         order.setStatus(OrderStatus.PENDING);

@@ -39,6 +39,9 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
 
+    public static final BigDecimal MAX_ORDER_AMOUNT_LIMIT = new BigDecimal("500000000"); // Hạn mức tối đa đặt hàng trực tuyến (500 triệu VNĐ)
+    public static final BigDecimal MAX_COD_AMOUNT_LIMIT = new BigDecimal("20000000"); // Hạn mức tối đa thanh toán COD (20 triệu VNĐ)
+
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String ROLE_ADMIN_STR = "ADMIN";
     private static final String ROLE_ROLE_ADMIN_STR = "ROLE_ADMIN";
@@ -264,6 +267,31 @@ public class OrderServiceImpl implements OrderService {
                 .build();
     }
 
+    private void validateOrderLimits(BigDecimal totalAmount, String paymentMethod) {
+        if (totalAmount == null) {
+            return;
+        }
+
+        if (totalAmount.compareTo(MAX_ORDER_AMOUNT_LIMIT) > 0) {
+            throw new BadRequestException("Đơn hàng có tổng giá trị (" + formatVndAmount(totalAmount) + ") vượt quá hạn mức tối đa cho phép mua trực tuyến (" + formatVndAmount(MAX_ORDER_AMOUNT_LIMIT) + "). Đối với đơn hàng doanh nghiệp hoặc số lượng lớn (800 triệu - 1 tỷ VNĐ), quý khách vui lòng liên hệ bộ phận Chăm sóc khách hàng hoặc Hotline 1900 6868 để được hỗ trợ báo giá và ký hợp đồng thương mại.");
+        }
+
+        boolean isCod = paymentMethod != null && paymentMethod.toUpperCase().contains("COD");
+        if (isCod && totalAmount.compareTo(MAX_COD_AMOUNT_LIMIT) > 0) {
+            throw new BadRequestException("Phương thức thanh toán khi nhận hàng (COD) chỉ áp dụng cho đơn hàng có giá trị dưới " + formatVndAmount(MAX_COD_AMOUNT_LIMIT) + ". Với đơn hàng giá trị cao (" + formatVndAmount(totalAmount) + "), quý khách vui lòng chọn Chuyển khoản QR Ngân hàng để đảm bảo an toàn giao dịch.");
+        }
+    }
+
+    private String formatVndAmount(BigDecimal amount) {
+        if (amount == null) {
+            return "0₫";
+        }
+        return java.text.NumberFormat.getCurrencyInstance(new java.util.Locale("vi", "VN"))
+                .format(amount)
+                .replace("₫", "")
+                .trim() + "₫";
+    }
+
     @Override
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request, String currentUsername) {
@@ -318,6 +346,8 @@ public class OrderServiceImpl implements OrderService {
         if (totalAmount.compareTo(BigDecimal.ZERO) < 0) {
             totalAmount = BigDecimal.ZERO;
         }
+
+        validateOrderLimits(totalAmount, order.getPaymentMethod());
 
         order.setSubtotal(subtotal);
         order.setDiscountAmount(discountAmount);

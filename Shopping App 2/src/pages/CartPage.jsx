@@ -27,6 +27,8 @@ export const CartPage = () => {
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
+  const MAX_ONLINE_ORDER_AMOUNT = 500000000; // Hạn mức tối đa đặt hàng trực tuyến (500 triệu)
+
   // Đảm bảo xóa session Mua ngay khi người dùng vào xem giỏ hàng
   useEffect(() => {
     try {
@@ -305,11 +307,20 @@ export const CartPage = () => {
                 <p style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.75rem' }}>
                   Tổng thanh toán: <span style={{ color: '#000000', fontSize: '1.5rem' }}>{formatVND(selectedTotal)}</span>
                 </p>
+                {selectedTotal > MAX_ONLINE_ORDER_AMOUNT && (
+                  <div style={{ fontSize: '0.75rem', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '6px 10px', borderRadius: '6px', marginBottom: '10px', textAlign: 'left', lineHeight: '1.4' }}>
+                    ⚠️ Tổng tiền vượt hạn mức mua trực tuyến ({formatVND(MAX_ONLINE_ORDER_AMOUNT)}). Quý khách vui lòng chia nhỏ đơn hàng hoặc liên hệ Hotline 1900 6868!
+                  </div>
+                )}
                 <button
                   type="button"
                   className="btn"
-                  disabled={selectedCount === 0}
+                  disabled={selectedCount === 0 || selectedTotal > MAX_ONLINE_ORDER_AMOUNT}
                   onClick={() => {
+                    if (selectedTotal > MAX_ONLINE_ORDER_AMOUNT) {
+                      showToast(`Tổng tiền các sản phẩm đã chọn (${formatVND(selectedTotal)}) vượt quá hạn mức tối đa cho phép mua trực tuyến (${formatVND(MAX_ONLINE_ORDER_AMOUNT)}). Quý khách vui lòng chia nhỏ đơn hàng hoặc liên hệ Hotline 1900 6868!`, 'warning');
+                      return;
+                    }
                     if (selectedCount === 0) {
                       const allOutOfStock = cartItems.length > 0 && cartItems.every(it => it.inStock === false || it.stockQuantity === 0 || (it.availableQuantity !== undefined && it.availableQuantity <= 0));
                       if (allOutOfStock) {

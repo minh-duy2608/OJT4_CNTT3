@@ -250,6 +250,17 @@ export const CheckoutPage = () => {
   // Tổng thanh toán cuối cùng
   const finalTotal = Math.max(0, subtotalToCheckout + finalShippingFee - (appliedVoucher?.type === 'shipping' ? 0 : discountAmount));
 
+  // Hạn mức giao dịch chuẩn sàn Thương mại Điện tử
+  const MAX_ONLINE_ORDER_AMOUNT = 500000000; // 500.000.000₫ (500 triệu)
+  const MAX_COD_AMOUNT = 20000000; // 20.000.000₫ (20 triệu)
+
+  // Tự động chuyển phương thức nếu vượt quá hạn mức thanh toán tiền mặt (COD)
+  useEffect(() => {
+    if (finalTotal > MAX_COD_AMOUNT && paymentMethod === 'COD') {
+      setPaymentMethod('BANK');
+    }
+  }, [finalTotal, paymentMethod]);
+
   // Xử lý áp dụng Voucher thực tế qua API Backend (STT 90: POST /coupons/validate)
   const handleApplyVoucher = async (codeToApply) => {
     const code = (codeToApply || voucherCodeInput).trim().toUpperCase();
@@ -356,6 +367,17 @@ export const CheckoutPage = () => {
     const outOfStockItem = itemsToCheckout.find(isItemOutOfStock);
     if (outOfStockItem) {
       showToast(`Sản phẩm "${outOfStockItem.name}" hiện đã hết hàng trong kho! Không thể đặt hàng.`, 'error');
+      return;
+    }
+
+    if (finalTotal > MAX_ONLINE_ORDER_AMOUNT) {
+      showToast(`Đơn hàng (${formatVND(finalTotal)}) vượt quá hạn mức tối đa cho phép mua trực tuyến (${formatVND(MAX_ONLINE_ORDER_AMOUNT)}). Quý khách vui lòng chia nhỏ đơn hàng hoặc liên hệ Hotline 1900 6868 để được hỗ trợ mua số lượng lớn/doanh nghiệp!`, 'warning');
+      return;
+    }
+
+    if (paymentMethod === 'COD' && finalTotal > MAX_COD_AMOUNT) {
+      showToast(`Phương thức COD chỉ áp dụng cho đơn hàng dưới ${formatVND(MAX_COD_AMOUNT)}. Quý khách vui lòng chọn Chuyển khoản QR Ngân hàng!`, 'warning');
+      setPaymentMethod('BANK');
       return;
     }
 
@@ -726,20 +748,43 @@ export const CheckoutPage = () => {
             <div className="payment-methods-grid">
               <div
                 className={`payment-method-card ${paymentMethod === 'COD' ? 'is-selected' : ''}`}
-                onClick={() => setPaymentMethod('COD')}
+                onClick={() => {
+                  if (finalTotal > MAX_COD_AMOUNT) {
+                    showToast(`Phương thức COD chỉ áp dụng cho đơn hàng dưới ${formatVND(MAX_COD_AMOUNT)}. Đơn hàng giá trị cao vui lòng chọn Chuyển khoản QR Ngân hàng!`, 'warning');
+                    return;
+                  }
+                  setPaymentMethod('COD');
+                }}
+                style={finalTotal > MAX_COD_AMOUNT ? { opacity: 0.6, cursor: 'not-allowed', background: '#f8fafc' } : {}}
               >
                 <input
                   type="radio"
                   id="pay-cod"
                   name="paymentMethod"
+                  disabled={finalTotal > MAX_COD_AMOUNT}
                   checked={paymentMethod === 'COD'}
-                  onChange={() => setPaymentMethod('COD')}
-                  style={{ accentColor: '#000', cursor: 'pointer' }}
+                  onChange={() => {
+                    if (finalTotal <= MAX_COD_AMOUNT) {
+                      setPaymentMethod('COD');
+                    }
+                  }}
+                  style={{ accentColor: '#000', cursor: finalTotal > MAX_COD_AMOUNT ? 'not-allowed' : 'pointer' }}
                 />
-                <Truck size={20} color="#000000" />
+                <Truck size={20} color={finalTotal > MAX_COD_AMOUNT ? '#94a3b8' : '#000000'} />
                 <div>
-                  <div style={{ fontWeight: 700, color: '#000000' }}>Thanh toán khi nhận hàng (COD)</div>
-                  <div style={{ fontSize: '0.75rem', color: '#71717a', fontWeight: 400 }}>Kiểm tra hàng rồi thanh toán tiền mặt</div>
+                  <div style={{ fontWeight: 700, color: finalTotal > MAX_COD_AMOUNT ? '#64748b' : '#000000', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>Thanh toán khi nhận hàng (COD)</span>
+                    {finalTotal > MAX_COD_AMOUNT && (
+                      <span style={{ fontSize: '0.68rem', color: '#dc2626', background: '#fee2e2', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                        Tối đa 20tr
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#71717a', fontWeight: 400 }}>
+                    {finalTotal > MAX_COD_AMOUNT 
+                      ? `Chỉ áp dụng cho đơn dưới ${formatVND(MAX_COD_AMOUNT)}`
+                      : 'Kiểm tra hàng rồi thanh toán tiền mặt'}
+                  </div>
                 </div>
               </div>
 
@@ -997,17 +1042,47 @@ export const CheckoutPage = () => {
               </div>
             )}
 
+            {finalTotal > MAX_ONLINE_ORDER_AMOUNT && (
+              <div style={{
+                color: '#b45309',
+                background: '#fffbeb',
+                border: '1px solid #fde68a',
+                padding: '12px 14px',
+                borderRadius: '8px',
+                fontSize: '0.82rem',
+                lineHeight: '1.5',
+                marginBottom: '14px',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px'
+              }}>
+                <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '2px', color: '#d97706' }} />
+                <div>
+                  <strong style={{ color: '#92400e', display: 'block', marginBottom: '2px' }}>
+                    Vượt hạn mức đặt hàng trực tuyến:
+                  </strong>
+                  <div>
+                    Đơn hàng có tổng thanh toán (<strong>{formatVND(finalTotal)}</strong>) vượt quá hạn mức tối đa cho phép mua trực tuyến (<strong>{formatVND(MAX_ONLINE_ORDER_AMOUNT)}</strong>).
+                  </div>
+                  <div style={{ marginTop: '4px', color: '#78350f' }}>
+                    Quý khách vui lòng chia nhỏ đơn hàng hoặc liên hệ Hotline <strong>1900 6868</strong> để được hỗ trợ báo giá và ký hợp đồng thương mại (B2B).
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* NÚT XÁC NHẬN ĐẶT HÀNG */}
             <button
               type="button"
               className="checkout-submit-btn"
               onClick={handlePlaceOrder}
-              disabled={isSubmitting || addresses.length === 0 || hasOutOfStockItems}
-              style={hasOutOfStockItems ? { opacity: 0.5, cursor: 'not-allowed', background: '#9ca3af' } : {}}
+              disabled={isSubmitting || addresses.length === 0 || hasOutOfStockItems || finalTotal > MAX_ONLINE_ORDER_AMOUNT}
+              style={(hasOutOfStockItems || finalTotal > MAX_ONLINE_ORDER_AMOUNT) ? { opacity: 0.5, cursor: 'not-allowed', background: '#9ca3af' } : {}}
+              title={finalTotal > MAX_ONLINE_ORDER_AMOUNT ? `Đơn hàng vượt hạn mức tối đa ${formatVND(MAX_ONLINE_ORDER_AMOUNT)}` : ''}
             >
               {isSubmitting ? 'Đang tạo đơn hàng...' : (
                 <>
-                  <span>Xác nhận đặt hàng</span>
+                  <span>{finalTotal > MAX_ONLINE_ORDER_AMOUNT ? 'Đơn hàng vượt hạn mức trực tuyến' : 'Xác nhận đặt hàng'}</span>
                   <ChevronRight size={18} />
                 </>
               )}

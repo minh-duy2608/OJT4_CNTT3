@@ -49,6 +49,10 @@ export const VariantSelectionModal = ({
   const displayImage = product.image || product.primaryImageUrl || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80';
 
   const handleConfirmSubmit = () => {
+    if (totalPrice > 500000000) {
+      alert(`Đơn hàng (${formatVND(totalPrice)}) vượt quá hạn mức tối đa cho phép mua trực tuyến (500.000.000₫). Quý khách vui lòng liên hệ Hotline 1900 6868 để được hỗ trợ mua số lượng lớn theo hợp đồng doanh nghiệp!`);
+      return;
+    }
     onConfirm({
       ...product,
       price: unitPrice,
@@ -172,9 +176,17 @@ export const VariantSelectionModal = ({
             <span className="modal-subtotal-price">{formatVND(totalPrice)}</span>
           </div>
 
+          {totalPrice > 500000000 && (
+            <div style={{ fontSize: '0.72rem', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '6px 10px', borderRadius: '6px', marginBottom: '8px' }}>
+              ⚠️ Đơn hàng vượt hạn mức trực tuyến (tối đa 500.000.000₫). Vui lòng liên hệ Hotline 1900 6868!
+            </div>
+          )}
+
           <button
             type="button"
             className="modal-confirm-btn"
+            disabled={totalPrice > 500000000}
+            style={totalPrice > 500000000 ? { opacity: 0.5, cursor: 'not-allowed', background: '#9ca3af' } : {}}
             onClick={handleConfirmSubmit}
           >
             {mode === 'buy' ? (
