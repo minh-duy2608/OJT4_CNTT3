@@ -3,8 +3,14 @@
    ========================================================================== */
 
 .about-page-wrapper {
-  padding: 3rem 1rem 5rem;
+  padding: 4.5rem 1rem 6.5rem;
   color: inherit;
+}
+
+@media (max-width: 768px) {
+  .about-page-wrapper {
+    padding: 3rem 1rem 4.5rem;
+  }
 }
 
 .about-hero-section {
