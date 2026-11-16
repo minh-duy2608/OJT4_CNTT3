@@ -25,6 +25,7 @@ import {
   Check,
   Layers,
   Package,
+  PackageCheck,
   Activity,
   Sliders,
   ExternalLink,
@@ -1313,7 +1314,7 @@ export const AdminPage = () => {
         } else {
           await productApi.createProduct(payload);
         }
-        triggerAlert(`Tạo sản phẩm mới "${payload.name}" thành công!`, 'success');
+        triggerAlert(`Tạo sản phẩm mới "${payload.name}" thành công! Sản phẩm đã được đưa vào hàng đợi Chờ duyệt (PENDING) và sẽ hiển thị công khai sau khi Admin phê duyệt.`, 'success');
       }
 
       setIsProductModalOpen(false);
@@ -1953,6 +1954,84 @@ export const AdminPage = () => {
   };
 
   // ===================================================================
+  // STATE & LOGIC: KIỂM DUYỆT SẢN PHẨM (ADMIN PRODUCT MODERATION)
+  // ===================================================================
+  const [moderationProducts, setModerationProducts] = useState([]);
+  const [moderationLoading, setModerationLoading] = useState(false);
+  const [moderationPage, setModerationPage] = useState(0);
+  const [moderationPageSize] = useState(10);
+  const [moderationTotalPages, setModerationTotalPages] = useState(1);
+  const [moderationTotalElements, setModerationTotalElements] = useState(0);
+  const [moderationKeyword, setModerationKeyword] = useState('');
+  const [moderationStatusFilter, setModerationStatusFilter] = useState('PENDING');
+  const [moderatingProductId, setModeratingProductId] = useState(null);
+  const [showRejectProductModal, setShowRejectProductModal] = useState(false);
+  const [targetProductForReject, setTargetProductForReject] = useState(null);
+  const [productRejectReason, setProductRejectReason] = useState('');
+
+  const fetchModerationProducts = useCallback(async (page = 0) => {
+    setModerationLoading(true);
+    try {
+      const res = await productApi.getAdminProducts({
+        page,
+        size: moderationPageSize,
+        keyword: moderationKeyword.trim() || undefined,
+        status: moderationStatusFilter || undefined,
+        sort: 'createdAt',
+        sortDir: 'desc'
+      });
+      if (res) {
+        setModerationProducts(res.content || []);
+        setModerationTotalElements(res.totalElements || 0);
+        setModerationTotalPages(res.totalPages || 1);
+        setModerationPage(res.page !== undefined ? res.page : page);
+      }
+    } catch (err) {
+      console.error('Failed to load moderation products:', err);
+      triggerAlert(err.message || 'Không thể tải danh sách sản phẩm kiểm duyệt.', 'error');
+    } finally {
+      setModerationLoading(false);
+    }
+  }, [moderationPageSize, moderationKeyword, moderationStatusFilter]);
+
+  const handleApproveProduct = async (prod) => {
+    setModeratingProductId(prod.id);
+    try {
+      await productApi.approveProduct(prod.id);
+      triggerAlert(`Đã phê duyệt sản phẩm "${prod.name}" thành công! Sản phẩm hiện đã được bày bán chính thức trên sàn.`, 'success');
+      fetchModerationProducts(moderationPage);
+    } catch (err) {
+      console.error('Approve product error:', err);
+      triggerAlert(err.message || 'Lỗi khi phê duyệt sản phẩm.', 'error');
+    } finally {
+      setModeratingProductId(null);
+    }
+  };
+
+  const handleOpenRejectProductModal = (prod) => {
+    setTargetProductForReject(prod);
+    setProductRejectReason('');
+    setShowRejectProductModal(true);
+  };
+
+  const handleConfirmRejectProduct = async () => {
+    if (!targetProductForReject) return;
+    setModeratingProductId(targetProductForReject.id);
+    try {
+      await productApi.rejectProduct(targetProductForReject.id, productRejectReason);
+      triggerAlert(`Đã từ chối phê duyệt sản phẩm "${targetProductForReject.name}".`, 'info');
+      setShowRejectProductModal(false);
+      setTargetProductForReject(null);
+      fetchModerationProducts(moderationPage);
+    } catch (err) {
+      console.error('Reject product error:', err);
+      triggerAlert(err.message || 'Lỗi khi từ chối sản phẩm.', 'error');
+    } finally {
+      setModeratingProductId(null);
+    }
+  };
+
+  // ===================================================================
   // STATE & LOGIC: QUẢN TRỊ MÃ GIẢM GIÁ (COUPONS)
   // ===================================================================
   const [coupons, setCoupons] = useState([]);
@@ -2404,6 +2483,8 @@ export const AdminPage = () => {
         fetchBrands();
       } else if (activeTab === 'admin-shops') {
         fetchAdminShops(adminShopsPage);
+      } else if (activeTab === 'product-moderation') {
+        fetchModerationProducts(moderationPage);
       } else if (activeTab === 'orders') {
         fetchAdminOrders(orderPage);
       }
@@ -2420,7 +2501,7 @@ export const AdminPage = () => {
         fetchMyPermissions();
       }
     }
-  }, [activeTab, isAdminUser, isShopManager, fetchPlatformRevenue, fetchUsers, fetchRolesAndPermissions, fetchCategories, fetchBrands, fetchAdminShops, fetchShopProducts, fetchInventory, fetchAdminOrders, fetchCoupons, fetchMyPermissions, userPage, adminShopsPage, shopProdPage, inventoryPage, orderPage, couponPage, roles.length]);
+  }, [activeTab, isAdminUser, isShopManager, fetchPlatformRevenue, fetchUsers, fetchRolesAndPermissions, fetchCategories, fetchBrands, fetchAdminShops, fetchModerationProducts, fetchShopProducts, fetchInventory, fetchAdminOrders, fetchCoupons, fetchMyPermissions, userPage, adminShopsPage, moderationPage, shopProdPage, inventoryPage, orderPage, couponPage, roles.length]);
 
   // Strict Role Separation for Portal Tabs
   useEffect(() => {
@@ -2430,7 +2511,7 @@ export const AdminPage = () => {
         setActiveTab('shops');
       }
     } else if (isAdminUser) {
-      const allowedAdminTabs = ['revenue', 'admin-shops', 'orders', 'shipments', 'returns', 'reviews', 'messages', 'users', 'roles', 'categories', 'brands', 'audit-logs'];
+      const allowedAdminTabs = ['revenue', 'admin-shops', 'product-moderation', 'orders', 'shipments', 'returns', 'reviews', 'messages', 'users', 'roles', 'categories', 'brands', 'audit-logs'];
       if (!allowedAdminTabs.includes(activeTab)) {
         setActiveTab('revenue');
       }
@@ -3188,6 +3269,7 @@ export const AdminPage = () => {
                   if (activeTab === 'categories') fetchCategories();
                   if (activeTab === 'brands') fetchBrands();
                   if (activeTab === 'admin-shops') fetchAdminShops(adminShopsPage);
+                  if (activeTab === 'product-moderation') fetchModerationProducts(moderationPage);
                 } else {
                   if (activeTab === 'shops') fetchShopProducts(shopProdPage);
                   if (activeTab === 'inventory') fetchInventory(inventoryPage);
@@ -3373,6 +3455,16 @@ export const AdminPage = () => {
                 <Store size={17} />
                 Quản lý Cửa hàng
                 <span className="admin-tab-badge">STT 67-69</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-tab-btn ${activeTab === 'product-moderation' ? 'active' : ''}`}
+                onClick={() => setActiveTab('product-moderation')}
+              >
+                <PackageCheck size={17} />
+                Kiểm duyệt Sản phẩm
+                <span className="admin-tab-badge" style={{ backgroundColor: '#fef3c7', color: '#b45309' }}>Chờ duyệt</span>
               </button>
 
               <button
@@ -5052,6 +5144,8 @@ export const AdminPage = () => {
                 >
                   <option value="">Tất cả trạng thái</option>
                   <option value="ACTIVE">ACTIVE (Đang kinh doanh)</option>
+                  <option value="PENDING">PENDING (Chờ duyệt)</option>
+                  <option value="REJECTED">REJECTED (Bị từ chối)</option>
                   <option value="INACTIVE">INACTIVE (Tạm ngừng)</option>
                   <option value="DRAFT">DRAFT (Bản nháp)</option>
                 </select>
@@ -5143,15 +5237,49 @@ export const AdminPage = () => {
                             {formatVND(p.salePrice || p.price || 0)}
                           </td>
                           <td style={{ textAlign: 'center' }}>
-                            <button
-                              type="button"
-                              onClick={() => handleToggleShopProductStatus(p)}
-                              className={`status-pill ${isActive ? 'active' : 'blocked'}`}
-                              style={{ cursor: 'pointer', border: 'none' }}
-                              title="Bấm để bật/tắt trạng thái sản phẩm"
-                            >
-                              {isActive ? '● Đang bán (ACTIVE)' : '○ Tạm ngừng (INACTIVE)'}
-                            </button>
+                            {p.status === 'PENDING' ? (
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '3px 8px',
+                                  borderRadius: '9999px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 600,
+                                  color: '#ca8a04',
+                                  backgroundColor: '#fefce8',
+                                  border: '1px solid #fef08a'
+                                }}
+                                title="Sản phẩm đang chờ Admin phê duyệt trước khi lên sàn chính thức"
+                              >
+                                ⏳ Chờ duyệt
+                              </span>
+                            ) : p.status === 'REJECTED' ? (
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '3px 8px',
+                                  borderRadius: '9999px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 600,
+                                  color: '#dc2626',
+                                  backgroundColor: '#fef2f2',
+                                  border: '1px solid #fecaca'
+                                }}
+                                title="Sản phẩm bị từ chối duyệt. Bấm 'Sửa' để chỉnh sửa và gửi duyệt lại."
+                              >
+                                ✕ Bị từ chối
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleShopProductStatus(p)}
+                                className={`status-pill ${isActive ? 'active' : 'blocked'}`}
+                                style={{ cursor: 'pointer', border: 'none' }}
+                                title="Bấm để bật/tắt trạng thái sản phẩm"
+                              >
+                                {isActive ? '● Đang bán (ACTIVE)' : '○ Tạm ngừng (INACTIVE)'}
+                              </button>
+                            )}
                           </td>
                           <td style={{ textAlign: 'center' }}>
                             <div style={{ display: 'inline-flex', gap: '6px' }}>
@@ -5489,6 +5617,309 @@ export const AdminPage = () => {
                   type="button"
                   disabled={adminShopsPage >= adminShopsTotalPages - 1}
                   onClick={() => fetchAdminShops(adminShopsPage + 1)}
+                  className="admin-page-btn"
+                >
+                  Trang sau <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* TAB: KIỂM DUYỆT SẢN PHẨM (ADMIN PRODUCT MODERATION) */}
+        {/* =================================================================== */}
+        {activeTab === 'product-moderation' && isAdminUser && (
+          <div className="admin-card-container">
+            <div className="admin-toolbar">
+              <div className="admin-toolbar-left">
+                {/* Tìm kiếm sản phẩm */}
+                <div className="admin-search-box">
+                  <Search size={16} className="admin-search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Tìm theo tên sản phẩm, slug..."
+                    value={moderationKeyword}
+                    onChange={(e) => setModerationKeyword(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') fetchModerationProducts(0);
+                    }}
+                  />
+                  {moderationKeyword && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModerationKeyword('');
+                        fetchModerationProducts(0);
+                      }}
+                      className="admin-search-clear"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Lọc trạng thái duyệt */}
+                <select
+                  className="admin-select-filter"
+                  value={moderationStatusFilter}
+                  onChange={(e) => {
+                    setModerationStatusFilter(e.target.value);
+                  }}
+                >
+                  <option value="PENDING">⏳ Chờ duyệt (PENDING)</option>
+                  <option value="ACTIVE">✓ Đang bán (ACTIVE)</option>
+                  <option value="REJECTED">✕ Bị từ chối (REJECTED)</option>
+                  <option value="INACTIVE">⏸ Tạm dừng (INACTIVE)</option>
+                  <option value="">Tất cả trạng thái</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => fetchModerationProducts(0)}
+                  className="admin-btn-action-secondary"
+                  title="Tìm kiếm"
+                >
+                  <Search size={15} />
+                  Tìm
+                </button>
+              </div>
+
+              <div className="admin-toolbar-right" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                  Tổng cộng: <strong>{moderationTotalElements}</strong> sản phẩm
+                </span>
+                <button
+                  type="button"
+                  className="admin-btn-action-secondary"
+                  onClick={() => fetchModerationProducts(moderationPage)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
+                  title="Làm mới danh sách"
+                >
+                  <RefreshCw size={15} className={moderationLoading ? 'animate-spin' : ''} /> Làm mới
+                </button>
+              </div>
+            </div>
+
+            {/* Admin Products Table */}
+            {moderationLoading ? (
+              <div style={{ textAlign: 'center', padding: '3.5rem' }}>
+                <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto', color: '#64748b' }} />
+                <div style={{ marginTop: '0.5rem', color: '#64748b' }}>Đang tải danh sách sản phẩm kiểm duyệt...</div>
+              </div>
+            ) : moderationProducts.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3.5rem', color: '#64748b' }}>
+                Không tìm thấy sản phẩm nào phù hợp với bộ lọc kiểm duyệt.
+              </div>
+            ) : (
+              <div className="admin-table-responsive">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '60px' }}>ID</th>
+                      <th style={{ width: '70px', textAlign: 'center' }}>Ảnh</th>
+                      <th>Tên sản phẩm</th>
+                      <th>Cửa hàng</th>
+                      <th>Danh mục & Hãng</th>
+                      <th style={{ textAlign: 'right' }}>Giá niêm yết</th>
+                      <th style={{ textAlign: 'center', width: '90px' }}>Tồn kho</th>
+                      <th style={{ textAlign: 'center', width: '130px' }}>Trạng thái</th>
+                      <th style={{ textAlign: 'center', width: '200px' }}>Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {moderationProducts.map((p) => {
+                      const isPending = p.status === 'PENDING';
+                      const isActive = p.status === 'ACTIVE';
+                      const isRejected = p.status === 'REJECTED';
+                      const isModerating = moderatingProductId === p.id;
+
+                      const statusColor =
+                        isActive ? '#16a34a' :
+                        isPending ? '#ca8a04' :
+                        isRejected ? '#dc2626' : '#64748b';
+                      const statusBg =
+                        isActive ? '#f0fdf4' :
+                        isPending ? '#fefce8' :
+                        isRejected ? '#fef2f2' : '#f1f5f9';
+                      const statusLabel =
+                        isActive ? '✓ Đang bán' :
+                        isPending ? '⏳ Chờ duyệt' :
+                        isRejected ? '✕ Bị từ chối' : '⏸ Tạm dừng';
+
+                      const displayPrice = p.salePrice || p.regularPrice || 0;
+
+                      return (
+                        <tr key={p.id}>
+                          <td style={{ fontWeight: 700, color: '#64748b' }}>#{p.id}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <div style={{ width: '44px', height: '44px', borderRadius: '6px', overflow: 'hidden', background: '#f1f5f9', border: '1px solid #e2e8f0', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {p.thumbnail ? (
+                                <img
+                                  src={p.thumbnail}
+                                  alt={p.name}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                              ) : (
+                                <Package size={20} style={{ color: '#94a3b8' }} />
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: '2px', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.name}>
+                              {p.name}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                              Slug: <code>{p.slug || '—'}</code>
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 500, color: '#1e293b' }}>
+                              {p.shopName || `Shop #${p.shopId}`}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                              ID Shop: #{p.shopId}
+                            </div>
+                          </td>
+                          <td style={{ color: '#475569', fontSize: '0.85rem' }}>
+                            <div>{p.categoryName || '—'}</div>
+                            {p.brandName && (
+                              <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Hãng: {p.brandName}</div>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 600, color: '#0f172a' }}>
+                            {formatVND(displayPrice)}
+                          </td>
+                          <td style={{ textAlign: 'center', fontWeight: 500, color: (p.stockQuantity ?? 0) > 0 ? '#1e293b' : '#ef4444' }}>
+                            {p.stockQuantity ?? 0}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                padding: '3px 10px',
+                                borderRadius: '9999px',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                color: statusColor,
+                                backgroundColor: statusBg,
+                                border: `1px solid ${statusColor}33`
+                              }}
+                            >
+                              {statusLabel}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <div style={{ display: 'inline-flex', gap: '0.4rem', justifyContent: 'center', alignItems: 'center' }}>
+                              {/* Nút Duyệt: hiển thị nếu PENDING hoặc REJECTED */}
+                              {(isPending || isRejected) && (
+                                <button
+                                  type="button"
+                                  className="admin-action-btn approve"
+                                  onClick={() => handleApproveProduct(p)}
+                                  disabled={isModerating}
+                                  title={isPending ? 'Duyệt sản phẩm lên sàn' : 'Duyệt lại sản phẩm'}
+                                  style={{
+                                    color: '#16a34a',
+                                    backgroundColor: '#f0fdf4',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '5px 10px',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 600,
+                                    borderRadius: '6px',
+                                    border: '1px solid #bbf7d0',
+                                    cursor: isModerating ? 'not-allowed' : 'pointer'
+                                  }}
+                                >
+                                  <Check size={14} />
+                                  {isPending ? 'Duyệt' : 'Duyệt lại'}
+                                </button>
+                              )}
+
+                              {/* Nút Từ chối: hiển thị nếu PENDING */}
+                              {isPending && (
+                                <button
+                                  type="button"
+                                  className="admin-action-btn reject"
+                                  onClick={() => handleOpenRejectProductModal(p)}
+                                  disabled={isModerating}
+                                  title="Từ chối phê duyệt sản phẩm"
+                                  style={{
+                                    color: '#dc2626',
+                                    backgroundColor: '#fef2f2',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '5px 10px',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 600,
+                                    borderRadius: '6px',
+                                    border: '1px solid #fecaca',
+                                    cursor: isModerating ? 'not-allowed' : 'pointer'
+                                  }}
+                                >
+                                  <X size={14} />
+                                  Từ chối
+                                </button>
+                              )}
+
+                              {/* Nút Thu hồi / Khóa: hiển thị nếu ACTIVE */}
+                              {isActive && (
+                                <button
+                                  type="button"
+                                  className="admin-action-btn lock"
+                                  onClick={() => handleOpenRejectProductModal(p)}
+                                  disabled={isModerating}
+                                  title="Thu hồi / Khóa sản phẩm"
+                                  style={{
+                                    color: '#ea580c',
+                                    backgroundColor: '#fff7ed',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '5px 10px',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 600,
+                                    borderRadius: '6px',
+                                    border: '1px solid #fed7aa',
+                                    cursor: isModerating ? 'not-allowed' : 'pointer'
+                                  }}
+                                >
+                                  <Lock size={14} />
+                                  Khóa
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {moderationTotalPages > 1 && (
+              <div className="admin-pagination">
+                <button
+                  type="button"
+                  disabled={moderationPage === 0}
+                  onClick={() => fetchModerationProducts(moderationPage - 1)}
+                  className="admin-page-btn"
+                >
+                  <ChevronLeft size={16} /> Trang trước
+                </button>
+                <span className="admin-page-info">
+                  Trang <strong>{moderationPage + 1}</strong> / {moderationTotalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={moderationPage >= moderationTotalPages - 1}
+                  onClick={() => fetchModerationProducts(moderationPage + 1)}
                   className="admin-page-btn"
                 >
                   Trang sau <ChevronRight size={16} />
@@ -8084,6 +8515,43 @@ export const AdminPage = () => {
                   />
                 </div>
               )}
+            </div>
+          )}
+        </ConfirmModal>
+
+        {/* =================================================================== */}
+        {/* MODAL: TỪ CHỐI PHÊ DUYỆT SẢN PHẨM */}
+        {/* =================================================================== */}
+        <ConfirmModal
+          isOpen={showRejectProductModal}
+          onClose={() => {
+            setShowRejectProductModal(false);
+            setTargetProductForReject(null);
+          }}
+          title={`Từ chối phê duyệt sản phẩm: ${targetProductForReject?.name || ''}`}
+          type="danger"
+          confirmText={moderatingProductId === targetProductForReject?.id ? 'Đang xử lý...' : 'Xác nhận từ chối'}
+          onConfirm={handleConfirmRejectProduct}
+          isLoading={moderatingProductId === targetProductForReject?.id}
+        >
+          {targetProductForReject && (
+            <div style={{ textAlign: 'left', fontSize: '0.875rem' }}>
+              <p style={{ margin: '0 0 1rem', color: '#64748b' }}>
+                Sản phẩm <strong>"{targetProductForReject.name}"</strong> (ID: #{targetProductForReject.id}) sẽ bị từ chối và không được hiển thị trên sàn thương mại điện tử Cyber Shopping.
+              </p>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#dc2626', marginBottom: '4px' }}>
+                  Lý do từ chối (tùy chọn - gửi phản hồi tới người bán):
+                </label>
+                <textarea
+                  className="admin-form-input"
+                  style={{ width: '100%', minHeight: '80px', padding: '0.5rem' }}
+                  placeholder="Nhập lý do từ chối (VD: Thông tin sản phẩm không rõ ràng, hình ảnh chưa chuẩn, giá bán chưa đúng...)..."
+                  value={productRejectReason}
+                  onChange={(e) => setProductRejectReason(e.target.value)}
+                />
+              </div>
             </div>
           )}
         </ConfirmModal>

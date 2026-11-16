@@ -120,5 +120,25 @@ public interface ProductService {
      * STT 56: DELETE /shops/{shopId}/products/{productId}/images/{imageId} - Xóa hình ảnh sản phẩm (Shop permission)
      */
     void deleteShopProductImage(Long shopId, Long productId, Long imageId, String currentUsername);
+
+    /**
+     * Admin: GET /admin/products - Lấy danh sách sản phẩm quản trị sàn (Admin moderation)
+     */
+    PageResponse<ProductSummaryResponse> getAdminProducts(ProductFilterCriteria criteria);
+
+    /**
+     * Admin: PATCH /admin/products/{productId}/approve - Phê duyệt sản phẩm lên sàn
+     */
+    ProductDetailResponse approveProduct(Long productId);
+
+    /**
+     * Admin: PATCH /admin/products/{productId}/reject - Từ chối phê duyệt sản phẩm
+     */
+    ProductDetailResponse rejectProduct(Long productId, String reason);
+
+    /**
+     * Admin: PATCH /admin/products/{productId}/status - Cập nhật trạng thái sản phẩm
+     */
+    ProductDetailResponse updateProductStatus(Long productId, com.example.demo.entity.ProductStatus status);
 }
 

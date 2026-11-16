@@ -89,5 +89,31 @@ class AdminProductControllerTest {
 
         verify(productService).deleteProduct(10L, false);
     }
+
+    @Test
+    @DisplayName("PATCH /admin/products/{id}/approve: approves product")
+    void approveProduct_success() throws Exception {
+        ProductDetailResponse res = ProductDetailResponse.builder().id(10L).name("Approved Phone").status(com.example.demo.entity.ProductStatus.ACTIVE).build();
+        when(productService.approveProduct(10L)).thenReturn(res);
+
+        mockMvc.perform(patch("/admin/products/10/approve"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+    }
+
+    @Test
+    @DisplayName("PATCH /admin/products/{id}/reject: rejects product")
+    void rejectProduct_success() throws Exception {
+        ProductDetailResponse res = ProductDetailResponse.builder().id(10L).name("Rejected Phone").status(com.example.demo.entity.ProductStatus.REJECTED).build();
+        when(productService.rejectProduct(eq(10L), any())).thenReturn(res);
+
+        mockMvc.perform(patch("/admin/products/10/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Vi phạm chính sách\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("REJECTED"));
+    }
 }
 

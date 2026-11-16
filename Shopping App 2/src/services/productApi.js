@@ -299,6 +299,47 @@ export const productApi = {
   },
 
   /**
+   * Admin: GET /admin/products - Lấy danh sách sản phẩm quản trị sàn (phân trang, lọc status, keyword, shop)
+   */
+  async getAdminProducts(params = {}) {
+    const qs = buildProductQueryParams(params);
+    let fullQs = qs;
+    if (params.status) {
+      fullQs = fullQs ? `${fullQs}&status=${params.status}` : `status=${params.status}`;
+    }
+    return await request(`/admin/products${fullQs ? `?${fullQs}` : ''}`, { method: 'GET' });
+  },
+
+  /**
+   * Admin: PATCH /admin/products/{productId}/approve - Phê duyệt sản phẩm lên sàn chính thức
+   */
+  async approveProduct(productId) {
+    return await request(`/admin/products/${productId}/approve`, {
+      method: 'PATCH'
+    });
+  },
+
+  /**
+   * Admin: PATCH /admin/products/{productId}/reject - Từ chối phê duyệt sản phẩm
+   */
+  async rejectProduct(productId, reason = '') {
+    return await request(`/admin/products/${productId}/reject`, {
+      method: 'PATCH',
+      body: JSON.stringify({ reason })
+    });
+  },
+
+  /**
+   * Admin: PATCH /admin/products/{productId}/status - Thay đổi trạng thái sản phẩm
+   */
+  async updateProductStatus(productId, status) {
+    return await request(`/admin/products/${productId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status })
+    });
+  },
+
+  /**
    * Upload hình ảnh sản phẩm lên máy chủ
    * @param {File} file
    */
