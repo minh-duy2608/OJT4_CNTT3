@@ -49,6 +49,12 @@ public class OrderResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    // Thời gian hết hạn tạm giữ đơn hàng (Inventory Reservation - 15 phút)
+    private LocalDateTime expiresAt;
+    private Long remainingSeconds;
+    private Integer reservationMinutes;
+    private Boolean isExpired;
+
     private List<OrderItemResponse> items;
 
     // Chi tiết timeline hành trình đơn hàng

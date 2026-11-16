@@ -258,6 +258,63 @@ export const OrderDetailModal = ({
             </div>
           </div>
 
+          {/* HỘP THÔNG BÁO TẠM GIỮ TỒN KHO 15 PHÚT (INVENTORY RESERVATION) */}
+          {(order.status === 'pending' || order.status === 'PENDING' || order.rawStatus === 'PENDING') && order.paymentStatus !== 'PAID' && (
+            <div style={{
+              marginTop: '1rem',
+              background: '#fffbeb',
+              border: '1px solid #fde68a',
+              borderRadius: '10px',
+              padding: '0.85rem 1rem',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+              fontSize: '0.825rem',
+              color: '#92400e',
+              lineHeight: 1.5
+            }}>
+              <Clock size={18} style={{ flexShrink: 0, marginTop: '2px', color: '#d97706' }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, color: '#78350f', marginBottom: '2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Tạm giữ tồn kho (Tối đa 15 phút)</span>
+                  <span style={{ background: '#fef3c7', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', border: '1px solid #fcd34d' }}>
+                    ⏱️ Giữ hàng 15:00
+                  </span>
+                </div>
+                <div>
+                  Số lượng sản phẩm trong đơn đã được hệ thống tạm giữ độc quyền cho bạn trong 15 phút. Vui lòng hoàn tất thanh toán trước khi thời gian giữ hàng kết thúc. Sau 15 phút hoặc nếu bạn hủy đơn, hệ thống sẽ tự động giải phóng số hàng đã giữ để người khác có thể đặt mua.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* HỘP THÔNG BÁO ĐƠN ĐÃ HỦY & TỒN KHO ĐÃ ĐƯỢC GIẢI PHÓNG */}
+          {(order.status === 'cancelled' || order.status === 'CANCELLED' || order.rawStatus === 'CANCELLED') && (
+            <div style={{
+              marginTop: '1rem',
+              background: '#fef2f2',
+              border: '1px solid #fecaca',
+              borderRadius: '10px',
+              padding: '0.85rem 1rem',
+              fontSize: '0.825rem',
+              color: '#991b1b',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px'
+            }}>
+              <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '2px', color: '#dc2626' }} />
+              <div>
+                <strong style={{ display: 'block', marginBottom: '2px', color: '#7f1d1d' }}>
+                  Đơn hàng đã hủy & Tồn kho đã tự động giải phóng
+                </strong>
+                <div>Lý do: {order.cancellationReason || 'Người mua hoặc hệ thống hủy đơn'}</div>
+                <div style={{ marginTop: '3px', fontSize: '0.75rem', color: '#b91c1c' }}>
+                  Toàn bộ sản phẩm trong đơn hàng này đã được hệ thống tự động hoàn trả lại số lượng tồn kho khả dụng để những khách hàng khác có thể tiếp tục mua.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Danh sách mặt hàng */}
           <div className="order-detail-items-section">
             <div className="detail-info-heading">

@@ -266,6 +266,7 @@ public class CartServiceImpl implements CartService {
                 .salePrice(salePrice)
                 .quantity(ci.getQuantity())
                 .stockQuantity(stock)
+                .availableQuantity(stock)
                 .lineTotal(lineTotal)
                 .addedAt(ci.getAddedAt())
                 .build();

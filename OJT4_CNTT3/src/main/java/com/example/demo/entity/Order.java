@@ -105,6 +105,17 @@ public class Order {
     @Column(name = "cancellation_reason", length = 500)
     private String cancellationReason;
 
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
+
+    @Column(name = "inventory_reserved")
+    @Builder.Default
+    private Boolean inventoryReserved = true;
+
+    @Column(name = "inventory_deducted")
+    @Builder.Default
+    private Boolean inventoryDeducted = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -125,11 +136,25 @@ public class Order {
         if (this.totalAmount == null) this.totalAmount = BigDecimal.ZERO;
         if (this.status == null) this.status = OrderStatus.PENDING;
         if (this.paymentStatus == null) this.paymentStatus = PaymentStatus.UNPAID;
+        if (this.inventoryReserved == null) this.inventoryReserved = true;
+        if (this.inventoryDeducted == null) this.inventoryDeducted = false;
+        if (this.expiresAt == null) this.expiresAt = this.createdAt.plusMinutes(15);
     }
 
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
+    }
+
+    public boolean isExpired() {
+        if (this.status != OrderStatus.PENDING) {
+            return false;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (this.expiresAt != null) {
+            return now.isAfter(this.expiresAt);
+        }
+        return this.createdAt != null && now.isAfter(this.createdAt.plusMinutes(15));
     }
 
     public void addItem(OrderItem item) {

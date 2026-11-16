@@ -27,6 +27,7 @@ public class CartItemResponse {
     private BigDecimal salePrice;
     private Integer quantity;
     private Integer stockQuantity;
+    private Integer availableQuantity;
     private BigDecimal lineTotal;
     private LocalDateTime addedAt;
 }

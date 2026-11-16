@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { 
-  MapPin, 
-  Plus, 
-  CreditCard, 
-  Truck, 
-  Tag, 
-  CheckCircle2, 
-  AlertCircle, 
-  ArrowLeft, 
-  Check, 
-  ShieldCheck, 
-  Home, 
+import {
+  MapPin,
+  Plus,
+  CreditCard,
+  Truck,
+  Tag,
+  CheckCircle2,
+  AlertCircle,
+  ArrowLeft,
+  Check,
+  ShieldCheck,
+  Home,
   Briefcase,
   X,
   ChevronRight
@@ -27,14 +27,14 @@ import './CheckoutPage.css';
 
 export const CheckoutPage = () => {
   const { user, isAuthenticated, addresses, addAddress } = useAuth();
-  const { 
-    cartItems, 
-    cartTotal, 
-    selectedItems, 
-    selectedTotal, 
-    clearSelectedFromCart, 
-    clearCart, 
-    showToast 
+  const {
+    cartItems,
+    cartTotal,
+    selectedItems,
+    selectedTotal,
+    clearSelectedFromCart,
+    clearCart,
+    showToast
   } = useCart();
   const { createOrder } = useOrders();
   const navigate = useNavigate();
@@ -51,7 +51,7 @@ export const CheckoutPage = () => {
       if (saved && !sessionStorage.getItem('CYBER_FROM_CART')) {
         return JSON.parse(saved);
       }
-    } catch {}
+    } catch { }
     return null;
   });
 
@@ -96,6 +96,7 @@ export const CheckoutPage = () => {
   // Phương thức thanh toán: COD hoặc BANK_TRANSFER
   const [paymentMethod, setPaymentMethod] = useState('COD');
   const [orderNotes, setOrderNotes] = useState('');
+  const [checkoutError, setCheckoutError] = useState('');
 
   // Tự động nhận diện Shop ID từ các sản phẩm đang được thanh toán
   const detectedShopId = useMemo(() => {
@@ -355,8 +356,7 @@ export const CheckoutPage = () => {
   };
 
   // Mở Model Box xác nhận đặt hàng
-  const isItemOutOfStock = (it) => it.inStock === false || it.stockQuantity === 0 || (it.availableQuantity !== undefined && it.availableQuantity <= 0);
-  const hasOutOfStockItems = itemsToCheckout.some(isItemOutOfStock);
+  const hasOutOfStockItems = itemsToCheckout.some((it) => it.inStock === false || (it.availableQuantity !== undefined && it.availableQuantity <= 0));
 
   const handlePlaceOrder = () => {
     if (itemsToCheckout.length === 0) {
@@ -364,7 +364,7 @@ export const CheckoutPage = () => {
       return;
     }
 
-    const outOfStockItem = itemsToCheckout.find(isItemOutOfStock);
+    const outOfStockItem = itemsToCheckout.find((it) => it.inStock === false || (it.availableQuantity !== undefined && it.availableQuantity <= 0));
     if (outOfStockItem) {
       showToast(`Sản phẩm "${outOfStockItem.name}" hiện đã hết hàng trong kho! Không thể đặt hàng.`, 'error');
       return;
@@ -396,13 +396,14 @@ export const CheckoutPage = () => {
     const selectedAddr = addresses.find((a) => a.id === selectedAddressId);
     if (!selectedAddr) return;
 
-    const outOfStockItem = itemsToCheckout.find(isItemOutOfStock);
+    const outOfStockItem = itemsToCheckout.find((it) => it.inStock === false || (it.availableQuantity !== undefined && it.availableQuantity <= 0));
     if (outOfStockItem) {
       showToast(`Sản phẩm "${outOfStockItem.name}" hiện đã hết hàng trong kho! Không thể đặt hàng.`, 'error');
       return;
     }
 
     setIsSubmitting(true);
+    setCheckoutError('');
 
     try {
       const detectedShopId = itemsToCheckout[0]?.shopId || null;
@@ -436,19 +437,20 @@ export const CheckoutPage = () => {
         // Luồng Mua ngay: chỉ dọn session mua ngay, TUYỆT ĐỐI KHÔNG XÓA GIỎ HÀNG
         try {
           sessionStorage.removeItem('CYBER_BUY_NOW_ITEM');
-        } catch {}
+        } catch { }
       } else {
         // Luồng Giỏ hàng: chỉ xóa các sản phẩm ĐÃ ĐƯỢC CHỌN trong giỏ
         clearSelectedFromCart();
         try {
           sessionStorage.removeItem('CYBER_FROM_CART');
-        } catch {}
+        } catch { }
       }
 
-      showToast('Đặt hàng thành công!', 'success');
+      showToast('Đặt hàng thành công! Đơn hàng được tạm giữ tồn kho trong 15 phút.', 'success');
       navigate('/orders');
     } catch (err) {
-      const errMsg = err.response?.data?.message || err.data?.message || err.message || 'Lỗi đặt hàng';
+      const errMsg = err.message || 'Lỗi đặt hàng';
+      setCheckoutError(errMsg);
       showToast(errMsg, 'error');
     } finally {
       setIsSubmitting(false);
@@ -480,15 +482,15 @@ export const CheckoutPage = () => {
       {/* Header */}
       <div style={{ marginBottom: '2rem' }}>
         {isBuyNowMode ? (
-          <Link 
-            to={buyNowItem?.productId ? `/products/${buyNowItem.productId}` : '/products'} 
+          <Link
+            to={buyNowItem?.productId ? `/products/${buyNowItem.productId}` : '/products'}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem', color: '#71717a', marginBottom: '0.75rem', textDecoration: 'none' }}
           >
             <ArrowLeft size={16} /> Quay lại trang sản phẩm
           </Link>
         ) : (
-          <Link 
-            to="/cart" 
+          <Link
+            to="/cart"
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem', color: '#71717a', marginBottom: '0.75rem', textDecoration: 'none' }}
           >
             <ArrowLeft size={16} /> Quay lại giỏ hàng
@@ -713,7 +715,7 @@ export const CheckoutPage = () => {
                           <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#000000' }}>{addr.fullName}</span>
                           <span style={{ color: '#71717a', fontSize: '0.875rem' }}>|</span>
                           <span style={{ color: '#27272a', fontWeight: 600, fontSize: '0.875rem' }}>{addr.phone}</span>
-                          
+
                           {addr.isDefault && (
                             <span style={{ background: '#000000', color: '#ffffff', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
                               Mặc định
@@ -835,7 +837,7 @@ export const CheckoutPage = () => {
             {/* Danh sách món hàng */}
             <div className="summary-items-list">
               {itemsToCheckout.map((item) => {
-                const isOutOfStock = isItemOutOfStock(item);
+                const isOutOfStock = item.inStock === false || (item.availableQuantity !== undefined && item.availableQuantity <= 0);
                 return (
                   <div key={item.id} className="summary-item-row" style={isOutOfStock ? { background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '8px' } : {}}>
                     <img src={item.image} alt={item.name} className="summary-item-img" />
@@ -930,9 +932,9 @@ export const CheckoutPage = () => {
                       Đang kiểm tra mã giảm giá thực tế...
                     </div>
                   ) : availableCoupons.length === 0 ? (
-                    <div style={{ 
-                      fontSize: '0.75rem', 
-                      color: '#94a3b8', 
+                    <div style={{
+                      fontSize: '0.75rem',
+                      color: '#94a3b8',
                       backgroundColor: '#f8fafc',
                       border: '1px dashed #e2e8f0',
                       borderRadius: '8px',
@@ -1070,6 +1072,56 @@ export const CheckoutPage = () => {
                 </div>
               </div>
             )}
+
+            {checkoutError && (
+              <div style={{
+                color: '#991b1b',
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                padding: '12px 14px',
+                borderRadius: '8px',
+                fontSize: '0.825rem',
+                lineHeight: '1.5',
+                marginBottom: '14px',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px'
+              }}>
+                <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '2px', color: '#dc2626' }} />
+                <div>
+                  <strong style={{ display: 'block', marginBottom: '2px', color: '#7f1d1d' }}>
+                    Không thể hoàn tất đặt hàng:
+                  </strong>
+                  <div>{checkoutError}</div>
+                  {(checkoutError.includes('giỏ hàng') || checkoutError.includes('kho') || checkoutError.includes('khả dụng')) && (
+                    <div style={{ marginTop: '6px' }}>
+                      <Link to="/cart" style={{ color: '#dc2626', fontWeight: 700, textDecoration: 'underline' }}>
+                        → Nhấn vào đây để quay lại giỏ hàng và điều chỉnh số lượng
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Thông báo cơ chế giữ hàng */}
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '8px',
+              padding: '10px 12px',
+              marginBottom: '14px',
+              fontSize: '0.775rem',
+              color: '#475569',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <Clock size={16} style={{ flexShrink: 0, color: '#2563eb' }} />
+              <span>
+                <strong>Cơ chế giữ hàng:</strong> Đơn hàng sẽ được tạm giữ tồn kho 15 phút để quý khách thanh toán.
+              </span>
+            </div>
 
             {/* NÚT XÁC NHẬN ĐẶT HÀNG */}
             <button

@@ -176,22 +176,40 @@ export const OrdersPage = () => {
                     </span>
                   </div>
 
-                  <div
-                    className="order-status-badge"
-                    style={{
-                      backgroundColor: currentMeta.bg,
-                      color: currentMeta.color
-                    }}
-                  >
-                    <span
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {(order.status === 'pending' || order.status === 'PENDING') && (
+                      <span style={{
+                        background: '#fef3c7',
+                        color: '#b45309',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        border: '1px solid #fde68a',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        <Clock size={12} /> Giữ hàng 15p
+                      </span>
+                    )}
+                    <div
+                      className="order-status-badge"
                       style={{
-                        width: '8px',
-                        height: '8px',
-                        borderRadius: '50%',
-                        backgroundColor: currentMeta.color
+                        backgroundColor: currentMeta.bg,
+                        color: currentMeta.color
                       }}
-                    />
-                    {currentMeta.label}
+                    >
+                      <span
+                        style={{
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          backgroundColor: currentMeta.color
+                        }}
+                      />
+                      {currentMeta.label}
+                    </div>
                   </div>
                 </div>
 
@@ -228,9 +246,14 @@ export const OrdersPage = () => {
                     </div>
                   </div>
                 ) : (
-                  <div style={{ padding: '1rem 1.75rem', background: '#fef2f2', color: '#991b1b', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <AlertCircle size={16} />
-                    <span>Đơn hàng này đã bị hủy.</span>
+                  <div style={{ padding: '0.85rem 1.5rem', background: '#fef2f2', color: '#991b1b', fontSize: '0.825rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #fee2e2' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <AlertCircle size={16} color="#dc2626" />
+                      <span>{order.cancellationReason || 'Đơn hàng này đã bị hủy.'}</span>
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: '#b91c1c', fontWeight: 600, background: '#fee2e2', padding: '2px 8px', borderRadius: '4px' }}>
+                      Tồn kho đã giải phóng
+                    </span>
                   </div>
                 )}
 

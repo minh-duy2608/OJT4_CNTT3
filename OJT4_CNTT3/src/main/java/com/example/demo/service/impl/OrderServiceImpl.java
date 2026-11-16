@@ -22,11 +22,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +43,7 @@ public class OrderServiceImpl implements OrderService {
 
     public static final BigDecimal MAX_ORDER_AMOUNT_LIMIT = new BigDecimal("500000000"); // Hạn mức tối đa đặt hàng trực tuyến (500 triệu VNĐ)
     public static final BigDecimal MAX_COD_AMOUNT_LIMIT = new BigDecimal("20000000"); // Hạn mức tối đa thanh toán COD (20 triệu VNĐ)
+    public static final int RESERVATION_EXPIRATION_MINUTES = 15; // Thời gian giữ hàng (Inventory Reservation) tối đa 15 phút
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String ROLE_ADMIN_STR = "ADMIN";
@@ -221,21 +224,25 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    private void deductInventory(ProductVariant variant, int qty, String prodName, String varName) {
-        Inventory inv = inventoryRepository.findById(variant.getId()).orElse(null);
-        if (inv == null || inv.getAvailableQuantity() <= 0) {
-            throw new BadRequestException("Sản phẩm '" + prodName + " (" + varName + ")' hiện đã hết hàng trong kho. Không thể đặt mua!");
+    private void reserveInventory(ProductVariant variant, int qty, String prodName, String varName) {
+        Inventory inv = inventoryRepository.findByVariantIdWithLock(variant.getId())
+                .or(() -> inventoryRepository.findById(variant.getId()))
+                .orElse(null);
+        int avail = inv != null ? inv.getAvailableQuantity() : 0;
+        if (inv == null || avail <= 0) {
+            throw new BadRequestException("Sản phẩm '" + prodName + " (" + varName + ")' hiện đã hết hàng trong kho. Vui lòng điều chỉnh lại giỏ hàng!");
         }
-        if (inv.getAvailableQuantity() < qty) {
-            throw new BadRequestException("Sản phẩm '" + prodName + " (" + varName + ")' chỉ còn " + inv.getAvailableQuantity() + " sản phẩm trong kho (bạn đang đặt " + qty + ")!");
+        if (avail < qty) {
+            throw new BadRequestException("Sản phẩm '" + prodName + " (" + varName + ")' chỉ còn " + avail + " sản phẩm khả dụng trong kho (bạn đang đặt " + qty + "). Vui lòng điều chỉnh lại số lượng trong giỏ hàng!");
         }
 
-        inv.setQuantity(Math.max(0, inv.getQuantity() - qty));
+        inv.setReservedQuantity((inv.getReservedQuantity() != null ? inv.getReservedQuantity() : 0) + qty);
         inventoryRepository.save(inv);
-        log.info("Deducted {} from variant #{} stock. Remaining: {}", qty, variant.getId(), inv.getQuantity());
+        log.info("Reserved {} items for variant #{}. Available now: {}, Reserved now: {}",
+                qty, variant.getId(), inv.getAvailableQuantity(), inv.getReservedQuantity());
     }
 
-    private OrderItem buildOrderItemAndDeductInventory(CreateOrderItemRequest itemReq) {
+    private OrderItem buildOrderItemAndReserveInventory(CreateOrderItemRequest itemReq) {
         VariantProductPair pair = resolveVariantAndProduct(itemReq);
         ProductVariant variant = pair.variant();
         Product product = pair.product();
@@ -250,7 +257,7 @@ public class OrderServiceImpl implements OrderService {
         String imgUrl = resolveImageUrl(itemReq, product);
         BigDecimal unitPrice = resolveUnitPrice(itemReq, variant);
 
-        deductInventory(variant, qty, prodName, varName);
+        reserveInventory(variant, qty, prodName, varName);
 
         BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(qty));
 
@@ -315,6 +322,7 @@ public class OrderServiceImpl implements OrderService {
             throw new BadRequestException("Cửa hàng '" + shop.getName() + "' hiện đang tạm ngừng hoạt động (" + shop.getStatus() + "). Không thể tạo đơn hàng mới.");
         }
 
+        LocalDateTime now = LocalDateTime.now();
         String orderCode = "CYBER-" + (System.currentTimeMillis() % 1000000) + "-" + (100 + SECURE_RANDOM.nextInt(900));
 
         Order order = Order.builder()
@@ -330,12 +338,15 @@ public class OrderServiceImpl implements OrderService {
                 .paymentStatus(PaymentStatus.UNPAID)
                 .paymentMethod(request.getPaymentMethod() != null ? request.getPaymentMethod() : "COD")
                 .note(request.getNotes())
+                .expiresAt(now.plusMinutes(RESERVATION_EXPIRATION_MINUTES))
+                .inventoryReserved(true)
+                .inventoryDeducted(false)
                 .items(new ArrayList<>())
                 .build();
 
         BigDecimal subtotal = BigDecimal.ZERO;
         for (CreateOrderItemRequest itemReq : request.getItems()) {
-            OrderItem orderItem = buildOrderItemAndDeductInventory(itemReq);
+            OrderItem orderItem = buildOrderItemAndReserveInventory(itemReq);
             subtotal = subtotal.add(orderItem.getLineTotal());
             order.addItem(orderItem);
         }
@@ -405,23 +416,71 @@ public class OrderServiceImpl implements OrderService {
                 ROLE_ADMIN_STR.equalsIgnoreCase(r.getCode()) || ROLE_ROLE_ADMIN_STR.equalsIgnoreCase(r.getCode()));
     }
 
-    private void restoreInventory(Order order) {
-        if (order.getItems() == null) {
+    private void confirmInventorySale(Order order) {
+        if (order.getItems() == null || order.getItems().isEmpty()) {
             return;
         }
-        for (OrderItem item : order.getItems()) {
-            if (item.getVariantId() != null) {
-                inventoryRepository.findById(item.getVariantId()).ifPresent(inv -> {
-                    inv.setQuantity(inv.getQuantity() + item.getQuantity());
-                    inventoryRepository.save(inv);
-                    log.info("Restored {} items back to inventory variant #{}", item.getQuantity(), item.getVariantId());
-                });
+        if (Boolean.TRUE.equals(order.getInventoryReserved()) && !Boolean.TRUE.equals(order.getInventoryDeducted())) {
+            for (OrderItem item : order.getItems()) {
+                if (item.getVariantId() != null) {
+                    inventoryRepository.findById(item.getVariantId()).ifPresent(inv -> {
+                        int qty = item.getQuantity() != null ? item.getQuantity() : 0;
+                        inv.setQuantity(Math.max(0, (inv.getQuantity() != null ? inv.getQuantity() : 0) - qty));
+                        inv.setReservedQuantity(Math.max(0, (inv.getReservedQuantity() != null ? inv.getReservedQuantity() : 0) - qty));
+                        inventoryRepository.save(inv);
+                        log.info("Confirmed sale for variant #{}: deducted {} from physical stock, released {} from reserved. Remaining quantity: {}, reserved: {}",
+                                item.getVariantId(), qty, qty, inv.getQuantity(), inv.getReservedQuantity());
+                    });
+                }
             }
+            order.setInventoryReserved(false);
+            order.setInventoryDeducted(true);
         }
     }
 
+    private void releaseOrRestoreInventory(Order order) {
+        if (order.getItems() == null || order.getItems().isEmpty()) {
+            return;
+        }
+        boolean isConfirmedOrSold = Boolean.TRUE.equals(order.getInventoryDeducted()) ||
+                order.getStatus() == OrderStatus.CONFIRMED ||
+                order.getStatus() == OrderStatus.PROCESSING ||
+                order.getStatus() == OrderStatus.SHIPPED ||
+                order.getStatus() == OrderStatus.DELIVERED;
+
+        for (OrderItem item : order.getItems()) {
+            if (item.getVariantId() != null) {
+                inventoryRepository.findById(item.getVariantId()).ifPresent(inv -> {
+                    int qty = item.getQuantity() != null ? item.getQuantity() : 0;
+                    int currentReserved = inv.getReservedQuantity() != null ? inv.getReservedQuantity() : 0;
+                    int currentQty = inv.getQuantity() != null ? inv.getQuantity() : 0;
+
+                    if (!isConfirmedOrSold && currentReserved >= qty) {
+                        inv.setReservedQuantity(Math.max(0, currentReserved - qty));
+                        log.info("Released reserved inventory for variant #{}: unreserved {}. Reserved remaining: {}, Available: {}",
+                                item.getVariantId(), qty, inv.getReservedQuantity(), inv.getAvailableQuantity());
+                    } else {
+                        inv.setQuantity(currentQty + qty);
+                        if (currentReserved >= qty) {
+                            inv.setReservedQuantity(currentReserved - qty);
+                        }
+                        log.info("Restored physical inventory for variant #{}: added {} back to quantity. Current quantity: {}",
+                                item.getVariantId(), qty, inv.getQuantity());
+                    }
+                    inventoryRepository.save(inv);
+                });
+            }
+        }
+        order.setInventoryReserved(false);
+        order.setInventoryDeducted(false);
+    }
+
+    private void restoreInventory(Order order) {
+        releaseOrRestoreInventory(order);
+    }
+
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public OrderResponse getOrderDetail(Long orderId, String currentUsername) {
         if (currentUsername == null || currentUsername.isBlank()) {
             throw new UnauthorizedException("Yêu cầu đăng nhập để xem thông tin chi tiết đơn hàng");
@@ -431,6 +490,10 @@ public class OrderServiceImpl implements OrderService {
 
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
+
+        if (order.isExpired()) {
+            cancelSingleExpiredOrder(order, LocalDateTime.now());
+        }
 
         boolean isBuyer = Objects.equals(order.getUserId(), user.getId());
         boolean isAdmin = isUserAdmin(user);
@@ -485,6 +548,7 @@ public class OrderServiceImpl implements OrderService {
         order.setUpdatedAt(now);
 
         Order saved = orderRepository.save(order);
+        confirmInventorySale(saved);
         log.info("Customer '{}' (User #{}) confirmed delivery for order #{} ({}) at {}",
                 user.getUsername(), user.getId(), saved.getId(), saved.getOrderCode(), now);
 
@@ -825,10 +889,17 @@ public class OrderServiceImpl implements OrderService {
                         order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), now, user.getUsername());
                 default -> { /* PENDING or other unhandled */ }
             }
+
+            if (newStatus == OrderStatus.CONFIRMED || newStatus == OrderStatus.PROCESSING || newStatus == OrderStatus.SHIPPED || newStatus == OrderStatus.DELIVERED) {
+                confirmInventorySale(order);
+            }
         }
 
         if (request.getPaymentStatus() != null) {
             order.setPaymentStatus(request.getPaymentStatus());
+            if (request.getPaymentStatus() == PaymentStatus.PAID) {
+                confirmInventorySale(order);
+            }
         }
 
         Order saved = orderRepository.save(order);
@@ -850,6 +921,33 @@ public class OrderServiceImpl implements OrderService {
         log.info("Order #{} ({}) of shop #{} status successfully updated from {} to {} by '{}'",
                 saved.getId(), saved.getOrderCode(), shop.getId(), oldStatus, newStatus, user.getUsername());
         return mapToResponse(saved);
+    }
+
+    @Override
+    @Scheduled(fixedRate = 60000)
+    @Transactional
+    public int cancelExpiredOrders() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime fallbackTime = now.minusMinutes(RESERVATION_EXPIRATION_MINUTES);
+        List<Order> expiredOrders = orderRepository.findExpiredPendingOrders(OrderStatus.PENDING, now, fallbackTime);
+        if (expiredOrders == null || expiredOrders.isEmpty()) {
+            return 0;
+        }
+
+        log.info("Found {} expired pending orders to cancel and release reserved inventory", expiredOrders.size());
+        for (Order o : expiredOrders) {
+            cancelSingleExpiredOrder(o, now);
+        }
+        return expiredOrders.size();
+    }
+
+    private void cancelSingleExpiredOrder(Order order, LocalDateTime now) {
+        order.setStatus(OrderStatus.CANCELLED);
+        order.setCancelledAt(now);
+        order.setCancellationReason("Hết thời gian thanh toán (quá " + RESERVATION_EXPIRATION_MINUTES + " phút). Hệ thống tự động hủy đơn và giải phóng tồn kho đã giữ.");
+        releaseOrRestoreInventory(order);
+        orderRepository.save(order);
+        log.info("Auto-cancelled expired order #{} ({}) and released reserved inventory", order.getId(), order.getOrderCode());
     }
 
     private Shop verifyShopOrderAccess(Long shopId, String currentUsername) {
@@ -1149,6 +1247,18 @@ public class OrderServiceImpl implements OrderService {
                 ? "Đơn hàng đã được giao và xác nhận thành công. Quý khách có thể viết đánh giá & nhận xét chất lượng sản phẩm."
                 : "Chỉ đơn hàng đã giao và được khách hàng xác nhận nhận hàng mới đủ điều kiện đánh giá hoặc đổi trả.";
 
+        LocalDateTime expiresAt = order.getExpiresAt();
+        Long remainingSeconds = null;
+        boolean isExpired = false;
+        if (order.getStatus() == OrderStatus.PENDING) {
+            LocalDateTime exp = expiresAt != null ? expiresAt : (order.getCreatedAt() != null ? order.getCreatedAt().plusMinutes(RESERVATION_EXPIRATION_MINUTES) : null);
+            if (exp != null) {
+                long diff = Duration.between(LocalDateTime.now(), exp).getSeconds();
+                remainingSeconds = Math.max(0, diff);
+                isExpired = diff <= 0;
+            }
+        }
+
         return OrderResponse.builder()
                 .id(order.getId())
                 .orderCode(order.getOrderCode())
@@ -1176,6 +1286,10 @@ public class OrderServiceImpl implements OrderService {
                 .cancellationReason(order.getCancellationReason())
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())
+                .expiresAt(expiresAt)
+                .remainingSeconds(remainingSeconds)
+                .reservationMinutes(RESERVATION_EXPIRATION_MINUTES)
+                .isExpired(isExpired)
                 .items(itemResponses)
                 .timeline(timeline)
                 .buyerConfirmedDelivery(buyerConfirmed)

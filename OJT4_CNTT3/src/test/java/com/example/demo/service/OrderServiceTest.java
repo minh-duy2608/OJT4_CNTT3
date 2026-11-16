@@ -532,7 +532,9 @@ class OrderServiceTest extends BaseUnitTest {
         OrderResponse res = orderService.createOrder(request, "customer");
 
         assertNotNull(res);
-        assertEquals(8, inv.getQuantity());
+        assertEquals(10, inv.getQuantity());
+        assertEquals(2, inv.getReservedQuantity());
+        assertEquals(8, inv.getAvailableQuantity());
         verify(inventoryRepository).save(inv);
         verify(orderRepository).save(any(Order.class));
     }
@@ -616,7 +618,9 @@ class OrderServiceTest extends BaseUnitTest {
 
         assertNotNull(res);
         assertEquals(new BigDecimal("400000000"), res.getTotalAmount());
-        assertEquals(40, inv.getQuantity());
+        assertEquals(50, inv.getQuantity());
+        assertEquals(10, inv.getReservedQuantity());
+        assertEquals(40, inv.getAvailableQuantity());
     }
 
     @Test
@@ -679,6 +683,137 @@ class OrderServiceTest extends BaseUnitTest {
         assertNotNull(res);
         assertEquals(OrderStatus.CANCELLED, res.getStatus());
         assertEquals(10, inv.getQuantity());
+        verify(inventoryRepository).save(inv);
+    }
+
+    @Test
+    @DisplayName("createOrder: throws BadRequestException with available stock notice when requested quantity exceeds available stock")
+    void testCreateOrder_InsufficientStock_ThrowsBadRequestException() {
+        Product product = Product.builder().id(50L).shopId(10L).name("Laptop Gaming").status(ProductStatus.ACTIVE).build();
+        ProductVariant variant = ProductVariant.builder().id(200L).product(product).variantName("RTX 4060").price(BigDecimal.valueOf(25000000)).build();
+        // 5 total in warehouse, 3 already reserved by other buyers -> available stock is only 2
+        Inventory inv = Inventory.builder().variantId(200L).quantity(5).reservedQuantity(3).build();
+
+        when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
+        when(shopRepository.findById(10L)).thenReturn(Optional.of(shop));
+        when(productVariantRepository.findById(200L)).thenReturn(Optional.of(variant));
+        when(inventoryRepository.findByVariantIdWithLock(200L)).thenReturn(Optional.of(inv));
+
+        CreateOrderItemRequest itemReq = CreateOrderItemRequest.builder()
+                .variantId(200L)
+                .quantity(3) // requests 3 but available is only 2
+                .build();
+
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .shopId(10L)
+                .items(List.of(itemReq))
+                .build();
+
+        BadRequestException ex = assertThrows(BadRequestException.class,
+                () -> orderService.createOrder(request, "customer"));
+
+        assertTrue(ex.getMessage().contains("chỉ còn 2 sản phẩm khả dụng trong kho"));
+        assertTrue(ex.getMessage().contains("Vui lòng điều chỉnh lại số lượng trong giỏ hàng"));
+    }
+
+    @Test
+    @DisplayName("updateOrderStatus to CONFIRMED: confirms sale and deducts actual inventory")
+    void testConfirmOrder_DeductsActualInventoryAndReleasesReservation() {
+        order.setStatus(OrderStatus.PENDING);
+        order.setInventoryReserved(true);
+        order.setInventoryDeducted(false);
+        Product product = Product.builder().id(50L).shopId(10L).name("Phone").status(ProductStatus.ACTIVE).build();
+        ProductVariant variant = ProductVariant.builder().id(200L).product(product).build();
+        OrderItem item = OrderItem.builder().id(300L).variantId(200L).order(order).variant(variant).quantity(2).build();
+        order.setItems(new ArrayList<>(List.of(item)));
+
+        // Currently 10 physical in warehouse, 2 held in reservation
+        Inventory inv = Inventory.builder().variantId(200L).quantity(10).reservedQuantity(2).build();
+
+        when(userRepository.findByUsername("shopowner")).thenReturn(Optional.of(ownerUser));
+        when(shopRepository.findById(10L)).thenReturn(Optional.of(shop));
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+        when(inventoryRepository.findById(200L)).thenReturn(Optional.of(inv));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UpdateOrderStatusRequest updateReq = UpdateOrderStatusRequest.builder()
+                .status(OrderStatus.CONFIRMED)
+                .build();
+
+        OrderResponse res = orderService.updateShopOrderStatus(10L, 100L, updateReq, "shopowner");
+
+        assertNotNull(res);
+        assertEquals(OrderStatus.CONFIRMED, res.getStatus());
+        // Sale confirmed: physical quantity decreased by 2 (10 -> 8), reservation released (2 -> 0)
+        assertEquals(8, inv.getQuantity());
+        assertEquals(0, inv.getReservedQuantity());
+        assertEquals(8, inv.getAvailableQuantity());
+        verify(inventoryRepository).save(inv);
+    }
+
+    @Test
+    @DisplayName("cancelOrder: when order is PENDING, releases reservation so others can buy")
+    void testCancelOrder_WhenPending_ReleasesReservation() {
+        order.setStatus(OrderStatus.PENDING);
+        order.setInventoryReserved(true);
+        order.setInventoryDeducted(false);
+        Product product = Product.builder().id(50L).shopId(10L).name("Phone").status(ProductStatus.ACTIVE).build();
+        ProductVariant variant = ProductVariant.builder().id(200L).product(product).build();
+        OrderItem item = OrderItem.builder().id(300L).variantId(200L).order(order).variant(variant).quantity(2).build();
+        order.setItems(new ArrayList<>(List.of(item)));
+
+        // Warehouse has 10, but 2 are currently reserved for this pending order
+        Inventory inv = Inventory.builder().variantId(200L).quantity(10).reservedQuantity(2).build();
+
+        when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+        when(inventoryRepository.findById(200L)).thenReturn(Optional.of(inv));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        OrderResponse res = orderService.cancelOrder(100L, "Changed my mind", "customer");
+
+        assertNotNull(res);
+        assertEquals(OrderStatus.CANCELLED, res.getStatus());
+        // Physical quantity remains 10, reservation released back to 0, available restored to 10
+        assertEquals(10, inv.getQuantity());
+        assertEquals(0, inv.getReservedQuantity());
+        assertEquals(10, inv.getAvailableQuantity());
+        verify(inventoryRepository).save(inv);
+    }
+
+    @Test
+    @DisplayName("cancelExpiredOrders: automatically cancels expired orders and releases reservation")
+    void testCancelExpiredOrders_ReleasesReservation() {
+        Order expiredOrder = Order.builder()
+                .id(999L)
+                .orderCode("CYBER-EXPIRED-123")
+                .status(OrderStatus.PENDING)
+                .paymentStatus(PaymentStatus.UNPAID)
+                .inventoryReserved(true)
+                .inventoryDeducted(false)
+                .expiresAt(LocalDateTime.now().minusMinutes(5))
+                .build();
+
+        Product product = Product.builder().id(50L).shopId(10L).name("Phone").status(ProductStatus.ACTIVE).build();
+        ProductVariant variant = ProductVariant.builder().id(200L).product(product).build();
+        OrderItem item = OrderItem.builder().id(301L).variantId(200L).order(expiredOrder).variant(variant).quantity(4).build();
+        expiredOrder.setItems(new ArrayList<>(List.of(item)));
+
+        Inventory inv = Inventory.builder().variantId(200L).quantity(20).reservedQuantity(4).build();
+
+        when(orderRepository.findExpiredPendingOrders(eq(OrderStatus.PENDING), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(expiredOrder));
+        when(inventoryRepository.findById(200L)).thenReturn(Optional.of(inv));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        int cancelledCount = orderService.cancelExpiredOrders();
+
+        assertEquals(1, cancelledCount);
+        assertEquals(OrderStatus.CANCELLED, expiredOrder.getStatus());
+        assertTrue(expiredOrder.getCancellationReason().contains("Hết thời gian thanh toán"));
+        assertEquals(20, inv.getQuantity());
+        assertEquals(0, inv.getReservedQuantity());
+        assertEquals(20, inv.getAvailableQuantity());
         verify(inventoryRepository).save(inv);
     }
 }

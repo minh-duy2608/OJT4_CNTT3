@@ -34,5 +34,11 @@ public interface OrderService {
     PageResponse<OrderResponse> getShopOrders(Long shopId, OrderStatus status, int page, int size, String currentUsername);
 
     OrderResponse updateShopOrderStatus(Long shopId, Long orderId, UpdateOrderStatusRequest request, String currentUsername);
+
+    /**
+     * Tự động quét và hủy các đơn hàng quá hạn giữ tồn kho (15 phút), giải phóng số lượng hàng đã giữ
+     * @return số lượng đơn hàng đã được tự động hủy và giải phóng
+     */
+    int cancelExpiredOrders();
 }
 

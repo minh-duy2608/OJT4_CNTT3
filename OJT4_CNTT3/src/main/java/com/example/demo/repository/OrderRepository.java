@@ -34,5 +34,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @Query("SELECT o FROM Order o WHERE (:shopId IS NULL OR o.shopId = :shopId) AND (:status IS NULL OR o.status = :status)")
     Page<Order> findAllByFilter(@Param("shopId") Long shopId, @Param("status") OrderStatus status, Pageable pageable);
+
+    @Query("SELECT o FROM Order o WHERE o.status = :status AND (o.paymentStatus = com.example.demo.entity.PaymentStatus.UNPAID OR o.paymentStatus = com.example.demo.entity.PaymentStatus.PENDING) AND ((o.expiresAt IS NOT NULL AND o.expiresAt < :now) OR (o.expiresAt IS NULL AND o.createdAt < :fallbackTime))")
+    java.util.List<Order> findExpiredPendingOrders(
+            @Param("status") OrderStatus status,
+            @Param("now") java.time.LocalDateTime now,
+            @Param("fallbackTime") java.time.LocalDateTime fallbackTime
+    );
 }
 
