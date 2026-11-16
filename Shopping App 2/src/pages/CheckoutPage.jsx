@@ -14,7 +14,8 @@ import {
   Home,
   Briefcase,
   X,
-  ChevronRight
+  ChevronRight,
+  Clock
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
