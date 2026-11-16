@@ -19,7 +19,9 @@ import {
   Sparkles,
   AlertCircle,
   Tag,
-  MessageCircle
+  MessageCircle,
+  Minus,
+  Plus
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -393,14 +395,10 @@ export const ProductDetailPage = () => {
     return parseProductSpecs(product?.description || '');
   }, [product?.description]);
 
-  // 2. Phân tích các biến thể (Variants): Tách biệt Dung lượng / Phiên bản và Màu sắc
-  const { storageOptions, colorOptions, variantsMap } = useMemo(() => {
+  // 2. Phân tích danh sách biến thể (Variants) với trạng thái tồn kho thực tế
+  const parsedVariantsList = useMemo(() => {
     const rawVariants = Array.isArray(product?.variants) ? product.variants : [];
-    const storages = new Set();
-    const colors = new Set();
-    const map = {};
-
-    rawVariants.forEach((v) => {
+    return rawVariants.map((v) => {
       let color = '';
       let storage = '';
 
@@ -426,6 +424,29 @@ export const ProductDetailPage = () => {
       if (!color) color = 'Tiêu chuẩn';
       if (!storage) storage = v.variantName || 'Tiêu chuẩn';
 
+      const stock = (v.availableQuantity !== undefined && v.availableQuantity !== null)
+        ? Number(v.availableQuantity)
+        : Number(v.stockQuantity ?? 0);
+
+      const isOut = (stock <= 0) || (v.status === 'INACTIVE');
+
+      return {
+        variant: v,
+        color,
+        storage,
+        stock,
+        isOutOfStock: isOut
+      };
+    });
+  }, [product?.variants]);
+
+  // 2.1. Tách biệt danh sách Dung lượng / Phiên bản và Màu sắc
+  const { storageOptions, colorOptions, variantsMap } = useMemo(() => {
+    const storages = new Set();
+    const colors = new Set();
+    const map = {};
+
+    parsedVariantsList.forEach(({ variant: v, color, storage }) => {
       storages.add(storage);
       colors.add(color);
       map[`${color}_${storage}`] = v;
@@ -441,7 +462,7 @@ export const ProductDetailPage = () => {
       colorOptions: colorsList.length > 0 ? colorsList : ['Đen', 'Bạc', 'Tự Nhiên', 'Vàng'],
       variantsMap: map
     };
-  }, [product?.variants]);
+  }, [parsedVariantsList]);
 
   // Xử lý Thêm/Xóa sản phẩm vào Danh sách yêu thích (Wishlist - STT 80, 81)
   const handleToggleWishlist = async () => {
@@ -537,7 +558,7 @@ export const ProductDetailPage = () => {
     return product?.inStock ? 100 : 0;
   }, [product, matchedVariant]);
 
-  // Kiểm tra tình trạng hết hàng
+  // Kiểm tra tình trạng hết hàng chung
   const isOutOfStock = useMemo(() => {
     if (!product) return false;
     if (product.inStock === false) return true;
@@ -556,6 +577,54 @@ export const ProductDetailPage = () => {
     }
     return false;
   }, [product, matchedVariant, stockQuantity]);
+
+  // Kiểm tra xem một phiên bản/dung lượng có bị hết hàng hay không
+  const isStorageOutOfStock = (storage) => {
+    if (parsedVariantsList.length === 0) {
+      return isOutOfStock;
+    }
+    if (selectedColor) {
+      const match = parsedVariantsList.find(pv => pv.color === selectedColor && pv.storage === storage);
+      if (match) return match.isOutOfStock;
+    }
+    const matching = parsedVariantsList.filter(pv => pv.storage === storage);
+    if (matching.length === 0) return true;
+    return matching.every(pv => pv.isOutOfStock);
+  };
+
+  // Kiểm tra xem một màu sắc có bị hết hàng hay không
+  const isColorOutOfStock = (color) => {
+    if (parsedVariantsList.length === 0) {
+      return isOutOfStock;
+    }
+    if (selectedStorage) {
+      const match = parsedVariantsList.find(pv => pv.color === color && pv.storage === selectedStorage);
+      if (match) return match.isOutOfStock;
+    }
+    const matching = parsedVariantsList.filter(pv => pv.color === color);
+    if (matching.length === 0) return true;
+    return matching.every(pv => pv.isOutOfStock);
+  };
+
+  // Tự động bỏ chọn nếu phiên bản hoặc màu đã chọn bị hết hàng khi đổi thuộc tính còn lại
+  useEffect(() => {
+    if (selectedStorage && isStorageOutOfStock(selectedStorage)) {
+      setSelectedStorage('');
+    }
+  }, [selectedColor]);
+
+  useEffect(() => {
+    if (selectedColor && isColorOutOfStock(selectedColor)) {
+      setSelectedColor('');
+    }
+  }, [selectedStorage]);
+
+  // Tự động điều chỉnh số lượng nếu vượt quá tồn kho khả dụng mới
+  useEffect(() => {
+    if (stockQuantity > 0 && quantity > stockQuantity) {
+      setQuantity(1);
+    }
+  }, [stockQuantity]);
 
   // Xử lý Thêm vào giỏ hàng trực tiếp từ trang chi tiết (Yêu cầu phải chọn phiên bản & màu sắc)
   const handleAddToCart = () => {
@@ -576,7 +645,7 @@ export const ProductDetailPage = () => {
     }
 
     if (quantity > stockQuantity) {
-      showToast(`Số lượng yêu cầu (${quantity}) vượt quá tồn kho khả dụng (${stockQuantity})!`, 'warning');
+      showToast('Số lượng yêu cầu vượt quá số lượng hàng có sẵn trong kho!', 'warning');
       return;
     }
 
@@ -627,7 +696,7 @@ export const ProductDetailPage = () => {
     }
 
     if (quantity > stockQuantity) {
-      showToast(`Số lượng yêu cầu (${quantity}) vượt quá tồn kho khả dụng (${stockQuantity})!`, 'warning');
+      showToast('Số lượng yêu cầu vượt quá số lượng hàng có sẵn trong kho!', 'warning');
       return;
     }
 
@@ -979,7 +1048,7 @@ export const ProductDetailPage = () => {
                 alignItems: 'center',
                 gap: '4px'
               }}>
-                <Check size={14} /> Còn hàng ({stockQuantity > 0 ? stockQuantity : 'Sẵn sàng'})
+                <Check size={14} /> Còn hàng
               </span>
             )}
 
@@ -1120,20 +1189,27 @@ export const ProductDetailPage = () => {
               )}
             </span>
             <div className="storage-options-row">
-              {storageOptions.map((storage) => (
-                <button
-                  key={storage}
-                  type="button"
-                  className={`storage-pill-btn ${selectedStorage === storage ? 'is-active' : ''}`}
-                  onClick={() => {
-                    setSelectedStorage(storage);
-                    setAttemptedAction(false);
-                  }}
-                >
-                  {selectedStorage === storage && <Check size={14} style={{ display: 'inline', marginRight: '4px' }} />}
-                  {storage}
-                </button>
-              ))}
+              {storageOptions.map((storage) => {
+                const isOut = isStorageOutOfStock(storage);
+                return (
+                  <button
+                    key={storage}
+                    type="button"
+                    className={`storage-pill-btn ${selectedStorage === storage ? 'is-active' : ''} ${isOut ? 'is-out-of-stock' : ''}`}
+                    disabled={isOut}
+                    onClick={() => {
+                      if (isOut) return;
+                      setSelectedStorage(storage);
+                      setAttemptedAction(false);
+                    }}
+                    title={isOut ? 'Phiên bản này hiện đã hết hàng' : storage}
+                  >
+                    {selectedStorage === storage && <Check size={14} style={{ display: 'inline', marginRight: '4px' }} />}
+                    <span>{storage}</span>
+                    {isOut && <span className="variant-out-badge">Hết</span>}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -1150,6 +1226,7 @@ export const ProductDetailPage = () => {
             </span>
             <div className="color-options-row">
               {colorOptions.map((color) => {
+                const isOut = isColorOutOfStock(color);
                 const cLower = color.toLowerCase();
                 let bg = '#18181b';
                 if (cLower.includes('trắng') || cLower.includes('white')) bg = '#f8fafc';
@@ -1164,14 +1241,18 @@ export const ProductDetailPage = () => {
                   <button
                     key={color}
                     type="button"
-                    className={`detail-color-pill ${selectedColor === color ? 'is-active' : ''}`}
+                    className={`detail-color-pill ${selectedColor === color ? 'is-active' : ''} ${isOut ? 'is-out-of-stock' : ''}`}
+                    disabled={isOut}
                     onClick={() => {
+                      if (isOut) return;
                       setSelectedColor(color);
                       setAttemptedAction(false);
                     }}
+                    title={isOut ? 'Màu sắc này hiện đã hết hàng' : color}
                   >
-                    <span className="detail-color-dot" style={{ backgroundColor: bg }} />
+                    <span className="detail-color-dot" style={{ backgroundColor: bg, opacity: isOut ? 0.35 : 1 }} />
                     <span>{color}</span>
+                    {isOut && <span className="variant-out-badge">Hết</span>}
                   </button>
                 );
               })}
@@ -1179,7 +1260,64 @@ export const ProductDetailPage = () => {
           </div>
 
           {/* =================================================================== */}
-          {/* 3. CÔNG NGHỆ & ĐẶC ĐIỂM NỔI BẬT */}
+          {/* 3. CHỌN SỐ LƯỢNG SẢN PHẨM MUỐN MUA */}
+          {/* =================================================================== */}
+          <div className="detail-variant-group">
+            <span className="variant-label">
+              3. Số lượng:
+            </span>
+            <div className="detail-quantity-box">
+              <button
+                type="button"
+                className="detail-qty-btn minus"
+                onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
+                disabled={quantity <= 1 || isOutOfStock}
+                aria-label="Giảm số lượng"
+                title="Giảm số lượng"
+              >
+                <Minus size={16} />
+              </button>
+              <input
+                type="number"
+                min="1"
+                max={stockQuantity > 0 ? stockQuantity : 999}
+                value={quantity}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  if (isNaN(val) || val < 1) {
+                    setQuantity(1);
+                  } else if (stockQuantity > 0 && val > stockQuantity) {
+                    setQuantity(stockQuantity);
+                    showToast('Số lượng bạn chọn vượt quá số lượng hiện có trong kho!', 'warning');
+                  } else {
+                    setQuantity(val);
+                  }
+                }}
+                className="detail-qty-input"
+                disabled={isOutOfStock}
+                aria-label="Số lượng muốn mua"
+              />
+              <button
+                type="button"
+                className="detail-qty-btn plus"
+                onClick={() => {
+                  if (stockQuantity > 0 && quantity >= stockQuantity) {
+                    showToast('Số lượng bạn chọn vượt quá số lượng hiện có trong kho!', 'warning');
+                    return;
+                  }
+                  setQuantity((prev) => prev + 1);
+                }}
+                disabled={isOutOfStock || (stockQuantity > 0 && quantity >= stockQuantity)}
+                aria-label="Tăng số lượng"
+                title="Tăng số lượng"
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* =================================================================== */}
+          {/* 4. CÔNG NGHỆ & ĐẶC ĐIỂM NỔI BẬT */}
           {/* =================================================================== */}
           {product.shortDescription && (
             <div className="detail-highlights-box">
@@ -1214,7 +1352,7 @@ export const ProductDetailPage = () => {
           )}
 
           {/* =================================================================== */}
-          {/* 4. TÁC VỤ MUA HÀNG (TRỰC TIẾP TRỰC TUYẾN) */}
+          {/* 5. TÁC VỤ MUA HÀNG (TRỰC TIẾP TRỰC TUYẾN) */}
           {/* =================================================================== */}
           <div className="detail-actions-row">
             {/* Nút Thêm vào giỏ hàng (Chỉ hiển thị logo) */}

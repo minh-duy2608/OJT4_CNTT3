@@ -498,6 +498,96 @@
   border-color: #000000;
 }
 
+.storage-pill-btn.is-out-of-stock,
+.storage-pill-btn:disabled {
+  opacity: 0.38;
+  background-color: #f4f4f5 !important;
+  color: #a1a1aa !important;
+  border-color: #e4e4e7 !important;
+  cursor: not-allowed !important;
+  pointer-events: none;
+  box-shadow: none !important;
+}
+
+.variant-out-badge {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #dc2626;
+  background-color: #fee2e2;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 5px;
+  display: inline-block;
+  line-height: 1.2;
+}
+
+/* Quantity Box on Detail Page */
+.detail-quantity-box {
+  display: inline-flex;
+  align-items: center;
+  border: 1.5px solid #e4e4e7;
+  border-radius: 8px;
+  background-color: #ffffff;
+  overflow: hidden;
+  height: 42px;
+  width: fit-content;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.2s ease;
+}
+
+.detail-quantity-box:focus-within {
+  border-color: #000000;
+}
+
+.detail-qty-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: #18181b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.detail-qty-btn:hover:not(:disabled) {
+  background-color: #f4f4f5;
+  color: #000000;
+}
+
+.detail-qty-btn:active:not(:disabled) {
+  background-color: #e4e4e7;
+}
+
+.detail-qty-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  color: #a1a1aa;
+}
+
+.detail-qty-input {
+  width: 52px;
+  height: 100%;
+  border: none;
+  border-left: 1px solid #e4e4e7;
+  border-right: 1px solid #e4e4e7;
+  text-align: center;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #18181b;
+  outline: none;
+  background: #ffffff;
+  -moz-appearance: textfield;
+}
+
+.detail-qty-input::-webkit-outer-spin-button,
+.detail-qty-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 /* Quantity & Action Buttons */
 .detail-actions-row {
   display: flex;
@@ -688,6 +778,17 @@
   background-color: #000000;
   color: #ffffff;
   border-color: #000000;
+}
+
+.detail-color-pill.is-out-of-stock,
+.detail-color-pill:disabled {
+  opacity: 0.38;
+  background-color: #f4f4f5 !important;
+  color: #a1a1aa !important;
+  border-color: #e4e4e7 !important;
+  cursor: not-allowed !important;
+  pointer-events: none;
+  box-shadow: none !important;
 }
 
 .detail-color-dot {
