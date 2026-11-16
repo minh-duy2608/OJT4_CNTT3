@@ -68,3 +68,16 @@ springdoc:
     tags-sorter: alpha
     try-it-out-enabled: true
     doc-expansion: none
+
+payos:
+  client-id: ${PAYOS_CLIENT_ID:}
+  api-key: ${PAYOS_API_KEY:}
+  checksum-key: ${PAYOS_CHECKSUM_KEY:}
+  bank-name: ${PAYOS_BANK_NAME:MB Bank (Ngân hàng Quân Đội)}
+  bank-bin: ${PAYOS_BANK_BIN:970422}
+  account-number: ${PAYOS_ACCOUNT_NUMBER:0362490374}
+  account-name: ${PAYOS_ACCOUNT_NAME:CYBER STORE}
+  return-url: ${PAYOS_RETURN_URL:http://localhost:3000/orders}
+  cancel-url: ${PAYOS_CANCEL_URL:http://localhost:3000/orders}
+  enabled: ${PAYOS_ENABLED:true}
+

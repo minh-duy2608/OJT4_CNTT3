@@ -15,7 +15,8 @@ import {
   RotateCcw,
   Eye,
   Star,
-  HelpCircle
+  HelpCircle,
+  QrCode
 } from 'lucide-react';
 import { useOrders, ORDER_STATUSES } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
@@ -25,6 +26,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { OrderDetailModal } from '../components/OrderDetailModal';
 import { OrderReviewModal } from '../components/OrderReviewModal';
 import { OrderReturnModal } from '../components/OrderReturnModal';
+import { PayOSPaymentModal } from '../components/PayOSPaymentModal';
 import './OrdersPage.css';
 
 export const OrdersPage = () => {
@@ -40,6 +42,7 @@ export const OrdersPage = () => {
   const [orderToReview, setOrderToReview] = useState(null);
   const [orderToReturn, setOrderToReturn] = useState(null);
   const [orderNotReceived, setOrderNotReceived] = useState(null);
+  const [payOSModalOrderId, setPayOSModalOrderId] = useState(null);
 
   // Redirect nếu chưa đăng nhập
   useEffect(() => {
@@ -482,6 +485,31 @@ export const OrdersPage = () => {
                       <Eye size={15} /> Chi tiết đơn hàng
                     </button>
 
+                    {/* Nút thanh toán VietQR PayOS nếu đơn hàng chưa thanh toán */}
+                    {(order.status === 'pending' || order.rawStatus === 'PENDING') && (!order.paymentStatus || order.paymentStatus === 'UNPAID') && (
+                      <button
+                        type="button"
+                        style={{
+                          background: '#2563eb',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '0.48rem 0.95rem',
+                          fontSize: '0.85rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)'
+                        }}
+                        onClick={() => setPayOSModalOrderId(order.backendId || order.id)}
+                        title="Mở mã QR VietQR PayOS để thanh toán đơn hàng"
+                      >
+                        <QrCode size={15} /> Thanh toán VietQR
+                      </button>
+                    )}
+
                     {/* Nút hủy đơn (Chỉ hiện khi đơn ở bước "Chờ xác nhận") */}
                     {order.status === 'pending' && (
                       <button
@@ -676,6 +704,18 @@ export const OrdersPage = () => {
               setOrderToCancel(null);
             }
           }
+        }}
+      />
+
+      {/* MODAL THANH TOÁN PAYOS VIETQR */}
+      <PayOSPaymentModal
+        isOpen={Boolean(payOSModalOrderId)}
+        orderId={payOSModalOrderId}
+        onClose={() => setPayOSModalOrderId(null)}
+        onPaymentSuccess={() => {
+          setPayOSModalOrderId(null);
+          showToast('Thanh toán đơn hàng thành công!', 'success');
+          if (fetchOrdersFromApi) fetchOrdersFromApi();
         }}
       />
     </div>

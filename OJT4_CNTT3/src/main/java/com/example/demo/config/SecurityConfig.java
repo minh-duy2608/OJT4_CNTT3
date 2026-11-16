@@ -104,6 +104,8 @@ public class SecurityConfig {
                                 "/auth/resend-verification", "/api/v1/auth/resend-verification",
                                 "/uploads/**",
                                 "/upload", "/api/v1/upload",
+                                "/payment/payos/webhook", "/api/v1/payment/payos/webhook",
+                                "/payment/payos/status/**", "/api/v1/payment/payos/status/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",

@@ -5108,17 +5108,17 @@ export const AdminPage = () => {
               </div>
             ) : (
               <div className="admin-table-wrapper">
-                <table className="admin-table">
+                <table className="admin-table admin-orders-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '90px', textAlign: 'left' }}>Mã đơn</th>
-                      <th style={{ minWidth: '170px', textAlign: 'left' }}>Khách hàng & SĐT</th>
-                      <th style={{ width: '135px', textAlign: 'left' }}>Ngày đặt</th>
-                      <th style={{ minWidth: '220px', textAlign: 'left' }}>Sản phẩm</th>
-                      <th style={{ width: '140px', textAlign: 'right' }}>Tổng thanh toán</th>
-                      <th style={{ width: '135px', textAlign: 'left' }}>Thanh toán</th>
-                      <th style={{ width: '135px', textAlign: 'center' }}>Trạng thái</th>
-                      <th style={{ width: '210px', textAlign: 'right' }}>Thao tác & Chuyển trạng thái</th>
+                      <th style={{ width: '110px', textAlign: 'left' }}>Mã đơn</th>
+                      <th style={{ minWidth: '150px', textAlign: 'left' }}>Khách hàng & SĐT</th>
+                      <th style={{ width: '95px', textAlign: 'left' }}>Ngày đặt</th>
+                      <th style={{ minWidth: '180px', textAlign: 'left' }}>Sản phẩm</th>
+                      <th style={{ width: '115px', textAlign: 'right' }}>Tổng thanh toán</th>
+                      <th style={{ width: '115px', textAlign: 'left' }}>Thanh toán</th>
+                      <th style={{ width: '110px', textAlign: 'center' }}>Trạng thái</th>
+                      <th className="sticky-col-right" style={{ width: '175px', textAlign: 'right' }}>Thao tác & Trạng thái</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -5138,81 +5138,94 @@ export const AdminPage = () => {
 
                       return (
                         <tr key={ord.id}>
-                          <td style={{ fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap' }}>
-                            #{ord.orderCode || ord.id}
+                          <td style={{ whiteSpace: 'nowrap' }}>
+                            <div 
+                              style={{ fontWeight: 700, color: '#0f172a', fontFamily: 'monospace', fontSize: '0.82rem' }}
+                              title={`Mã đơn: #${ord.orderCode || ord.id}`}
+                            >
+                              #{ord.orderCode || ord.id}
+                            </div>
                           </td>
                           <td>
-                            <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.84375rem' }}>
+                            <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.84375rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '160px' }} title={customerName}>
                               {customerName}
                             </div>
                             <div style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                              <Phone size={12} color="#94a3b8" />
+                              <Phone size={11} color="#94a3b8" />
                               <span>{customerPhone}</span>
                             </div>
-                            {(ord.shippingAddress && typeof ord.shippingAddress === 'string') && (
+                            {(ord.shippingAddress && (typeof ord.shippingAddress === 'string' ? ord.shippingAddress : ord.shippingAddress.detailAddress)) && (
                               <div
-                                style={{ fontSize: '0.725rem', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '170px', marginTop: '1px' }}
-                                title={ord.shippingAddress}
+                                style={{ fontSize: '0.72rem', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '160px', marginTop: '1px' }}
+                                title={typeof ord.shippingAddress === 'string' ? ord.shippingAddress : `${ord.shippingAddress.detailAddress || ''}, ${ord.shippingAddress.city || ''}`}
                               >
-                                {ord.shippingAddress}
+                                {typeof ord.shippingAddress === 'string' ? ord.shippingAddress : `${ord.shippingAddress.detailAddress || ''}, ${ord.shippingAddress.city || ''}`}
                               </div>
                             )}
                           </td>
-                          <td style={{ fontSize: '0.8rem', color: '#64748b', whiteSpace: 'nowrap' }}>
-                            {formatAdminDate(ord.createdAt)}
+                          <td style={{ whiteSpace: 'nowrap' }}>
+                            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#334155' }}>
+                              {ord.createdAt ? new Date(ord.createdAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''}
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '1px' }}>
+                              {ord.createdAt ? new Date(ord.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </div>
                           </td>
                           <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               {firstItem?.productImageUrl || firstItem?.image ? (
                                 <img
                                   src={firstItem.productImageUrl || firstItem.image}
                                   alt=""
-                                  style={{ width: '38px', height: '38px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#ffffff', flexShrink: 0 }}
+                                  style={{ width: '34px', height: '34px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#ffffff', flexShrink: 0 }}
                                 />
                               ) : (
-                                <div style={{ width: '38px', height: '38px', borderRadius: '6px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#94a3b8' }}>
-                                  <ShoppingBag size={18} />
+                                <div style={{ width: '34px', height: '34px', borderRadius: '6px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#94a3b8' }}>
+                                  <ShoppingBag size={16} />
                                 </div>
                               )}
                               <div style={{ minWidth: 0, flex: 1 }}>
                                 <div 
-                                  style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.8125rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }} 
+                                  style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.8125rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' }} 
                                   title={firstItem?.productName || firstItem?.name || 'Sản phẩm'}
                                 >
                                   {firstItem?.productName || firstItem?.name || 'Sản phẩm'}
                                 </div>
-                                <div style={{ fontSize: '0.725rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                <div style={{ fontSize: '0.72rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}>
                                   <span>
                                     {firstItem?.variantName ? `${firstItem.variantName} × ` : ''}
                                     {firstItem?.quantity || 1}
                                   </span>
                                   {ord.items && ord.items.length > 1 && (
-                                    <span style={{ background: '#f1f5f9', color: '#475569', padding: '1px 5px', borderRadius: '4px', fontSize: '0.6875rem', fontWeight: 600 }}>
-                                      +{ord.items.length - 1} món khác
+                                    <span style={{ background: '#f1f5f9', color: '#475569', padding: '1px 5px', borderRadius: '4px', fontSize: '0.675rem', fontWeight: 600 }}>
+                                      +{ord.items.length - 1} món
                                     </span>
                                   )}
                                 </div>
                               </div>
                             </div>
                           </td>
-                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#dc2626', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#dc2626', fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
                             {formatVND(ord.totalAmount || ord.totalPayment || ord.subtotal || 0)}
                           </td>
                           <td>
-                            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155' }}>
-                              {ord.paymentMethod || 'COD'}
+                            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', whiteSpace: 'nowrap' }}>
+                              {(ord.paymentMethod || '').toLowerCase().includes('payos') || (ord.paymentMethod || '').toLowerCase().includes('bank') || (ord.paymentMethod || '').toLowerCase().includes('qr')
+                                ? 'PayOS (VietQR)'
+                                : 'COD (Tiền mặt)'}
                             </div>
                             <span 
                               style={{ 
                                 display: 'inline-block',
-                                marginTop: '3px',
-                                fontSize: '0.6875rem', 
-                                padding: '2px 7px', 
+                                marginTop: '2px',
+                                fontSize: '0.68rem', 
+                                padding: '1px 6px', 
                                 borderRadius: '4px',
                                 background: ord.paymentStatus === 'PAID' ? '#ecfdf5' : '#fffbeb',
                                 color: ord.paymentStatus === 'PAID' ? '#059669' : '#d97706',
                                 border: `1px solid ${ord.paymentStatus === 'PAID' ? '#a7f3d0' : '#fde68a'}`,
-                                fontWeight: 700
+                                fontWeight: 700,
+                                whiteSpace: 'nowrap'
                               }}
                             >
                               {ord.paymentStatus === 'PAID' ? 'Đã TT' : 'Chưa TT'}
@@ -5222,9 +5235,9 @@ export const AdminPage = () => {
                             <span 
                               style={{
                                 display: 'inline-block',
-                                padding: '4px 10px',
+                                padding: '3px 8px',
                                 borderRadius: '9999px',
-                                fontSize: '0.75rem',
+                                fontSize: '0.72rem',
                                 fontWeight: 700,
                                 background: badge.bg,
                                 color: badge.color,
@@ -5234,8 +5247,8 @@ export const AdminPage = () => {
                               {badge.label}
                             </span>
                           </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <td className="sticky-col-right" style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', justifyContent: 'flex-end' }}>
                               {/* Nút xem chi tiết đơn */}
                               <button
                                 type="button"

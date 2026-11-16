@@ -23,6 +23,7 @@ import { useOrders } from '../context/OrderContext';
 import { formatVND } from '../data/products';
 import { validatePhone } from '../utils/validation';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { PayOSPaymentModal } from '../components/PayOSPaymentModal';
 import { couponApi } from '../services/couponApi';
 import './CheckoutPage.css';
 
@@ -94,8 +95,10 @@ export const CheckoutPage = () => {
     }
   }, [addresses, selectedAddressId]);
 
-  // Phương thức thanh toán: COD hoặc BANK_TRANSFER
-  const [paymentMethod, setPaymentMethod] = useState('COD');
+  // Phương thức thanh toán: COD hoặc PAYOS (VietQR)
+  const [paymentMethod, setPaymentMethod] = useState('PAYOS');
+  const [payOSModalOpen, setPayOSModalOpen] = useState(false);
+  const [activePayOSOrderId, setActivePayOSOrderId] = useState(null);
   const [orderNotes, setOrderNotes] = useState('');
   const [checkoutError, setCheckoutError] = useState('');
 
@@ -259,7 +262,7 @@ export const CheckoutPage = () => {
   // Tự động chuyển phương thức nếu vượt quá hạn mức thanh toán tiền mặt (COD)
   useEffect(() => {
     if (finalTotal > MAX_COD_AMOUNT && paymentMethod === 'COD') {
-      setPaymentMethod('BANK');
+      setPaymentMethod('PAYOS');
     }
   }, [finalTotal, paymentMethod]);
 
@@ -377,8 +380,8 @@ export const CheckoutPage = () => {
     }
 
     if (paymentMethod === 'COD' && finalTotal > MAX_COD_AMOUNT) {
-      showToast(`Phương thức COD chỉ áp dụng cho đơn hàng dưới ${formatVND(MAX_COD_AMOUNT)}. Quý khách vui lòng chọn Chuyển khoản QR Ngân hàng!`, 'warning');
-      setPaymentMethod('BANK');
+      showToast(`Phương thức COD chỉ áp dụng cho đơn hàng dưới ${formatVND(MAX_COD_AMOUNT)}. Quý khách vui lòng chọn Thanh toán trực tuyến PayOS qua VietQR!`, 'warning');
+      setPaymentMethod('PAYOS');
       return;
     }
 
@@ -428,11 +431,11 @@ export const CheckoutPage = () => {
         subtotal: subtotalToCheckout,
         shippingFee: finalShippingFee,
         totalPayment: finalTotal,
-        paymentMethod: paymentMethod === 'COD' ? 'COD (Thanh toán khi nhận hàng)' : 'Chuyển khoản QR Ngân hàng',
+        paymentMethod: paymentMethod === 'COD' ? 'COD (Thanh toán khi nhận hàng)' : 'PAYOS (Thanh toán trực tuyến VietQR)',
         notes: orderNotes.trim()
       };
 
-      await createOrder(orderPayload);
+      const newOrder = await createOrder(orderPayload);
 
       if (isBuyNowMode) {
         // Luồng Mua ngay: chỉ dọn session mua ngay, TUYỆT ĐỐI KHÔNG XÓA GIỎ HÀNG
@@ -445,6 +448,12 @@ export const CheckoutPage = () => {
         try {
           sessionStorage.removeItem('CYBER_FROM_CART');
         } catch { }
+      }
+
+      if (paymentMethod === 'PAYOS' && newOrder?.backendId) {
+        setActivePayOSOrderId(newOrder.backendId);
+        setPayOSModalOpen(true);
+        return;
       }
 
       showToast('Đặt hàng thành công! Đơn hàng được tạm giữ tồn kho trong 15 phút.', 'success');
@@ -750,10 +759,36 @@ export const CheckoutPage = () => {
 
             <div className="payment-methods-grid">
               <div
+                className={`payment-method-card ${paymentMethod === 'PAYOS' ? 'is-selected' : ''}`}
+                onClick={() => setPaymentMethod('PAYOS')}
+              >
+                <input
+                  type="radio"
+                  id="pay-payos"
+                  name="paymentMethod"
+                  checked={paymentMethod === 'PAYOS'}
+                  onChange={() => setPaymentMethod('PAYOS')}
+                  style={{ accentColor: '#000', cursor: 'pointer' }}
+                />
+                <CreditCard size={20} color="#000000" />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, color: '#000000', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span>Thanh toán trực tuyến PayOS (VietQR)</span>
+                    <span style={{ fontSize: '0.68rem', color: '#16a34a', background: '#dcfce7', padding: '2px 8px', borderRadius: '999px', fontWeight: 700 }}>
+                      ⚡ Xác nhận tự động 24/7
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#71717a', fontWeight: 400, marginTop: '2px' }}>
+                    Quét mã QR bằng 40+ app ngân hàng & ví điện tử (MB, VCB, Techcombank, MoMo...)
+                  </div>
+                </div>
+              </div>
+
+              <div
                 className={`payment-method-card ${paymentMethod === 'COD' ? 'is-selected' : ''}`}
                 onClick={() => {
                   if (finalTotal > MAX_COD_AMOUNT) {
-                    showToast(`Phương thức COD chỉ áp dụng cho đơn hàng dưới ${formatVND(MAX_COD_AMOUNT)}. Đơn hàng giá trị cao vui lòng chọn Chuyển khoản QR Ngân hàng!`, 'warning');
+                    showToast(`Phương thức COD chỉ áp dụng cho đơn hàng dưới ${formatVND(MAX_COD_AMOUNT)}. Đơn hàng giá trị cao vui lòng chọn Thanh toán PayOS VietQR!`, 'warning');
                     return;
                   }
                   setPaymentMethod('COD');
@@ -788,25 +823,6 @@ export const CheckoutPage = () => {
                       ? `Chỉ áp dụng cho đơn dưới ${formatVND(MAX_COD_AMOUNT)}`
                       : 'Kiểm tra hàng rồi thanh toán tiền mặt'}
                   </div>
-                </div>
-              </div>
-
-              <div
-                className={`payment-method-card ${paymentMethod === 'BANK' ? 'is-selected' : ''}`}
-                onClick={() => setPaymentMethod('BANK')}
-              >
-                <input
-                  type="radio"
-                  id="pay-bank"
-                  name="paymentMethod"
-                  checked={paymentMethod === 'BANK'}
-                  onChange={() => setPaymentMethod('BANK')}
-                  style={{ accentColor: '#000', cursor: 'pointer' }}
-                />
-                <CreditCard size={20} color="#000000" />
-                <div>
-                  <div style={{ fontWeight: 700, color: '#000000' }}>Chuyển khoản QR Ngân hàng</div>
-                  <div style={{ fontSize: '0.75rem', color: '#71717a', fontWeight: 400 }}>Quét mã VietQR 24/7 tự động xác nhận</div>
                 </div>
               </div>
             </div>
@@ -1172,7 +1188,7 @@ export const CheckoutPage = () => {
             <div style={{ borderTop: '1px dashed #e4e4e7', paddingTop: '8px', marginBottom: '8px' }}>
               <span style={{ color: '#71717a', display: 'block', fontSize: '0.75rem', fontWeight: 600 }}>PHƯƠNG THỨC:</span>
               <span style={{ color: '#000', fontWeight: 600 }}>
-                {paymentMethod === 'COD' ? 'Thanh toán tiền mặt khi nhận hàng (COD)' : 'Chuyển khoản QR Ngân hàng'}
+                {paymentMethod === 'COD' ? 'Thanh toán tiền mặt khi nhận hàng (COD)' : 'Thanh toán trực tuyến PayOS (VietQR)'}
               </span>
             </div>
 
@@ -1200,6 +1216,21 @@ export const CheckoutPage = () => {
         confirmText="Đã hiểu"
         showCancel={false}
         onConfirm={() => setShowMissingAddressModal(false)}
+      />
+
+      {/* MODAL THANH TOÁN PAYOS VIETQR 15 PHÚT VỚI ANIMATION DẤU TÍCH THÀNH CÔNG */}
+      <PayOSPaymentModal
+        isOpen={payOSModalOpen}
+        orderId={activePayOSOrderId}
+        onClose={() => {
+          setPayOSModalOpen(false);
+          navigate('/orders');
+        }}
+        onPaymentSuccess={() => {
+          setPayOSModalOpen(false);
+          showToast('Thanh toán PayOS thành công! Cửa hàng đã xác nhận đơn hàng.', 'success');
+          navigate('/orders');
+        }}
       />
     </div>
   );

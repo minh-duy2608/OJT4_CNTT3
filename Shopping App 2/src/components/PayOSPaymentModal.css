@@ -1,0 +1,475 @@
+/* ==========================================================================
+   PayOS QR Payment Modal Styling & Celebration Animation
+   ========================================================================== */
+
+.payos-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  padding: 1rem;
+  animation: payosFadeIn 0.25s ease-out;
+}
+
+@keyframes payosFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.payos-modal-card {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 520px;
+  max-height: 94vh;
+  overflow-y: auto;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(226, 232, 240, 0.8);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  animation: payosSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes payosSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Modal Header */
+.payos-modal-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.payos-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.payos-logo-badge {
+  background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 0.875rem;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+}
+
+.payos-vietqr-badge {
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.payos-close-btn {
+  background: #f1f5f9;
+  border: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.payos-close-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+/* Modal Body */
+.payos-modal-body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  align-items: center;
+}
+
+/* Countdown Banner (15 phút) */
+.payos-timer-banner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  color: #92400e;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.payos-timer-banner.warning {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+  animation: payosPulse 1.5s infinite;
+}
+
+@keyframes payosPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+
+.payos-timer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  padding: 4px 10px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  font-family: monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+/* QR Code Section */
+.payos-qr-wrapper {
+  position: relative;
+  background: #ffffff;
+  padding: 14px;
+  border-radius: 16px;
+  border: 2px dashed #cbd5e1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.payos-qr-image {
+  width: 240px;
+  height: 240px;
+  object-fit: contain;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.payos-qr-wrapper.is-expired .payos-qr-image {
+  filter: blur(4px) grayscale(100%);
+  opacity: 0.3;
+}
+
+.payos-qr-expired-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 16px;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.payos-scan-hint {
+  margin-top: 8px;
+  font-size: 0.8125rem;
+  color: #475569;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Bank Transfer Info Card */
+.payos-info-card {
+  width: 100%;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1rem 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.payos-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.84375rem;
+}
+
+.payos-info-label {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.payos-info-value {
+  color: #0f172a;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.payos-copy-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 0.725rem;
+  font-weight: 600;
+  color: #2563eb;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.15s ease;
+}
+
+.payos-copy-btn:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.payos-copy-btn.copied {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #059669;
+}
+
+/* PayOS Live Check Animation Indicator */
+.payos-live-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: #059669;
+  font-weight: 600;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 20px;
+  padding: 6px 14px;
+}
+
+.payos-pulse-dot {
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: payosDotPulse 1.6s infinite;
+}
+
+@keyframes payosDotPulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+/* ==========================================================================
+   ANIMATION DẤU TÍCH XANH LÁ NHẬN TIỀN THÀNH CÔNG (SUCCESS ANIMATION)
+   ========================================================================== */
+.payos-success-view {
+  padding: 2.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.payos-success-checkmark-box {
+  width: 100px;
+  height: 100px;
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.payos-checkmark-circle {
+  stroke-dasharray: 166;
+  stroke-dashoffset: 166;
+  stroke-width: 3;
+  stroke-miterlimit: 10;
+  stroke: #10b981;
+  fill: none;
+  animation: payosStrokeCircle 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+.payos-checkmark {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  display: block;
+  stroke-width: 4;
+  stroke: #ffffff;
+  stroke-miterlimit: 10;
+  box-shadow: inset 0px 0px 0px #10b981;
+  animation: payosFillCheck 0.4s ease-in-out 0.4s forwards, payosScaleCheck 0.3s ease-in-out 0.9s both;
+}
+
+.payos-checkmark-check {
+  transform-origin: 50% 50%;
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: payosStrokeCheck 0.35s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
+}
+
+@keyframes payosStrokeCircle {
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes payosStrokeCheck {
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes payosFillCheck {
+  100% { box-shadow: inset 0px 0px 0px 50px #10b981; }
+}
+
+@keyframes payosScaleCheck {
+  0%, 100% { transform: none; }
+  50% { transform: scale3d(1.15, 1.15, 1); }
+}
+
+/* Success details banner */
+.payos-success-title {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #065f46;
+  margin: 0 0 0.5rem 0;
+  animation: payosFadeInUp 0.4s ease-out 0.6s both;
+}
+
+.payos-success-desc {
+  font-size: 0.925rem;
+  color: #334155;
+  max-width: 380px;
+  line-height: 1.5;
+  margin: 0 0 1.25rem 0;
+  animation: payosFadeInUp 0.4s ease-out 0.8s both;
+}
+
+.payos-success-amount-badge {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 12px;
+  padding: 0.75rem 1.5rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #059669;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.12);
+  animation: payosFadeInUp 0.4s ease-out 1s both;
+}
+
+.payos-auto-redirect-hint {
+  font-size: 0.8125rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  animation: payosFadeInUp 0.4s ease-out 1.2s both;
+}
+
+@keyframes payosFadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Action Buttons */
+.payos-btn-action {
+  width: 100%;
+  height: 44px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.payos-btn-primary {
+  background: #000000;
+  color: #ffffff;
+}
+
+.payos-btn-primary:hover {
+  background: #27272a;
+}
+
+.payos-btn-secondary {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.payos-btn-secondary:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+/* Test Demo Trigger Button */
+.payos-demo-trigger {
+  margin-top: 0.5rem;
+  background: #fff7ed;
+  border: 1px dashed #fdba74;
+  color: #c2410c;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.payos-demo-trigger:hover {
+  background: #ffedd5;
+  border-color: #ea580c;
+}
