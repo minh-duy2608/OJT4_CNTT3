@@ -18,10 +18,12 @@ import com.example.demo.service.AuditLogService;
 import com.example.demo.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,6 +70,39 @@ public class OrderServiceImpl implements OrderService {
     private final OrderReturnRepository orderReturnRepository;
     private final ProductReviewRepository productReviewRepository;
     private final AuditLogService auditLogService;
+
+    @Autowired(required = false)
+    private SimpMessagingTemplate messagingTemplate;
+
+    /**
+     * Phát sự kiện cập nhật đơn hàng theo thời gian thực (Real-time WebSocket)
+     * tới Người mua (Buyer), Cửa hàng (Shop) và phòng chi tiết đơn.
+     */
+    private void broadcastOrderUpdate(OrderResponse response) {
+        if (response == null || messagingTemplate == null) {
+            return;
+        }
+        try {
+            // 1. Kênh cho người mua đơn hàng
+            if (response.getUserId() != null) {
+                messagingTemplate.convertAndSend("/topic/orders." + response.getUserId(), response);
+            }
+            // 2. Kênh cho cửa hàng (Shop)
+            if (response.getShopId() != null) {
+                messagingTemplate.convertAndSend("/topic/orders.shop." + response.getShopId(), response);
+            }
+            // 3. Kênh chi tiết đơn hàng
+            if (response.getId() != null) {
+                messagingTemplate.convertAndSend("/topic/orders.detail." + response.getId(), response);
+            }
+            // 4. Kênh tổng hợp cho Quản trị viên
+            messagingTemplate.convertAndSend("/topic/orders.all", response);
+            log.info("Đã phát sự kiện WebSocket real-time cho đơn hàng #{} ({}) tới User #{} và Shop #{}",
+                    response.getId(), response.getOrderCode(), response.getUserId(), response.getShopId());
+        } catch (Exception e) {
+            log.warn("Không thể gửi sự kiện cập nhật đơn hàng qua WebSocket: {}", e.getMessage());
+        }
+    }
 
     private record RecipientInfo(String name, String phone, String address, Long addressId) {}
 
@@ -368,7 +403,9 @@ public class OrderServiceImpl implements OrderService {
         Order saved = orderRepository.save(order);
         log.info("Successfully created order #{} ({}) for user #{}", saved.getId(), saved.getOrderCode(), user.getId());
 
-        return mapToResponse(saved);
+        OrderResponse response = mapToResponse(saved);
+        broadcastOrderUpdate(response);
+        return response;
     }
 
     @Override
@@ -563,7 +600,9 @@ public class OrderServiceImpl implements OrderService {
                         user.getUsername(), user.getId(), saved.getOrderCode())
         );
 
-        return mapToDetailedResponse(saved, user.getId());
+        OrderResponse response = mapToDetailedResponse(saved, user.getId());
+        broadcastOrderUpdate(response);
+        return response;
     }
 
     @Override
@@ -656,7 +695,9 @@ public class OrderServiceImpl implements OrderService {
         restoreInventory(order);
 
         Order saved = orderRepository.save(order);
-        return mapToResponse(saved);
+        OrderResponse response = mapToResponse(saved);
+        broadcastOrderUpdate(response);
+        return response;
     }
 
     @Override
@@ -920,7 +961,9 @@ public class OrderServiceImpl implements OrderService {
 
         log.info("Order #{} ({}) of shop #{} status successfully updated from {} to {} by '{}'",
                 saved.getId(), saved.getOrderCode(), shop.getId(), oldStatus, newStatus, user.getUsername());
-        return mapToResponse(saved);
+        OrderResponse response = mapToResponse(saved);
+        broadcastOrderUpdate(response);
+        return response;
     }
 
     @Override
@@ -946,7 +989,8 @@ public class OrderServiceImpl implements OrderService {
         order.setCancelledAt(now);
         order.setCancellationReason("Hết thời gian thanh toán (quá " + RESERVATION_EXPIRATION_MINUTES + " phút). Hệ thống tự động hủy đơn và giải phóng tồn kho đã giữ.");
         releaseOrRestoreInventory(order);
-        orderRepository.save(order);
+        Order saved = orderRepository.save(order);
+        broadcastOrderUpdate(mapToResponse(saved));
         log.info("Auto-cancelled expired order #{} ({}) and released reserved inventory", order.getId(), order.getOrderCode());
     }
 

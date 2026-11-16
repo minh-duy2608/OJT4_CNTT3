@@ -48,6 +48,33 @@ export const OrdersPage = () => {
     }
   }, [isAuthenticated, navigate]);
 
+  // Lắng nghe sự kiện cập nhật đơn hàng theo thời gian thực (Real-time WebSocket)
+  useEffect(() => {
+    const handleOrderUpdated = (e) => {
+      const updatedOrder = e.detail;
+      if (!updatedOrder) return;
+
+      const meta = getStatusMeta(updatedOrder.status);
+      showToast(
+        `Đơn hàng #${updatedOrder.id} vừa được cập nhật trạng thái: [${meta.label}]`,
+        'info'
+      );
+
+      // Tự động cập nhật modal chi tiết nếu đang mở xem đơn này
+      setSelectedOrderForDetail((prev) => {
+        if (prev && (prev.id === updatedOrder.id || prev.backendId === updatedOrder.backendId)) {
+          return updatedOrder;
+        }
+        return prev;
+      });
+    };
+
+    window.addEventListener('cyber:order-updated', handleOrderUpdated);
+    return () => {
+      window.removeEventListener('cyber:order-updated', handleOrderUpdated);
+    };
+  }, [showToast]);
+
   // Tab lọc trạng thái đơn: 'all' hoặc key của ORDER_STATUSES
   const [activeTab, setActiveTab] = useState('all');
 
@@ -477,7 +504,7 @@ export const OrdersPage = () => {
       <OrderDetailModal
         isOpen={Boolean(selectedOrderForDetail)}
         onClose={() => setSelectedOrderForDetail(null)}
-        order={selectedOrderForDetail}
+        order={orders.find(o => o.id === selectedOrderForDetail?.id || o.backendId === selectedOrderForDetail?.backendId) || selectedOrderForDetail}
         onConfirmDelivery={(ord) => {
           setSelectedOrderForDetail(null);
           setOrderToConfirmDelivery(ord);

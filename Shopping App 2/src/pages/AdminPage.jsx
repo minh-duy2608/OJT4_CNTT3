@@ -63,6 +63,8 @@ import {
 import { revenueApi } from '../services/revenueApi';
 import { couponApi } from '../services/couponApi';
 import { useAuth } from '../context/AuthContext';
+import { Client } from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
 import { adminUserApi } from '../services/adminUserApi';
 import { adminRoleApi } from '../services/adminRoleApi';
 import { categoryApi } from '../services/categoryApi';
@@ -1471,6 +1473,91 @@ export const AdminPage = () => {
       setAdminOrdersLoading(false);
     }
   }, [orderStatusFilter, orderShopFilter, isAdminUser, myShopInfo?.id, selectedShopId]);
+
+  // Lắng nghe sự kiện cập nhật đơn hàng theo thời gian thực (Real-time WebSocket) cho Cửa hàng / Admin
+  useEffect(() => {
+    const targetShopId = myShopInfo?.id || (selectedShopId ? Number(selectedShopId) : undefined);
+    let stompClient = null;
+    let isMounted = true;
+
+    try {
+      const token =
+        localStorage.getItem('CYBER_ACCESS_TOKEN') ||
+        sessionStorage.getItem('CYBER_ACCESS_TOKEN') || '';
+
+      stompClient = new Client({
+        webSocketFactory: () =>
+          new SockJS(`${window.location.protocol}//${window.location.host}/ws-chat`),
+        connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
+        reconnectDelay: 5000,
+        heartbeatIncoming: 4000,
+        heartbeatOutgoing: 4000,
+        onConnect: () => {
+          if (!isMounted) return;
+
+          const handleIncomingOrder = (frame) => {
+            try {
+              const updatedOrder = JSON.parse(frame.body);
+              if (!updatedOrder) return;
+
+              setAdminOrders((prev) => {
+                const idx = prev.findIndex(
+                  (o) => o.id === updatedOrder.id || o.orderCode === updatedOrder.orderCode
+                );
+                if (idx !== -1) {
+                  const next = [...prev];
+                  next[idx] = { ...next[idx], ...updatedOrder };
+                  return next;
+                }
+                // Nếu là đơn mới của shop này: thêm vào đầu bảng
+                if (targetShopId && updatedOrder.shopId && Number(updatedOrder.shopId) === Number(targetShopId)) {
+                  setOrderTotalElements((c) => c + 1);
+                  return [updatedOrder, ...prev];
+                }
+                return prev;
+              });
+
+              // Đồng bộ modal chi tiết nếu đang mở xem đơn này
+              setSelectedOrderForDetail((prev) => {
+                if (prev && (prev.id === updatedOrder.id || prev.orderCode === updatedOrder.orderCode)) {
+                  return { ...prev, ...updatedOrder };
+                }
+                return prev;
+              });
+
+              const badge = getOrderStatusBadge(updatedOrder.status);
+              triggerAlert(
+                `Đơn hàng #${updatedOrder.orderCode || updatedOrder.id} vừa được cập nhật: [${badge.label}]!`,
+                'info'
+              );
+            } catch (err) {
+              console.warn('Lỗi phân tích WebSocket order trong Admin:', err);
+            }
+          };
+
+          if (targetShopId) {
+            stompClient.subscribe(`/topic/orders.shop.${targetShopId}`, handleIncomingOrder);
+          }
+          if (isAdminUser) {
+            stompClient.subscribe('/topic/orders.all', handleIncomingOrder);
+          }
+        }
+      });
+
+      stompClient.activate();
+    } catch (e) {
+      console.warn('Không thể khởi tạo WebSocket trong Admin:', e);
+    }
+
+    return () => {
+      isMounted = false;
+      if (stompClient) {
+        try {
+          stompClient.deactivate();
+        } catch (_) {}
+      }
+    };
+  }, [isAdminUser, myShopInfo?.id, selectedShopId]);
 
   const handleUpdateOrderStatus = async () => {
     if (!statusChangeTarget) return;
@@ -4906,14 +4993,14 @@ export const AdminPage = () => {
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '80px' }}>Mã đơn</th>
-                      <th>Khách hàng & SĐT</th>
-                      <th>Ngày đặt</th>
-                      <th>Sản phẩm</th>
-                      <th style={{ textAlign: 'right' }}>Tổng thanh toán</th>
-                      <th>Thanh toán</th>
-                      <th style={{ textAlign: 'center' }}>Trạng thái</th>
-                      <th style={{ textAlign: 'right', width: '220px' }}>Thao tác & Chuyển trạng thái</th>
+                      <th style={{ width: '90px', textAlign: 'left' }}>Mã đơn</th>
+                      <th style={{ minWidth: '170px', textAlign: 'left' }}>Khách hàng & SĐT</th>
+                      <th style={{ width: '135px', textAlign: 'left' }}>Ngày đặt</th>
+                      <th style={{ minWidth: '220px', textAlign: 'left' }}>Sản phẩm</th>
+                      <th style={{ width: '140px', textAlign: 'right' }}>Tổng thanh toán</th>
+                      <th style={{ width: '135px', textAlign: 'left' }}>Thanh toán</th>
+                      <th style={{ width: '135px', textAlign: 'center' }}>Trạng thái</th>
+                      <th style={{ width: '210px', textAlign: 'right' }}>Thao tác & Chuyển trạng thái</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -4926,47 +5013,88 @@ export const AdminPage = () => {
                       const isDelivered = ord.status === 'DELIVERED' || ord.status === 'delivered';
                       const isCancelled = ord.status === 'CANCELLED' || ord.status === 'cancelled';
 
+                      const customerName = ord.recipientName || ord.userFullName || ord.shippingAddress?.fullName || 'Khách hàng';
+                      const customerPhone = ord.recipientPhone || ord.shippingAddress?.phone || 'Chưa có SĐT';
+                      const firstItem = ord.items?.[0];
+                      const totalItemCount = ord.items?.reduce((sum, it) => sum + (it.quantity || 1), 0) || ord.items?.length || 0;
+
                       return (
                         <tr key={ord.id}>
-                          <td style={{ fontWeight: 700, color: '#0f172a' }}>
-                            #{ord.id}
+                          <td style={{ fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap' }}>
+                            #{ord.orderCode || ord.id}
                           </td>
                           <td>
-                            <div style={{ fontWeight: 600, color: '#0f172a' }}>
-                              {ord.shippingAddress?.fullName || 'Khách hàng'}
+                            <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.84375rem' }}>
+                              {customerName}
                             </div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                              {ord.shippingAddress?.phone || 'Chưa có SĐT'}
+                            <div style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                              <Phone size={12} color="#94a3b8" />
+                              <span>{customerPhone}</span>
                             </div>
-                          </td>
-                          <td style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                            {formatAdminDate(ord.createdAt)}
-                          </td>
-                          <td>
-                            <div style={{ fontSize: '0.825rem', fontWeight: 500 }}>
-                              {ord.items?.length || 0} món
-                            </div>
-                            {ord.items?.[0] && (
-                              <div style={{ fontSize: '0.75rem', color: '#64748b', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {ord.items[0].name}
+                            {(ord.shippingAddress && typeof ord.shippingAddress === 'string') && (
+                              <div
+                                style={{ fontSize: '0.725rem', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '170px', marginTop: '1px' }}
+                                title={ord.shippingAddress}
+                              >
+                                {ord.shippingAddress}
                               </div>
                             )}
                           </td>
-                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#dc2626' }}>
-                            {formatVND(ord.totalPayment || ord.subtotal || 0)}
+                          <td style={{ fontSize: '0.8rem', color: '#64748b', whiteSpace: 'nowrap' }}>
+                            {formatAdminDate(ord.createdAt)}
                           </td>
                           <td>
-                            <div style={{ fontSize: '0.75rem', fontWeight: 600 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              {firstItem?.productImageUrl || firstItem?.image ? (
+                                <img
+                                  src={firstItem.productImageUrl || firstItem.image}
+                                  alt=""
+                                  style={{ width: '38px', height: '38px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#ffffff', flexShrink: 0 }}
+                                />
+                              ) : (
+                                <div style={{ width: '38px', height: '38px', borderRadius: '6px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#94a3b8' }}>
+                                  <ShoppingBag size={18} />
+                                </div>
+                              )}
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div 
+                                  style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.8125rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }} 
+                                  title={firstItem?.productName || firstItem?.name || 'Sản phẩm'}
+                                >
+                                  {firstItem?.productName || firstItem?.name || 'Sản phẩm'}
+                                </div>
+                                <div style={{ fontSize: '0.725rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                  <span>
+                                    {firstItem?.variantName ? `${firstItem.variantName} × ` : ''}
+                                    {firstItem?.quantity || 1}
+                                  </span>
+                                  {ord.items && ord.items.length > 1 && (
+                                    <span style={{ background: '#f1f5f9', color: '#475569', padding: '1px 5px', borderRadius: '4px', fontSize: '0.6875rem', fontWeight: 600 }}>
+                                      +{ord.items.length - 1} món khác
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#dc2626', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
+                            {formatVND(ord.totalAmount || ord.totalPayment || ord.subtotal || 0)}
+                          </td>
+                          <td>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155' }}>
                               {ord.paymentMethod || 'COD'}
                             </div>
                             <span 
                               style={{ 
+                                display: 'inline-block',
+                                marginTop: '3px',
                                 fontSize: '0.6875rem', 
-                                padding: '1px 6px', 
+                                padding: '2px 7px', 
                                 borderRadius: '4px',
                                 background: ord.paymentStatus === 'PAID' ? '#ecfdf5' : '#fffbeb',
                                 color: ord.paymentStatus === 'PAID' ? '#059669' : '#d97706',
-                                fontWeight: 600
+                                border: `1px solid ${ord.paymentStatus === 'PAID' ? '#a7f3d0' : '#fde68a'}`,
+                                fontWeight: 700
                               }}
                             >
                               {ord.paymentStatus === 'PAID' ? 'Đã TT' : 'Chưa TT'}
@@ -4976,12 +5104,13 @@ export const AdminPage = () => {
                             <span 
                               style={{
                                 display: 'inline-block',
-                                padding: '3px 8px',
+                                padding: '4px 10px',
                                 borderRadius: '9999px',
                                 fontSize: '0.75rem',
                                 fontWeight: 700,
                                 background: badge.bg,
-                                color: badge.color
+                                color: badge.color,
+                                whiteSpace: 'nowrap'
                               }}
                             >
                               {badge.label}

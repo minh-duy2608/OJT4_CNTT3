@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { Client } from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
 import { orderApi } from '../services/orderApi';
 import { useAuth } from './AuthContext';
 
@@ -14,6 +16,49 @@ export const ORDER_STATUSES = [
   { key: 'delivering', label: 'Đang giao', step: 4, color: '#06b6d4', bg: '#ecfeff' },
   { key: 'delivered', label: 'Đã giao', step: 5, color: '#10b981', bg: '#ecfdf5' }
 ];
+
+export const mapBackendOrder = (o) => ({
+  id: o.orderCode || `CYBER-${o.id}`,
+  backendId: o.id,
+  createdAt: o.createdAt,
+  status: (o.status || 'PENDING').toLowerCase(),
+  shippingAddress: {
+    fullName: o.recipientName,
+    phone: o.recipientPhone,
+    detailAddress: o.shippingAddress,
+    city: ''
+  },
+  items: (o.items || []).map(it => ({
+    id: it.id,
+    productId: it.productId || it.variantId || it.id,
+    variantId: it.variantId,
+    name: `${it.productName || ''}${it.variantName ? ` (${it.variantName})` : ''}`,
+    productName: it.productName,
+    variantName: it.variantName,
+    price: Number(it.unitPrice || 0),
+    quantity: Number(it.quantity || 1),
+    image: it.productImageUrl,
+    isReviewed: Boolean(it.isReviewed)
+  })),
+  voucherCode: o.note?.includes('Voucher:') ? o.note.split('Voucher:')[1]?.trim() : null,
+  discountAmount: Number(o.discountAmount || 0),
+  subtotal: Number(o.subtotal || 0),
+  shippingFee: Number(o.shippingFee || 0),
+  totalPayment: Number(o.totalAmount || 0),
+  paymentMethod: o.paymentMethod || 'COD',
+  rawStatus: o.status,
+  deliveredAt: o.deliveredAt,
+  cancellationReason: o.cancellationReason,
+  timeline: o.timeline,
+  buyerConfirmedDelivery: Boolean(o.buyerConfirmedDelivery),
+  canConfirmDelivery: o.canConfirmDelivery !== undefined ? o.canConfirmDelivery : (!Boolean(o.buyerConfirmedDelivery) && (o.status === 'SHIPPED' || o.status === 'DELIVERED')),
+  canCancel: o.canCancel !== undefined ? o.canCancel : (o.status === 'PENDING' || o.status === 'CONFIRMED'),
+  canReturn: o.canReturn !== undefined ? o.canReturn : (Boolean(o.buyerConfirmedDelivery) && (o.status === 'DELIVERED' || o.status === 'delivered')),
+  canReview: o.canReview !== undefined ? o.canReview : (Boolean(o.buyerConfirmedDelivery) && (o.status === 'DELIVERED' || o.status === 'delivered')),
+  reviewConditionMessage: o.reviewConditionMessage,
+  returnRequest: o.returnRequest,
+  returnInstructions: o.returnInstructions
+});
 
 export const OrderProvider = ({ children }) => {
   const { isAuthenticated, user } = useAuth();
@@ -44,50 +89,7 @@ export const OrderProvider = ({ children }) => {
       const apiOrders = res?.content || (Array.isArray(res) ? res : []);
 
       if (Array.isArray(apiOrders)) {
-        // Chuẩn hóa dữ liệu từ BE API sang định dạng UI cần hiển thị
-        const mapped = apiOrders.map(o => ({
-          id: o.orderCode || `CYBER-${o.id}`,
-          backendId: o.id,
-          createdAt: o.createdAt,
-          status: (o.status || 'PENDING').toLowerCase(),
-          shippingAddress: {
-            fullName: o.recipientName,
-            phone: o.recipientPhone,
-            detailAddress: o.shippingAddress,
-            city: ''
-          },
-          items: (o.items || []).map(it => ({
-            id: it.id,
-            productId: it.productId || it.variantId || it.id,
-            variantId: it.variantId,
-            name: `${it.productName}${it.variantName ? ` (${it.variantName})` : ''}`,
-            productName: it.productName,
-            variantName: it.variantName,
-            price: Number(it.unitPrice || 0),
-            quantity: Number(it.quantity || 1),
-            image: it.productImageUrl,
-            isReviewed: Boolean(it.isReviewed)
-          })),
-          voucherCode: o.note?.includes('Voucher:') ? o.note.split('Voucher:')[1]?.trim() : null,
-          discountAmount: Number(o.discountAmount || 0),
-          subtotal: Number(o.subtotal || 0),
-          shippingFee: Number(o.shippingFee || 0),
-          totalPayment: Number(o.totalAmount || 0),
-          paymentMethod: o.paymentMethod || 'COD',
-          rawStatus: o.status,
-          deliveredAt: o.deliveredAt,
-          cancellationReason: o.cancellationReason,
-          timeline: o.timeline,
-          buyerConfirmedDelivery: Boolean(o.buyerConfirmedDelivery),
-          canConfirmDelivery: o.canConfirmDelivery !== undefined ? o.canConfirmDelivery : (!Boolean(o.buyerConfirmedDelivery) && (o.status === 'SHIPPED' || o.status === 'DELIVERED')),
-          canCancel: o.canCancel !== undefined ? o.canCancel : (o.status === 'PENDING' || o.status === 'CONFIRMED'),
-          canReturn: o.canReturn !== undefined ? o.canReturn : (Boolean(o.buyerConfirmedDelivery) && (o.status === 'DELIVERED' || o.status === 'delivered')),
-          canReview: o.canReview !== undefined ? o.canReview : (Boolean(o.buyerConfirmedDelivery) && (o.status === 'DELIVERED' || o.status === 'delivered')),
-          reviewConditionMessage: o.reviewConditionMessage,
-          returnRequest: o.returnRequest,
-          returnInstructions: o.returnInstructions
-        }));
-
+        const mapped = apiOrders.map(mapBackendOrder);
         setOrders(mapped);
         try {
           localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(mapped));
@@ -103,6 +105,70 @@ export const OrderProvider = ({ children }) => {
   useEffect(() => {
     fetchOrdersFromApi();
   }, [fetchOrdersFromApi]);
+
+  // Lắng nghe sự kiện cập nhật trạng thái đơn hàng thời gian thực qua WebSocket (STOMP)
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) return;
+
+    let stompClient = null;
+    let isMounted = true;
+
+    try {
+      const token =
+        localStorage.getItem('CYBER_ACCESS_TOKEN') ||
+        sessionStorage.getItem('CYBER_ACCESS_TOKEN') || '';
+
+      stompClient = new Client({
+        webSocketFactory: () =>
+          new SockJS(`${window.location.protocol}//${window.location.host}/ws-chat`),
+        connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
+        reconnectDelay: 5000,
+        heartbeatIncoming: 4000,
+        heartbeatOutgoing: 4000,
+        onConnect: () => {
+          if (!isMounted) return;
+          // Subscribe nhận sự kiện đơn hàng của chính người mua
+          stompClient.subscribe(`/topic/orders.${user.id}`, (frame) => {
+            try {
+              const incoming = JSON.parse(frame.body);
+              if (!incoming) return;
+              const mapped = mapBackendOrder(incoming);
+
+              setOrders((prev) => {
+                const idx = prev.findIndex(
+                  (o) => o.id === mapped.id || o.backendId === mapped.backendId
+                );
+                if (idx !== -1) {
+                  const updated = [...prev];
+                  updated[idx] = mapped;
+                  return updated;
+                }
+                return [mapped, ...prev];
+              });
+
+              // Phát event để màn hình OrdersPage / OrderDetailModal đồng bộ ngay lập tức
+              window.dispatchEvent(new CustomEvent('cyber:order-updated', { detail: mapped }));
+            } catch (err) {
+              console.warn('Lỗi phân tích WebSocket order:', err);
+            }
+          });
+        }
+      });
+
+      stompClient.activate();
+    } catch (e) {
+      console.warn('Không thể khởi tạo WebSocket cho đơn hàng:', e);
+    }
+
+    return () => {
+      isMounted = false;
+      if (stompClient) {
+        try {
+          stompClient.deactivate();
+        } catch (_) {}
+      }
+    };
+  }, [isAuthenticated, user?.id]);
 
   // Đồng bộ giỏ đơn hàng vào localStorage
   useEffect(() => {
