@@ -5,7 +5,7 @@ import './AboutPage.css';
 
 export const AboutPage = () => {
   return (
-    <div className="container about-page-wrapper">
+    <div className="container about-page-wrapper" style={{ paddingTop: '4.5rem', paddingBottom: '6.5rem' }}>
       {/* Hero Section */}
       <div className="about-hero-section">
         <span className="about-badge">VỀ CHÚNG TÔI</span>

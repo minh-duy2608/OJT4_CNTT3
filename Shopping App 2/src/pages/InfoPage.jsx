@@ -137,7 +137,7 @@ export const InfoPage = () => {
   const IconComponent = currentSection.icon;
 
   return (
-    <div className="container info-page-wrapper">
+    <div className="container info-page-wrapper" style={{ paddingTop: '4.5rem', paddingBottom: '6.5rem' }}>
       <div className="info-layout">
         {/* Sidebar điều hướng các chính sách */}
         <aside className="info-sidebar">
