@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Truck, Search, RefreshCw, CheckCircle2, Clock, AlertTriangle, Edit, Plus } from 'lucide-react';
 import { shipmentApi } from '../../services/shipmentApi';
 import { formatVND } from '../../data/products';
+import { AdminPagination } from './AdminPagination';
 
 export const AdminShipmentsTab = ({ isAdmin, shopId }) => {
   const [shipments, setShipments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
   const [editingShipment, setEditingShipment] = useState(null);
   const [editStatus, setEditStatus] = useState('');
   const [editTrackingCode, setEditTrackingCode] = useState('');
@@ -26,6 +28,7 @@ export const AdminShipmentsTab = ({ isAdmin, shopId }) => {
       const list = res?.content || (Array.isArray(res) ? res : []);
       setShipments(list);
       setTotalPages(res?.totalPages || 1);
+      setTotalElements(res?.totalElements || list.length);
       setPage(p);
     } catch (err) {
       console.error('Lỗi tải danh sách vận chuyển', err);
@@ -171,30 +174,15 @@ export const AdminShipmentsTab = ({ isAdmin, shopId }) => {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '1rem' }}>
-          <button
-            type="button"
-            disabled={page === 0}
-            onClick={() => fetchShipments(page - 1)}
-            className="admin-btn-secondary"
-            style={{ padding: '4px 10px', fontSize: '0.8rem' }}
-          >
-            Trang trước
-          </button>
-          <span style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'center' }}>
-            Trang {page + 1} / {totalPages}
-          </span>
-          <button
-            type="button"
-            disabled={page >= totalPages - 1}
-            onClick={() => fetchShipments(page + 1)}
-            className="admin-btn-secondary"
-            style={{ padding: '4px 10px', fontSize: '0.8rem' }}
-          >
-            Trang sau
-          </button>
-        </div>
+      {!loading && shipments.length > 0 && (
+        <AdminPagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalElements={totalElements || shipments.length}
+          pageSize={10}
+          itemName="vận đơn"
+          onPageChange={(p) => fetchShipments(p)}
+        />
       )}
 
       {/* Modal Cập nhật vận chuyển */}

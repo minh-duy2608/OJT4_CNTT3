@@ -48,8 +48,8 @@ export const ShopDashboardTab = ({ shopId, shopName }) => {
         <button
           type="button"
           onClick={fetchShopData}
-          className="admin-btn-secondary"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          className="admin-btn-refresh"
+          title="Làm mới số liệu thống kê doanh thu"
         >
           <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Làm mới
         </button>
