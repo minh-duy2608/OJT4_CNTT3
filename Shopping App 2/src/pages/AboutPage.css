@@ -2,14 +2,16 @@
    1. MẶC ĐỊNH SỬ DỤNG CHẤT LIỆU TỰ ĐỘNG (LIGHT & DARK INHERITANCE)
    ========================================================================== */
 
+.container.about-page-wrapper,
 .about-page-wrapper {
-  padding: 4.5rem 1rem 6.5rem;
+  padding: 4.5rem 1rem 6.5rem !important;
   color: inherit;
 }
 
 @media (max-width: 768px) {
+  .container.about-page-wrapper,
   .about-page-wrapper {
-    padding: 3rem 1rem 4.5rem;
+    padding: 3rem 1rem 4.5rem !important;
   }
 }
 

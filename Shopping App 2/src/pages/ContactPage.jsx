@@ -19,7 +19,7 @@ export const ContactPage = () => {
   };
 
   return (
-    <div className="container contact-page-wrapper">
+    <div className="container contact-page-wrapper" style={{ paddingTop: '4.5rem', paddingBottom: '6.5rem' }}>
       <div className="contact-header">
         <span className="contact-badge">HỖ TRỢ TRỰC TUYẾN</span>
         <h1 className="contact-title">Liên hệ với Cyber</h1>
