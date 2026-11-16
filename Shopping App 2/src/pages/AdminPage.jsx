@@ -1397,6 +1397,56 @@ export const AdminPage = () => {
   const [orderShopFilter, setOrderShopFilter] = useState('');
   const [selectedOrderForDetail, setSelectedOrderForDetail] = useState(null);
 
+  // Tìm kiếm & Sắp xếp đơn hàng
+  const [orderSearchType, setOrderSearchType] = useState('name'); // 'name', 'phone', 'all'
+  const [orderSearchKeyword, setOrderSearchKeyword] = useState('');
+  const [orderSortBy, setOrderSortBy] = useState('latest'); // 'latest', 'oldest', 'amount_desc', 'amount_asc'
+
+  // Lọc và sắp xếp đơn hàng theo tiêu chí người bán chọn
+  const filteredAdminOrders = useMemo(() => {
+    let list = [...adminOrders];
+
+    // 1. Tìm kiếm theo tên người mua hoặc số điện thoại
+    if (orderSearchKeyword.trim()) {
+      const kw = orderSearchKeyword.trim().toLowerCase();
+      list = list.filter((ord) => {
+        const name = (ord.recipientName || ord.userFullName || ord.shippingAddress?.fullName || '').toLowerCase();
+        const phone = (ord.recipientPhone || ord.shippingAddress?.phone || '').toLowerCase();
+        const code = (ord.orderCode || String(ord.id) || '').toLowerCase();
+
+        if (orderSearchType === 'name') {
+          return name.includes(kw);
+        }
+        if (orderSearchType === 'phone') {
+          return phone.includes(kw);
+        }
+        return name.includes(kw) || phone.includes(kw) || code.includes(kw);
+      });
+    }
+
+    // 2. Sắp xếp đơn hàng
+    list.sort((a, b) => {
+      const timeA = new Date(a.createdAt || 0).getTime();
+      const timeB = new Date(b.createdAt || 0).getTime();
+      const amountA = Number(a.totalAmount || a.totalPayment || a.subtotal || 0);
+      const amountB = Number(b.totalAmount || b.totalPayment || b.subtotal || 0);
+
+      switch (orderSortBy) {
+        case 'oldest':
+          return timeA - timeB;
+        case 'amount_desc':
+          return amountB - amountA;
+        case 'amount_asc':
+          return amountA - amountB;
+        case 'latest':
+        default:
+          return timeB - timeA;
+      }
+    });
+
+    return list;
+  }, [adminOrders, orderSearchKeyword, orderSearchType, orderSortBy]);
+
   // Status Change Target & Cancel Modal
   const [statusChangeTarget, setStatusChangeTarget] = useState(null);
   const [statusChangeLoading, setStatusChangeLoading] = useState(false);
@@ -4942,13 +4992,14 @@ export const AdminPage = () => {
                   </div>
                 )}
 
-                {/* Lọc trạng thái đơn */}
+                {/* 1. Lọc trạng thái đơn */}
                 <select
                   className="admin-select-filter"
                   value={orderStatusFilter}
                   onChange={(e) => {
                     setOrderStatusFilter(e.target.value);
                   }}
+                  title="Lọc theo trạng thái đơn hàng"
                 >
                   <option value="all">Tất cả trạng thái đơn</option>
                   <option value="PENDING">1. Chờ xác nhận (PENDING)</option>
@@ -4959,20 +5010,76 @@ export const AdminPage = () => {
                   <option value="CANCELLED">0. Đã hủy (CANCELLED)</option>
                 </select>
 
+                {/* 2. Sắp xếp đơn hàng */}
+                <select
+                  className="admin-select-filter"
+                  value={orderSortBy}
+                  onChange={(e) => setOrderSortBy(e.target.value)}
+                  title="Sắp xếp danh sách đơn hàng"
+                >
+                  <option value="latest">⏱️ Mới nhất</option>
+                  <option value="oldest">⌛ Cũ nhất</option>
+                  <option value="amount_desc">💰 Giá trị: Cao đến thấp</option>
+                  <option value="amount_asc">💵 Giá trị: Thấp đến cao</option>
+                </select>
+
+                {/* 3. Thanh tìm kiếm thông minh: Tên người mua hoặc Số điện thoại */}
+                <div className="admin-order-search-box">
+                  <select
+                    className="admin-order-search-type"
+                    value={orderSearchType}
+                    onChange={(e) => setOrderSearchType(e.target.value)}
+                    title="Chọn tiêu chí tìm kiếm"
+                  >
+                    <option value="name">Tên người mua</option>
+                    <option value="phone">Số điện thoại</option>
+                    <option value="all">Tất cả thông tin</option>
+                  </select>
+
+                  <div className="admin-order-search-input-wrap">
+                    <Search size={14} color="#94a3b8" />
+                    <input
+                      type="text"
+                      className="admin-order-search-input"
+                      placeholder={
+                        orderSearchType === 'name'
+                          ? 'Nhập tên người mua...'
+                          : orderSearchType === 'phone'
+                          ? 'Nhập số điện thoại...'
+                          : 'Tìm tên, SĐT, mã đơn...'
+                      }
+                      value={orderSearchKeyword}
+                      onChange={(e) => setOrderSearchKeyword(e.target.value)}
+                    />
+                    {orderSearchKeyword && (
+                      <button
+                        type="button"
+                        className="admin-order-search-clear"
+                        onClick={() => setOrderSearchKeyword('')}
+                        title="Xóa tìm kiếm"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 4. Nút Làm mới */}
                 <button
                   type="button"
                   onClick={() => fetchAdminOrders(0)}
                   className="admin-btn-action-secondary"
-                  title="Tìm & Lọc đơn hàng"
+                  title="Tải lại danh sách đơn hàng"
+                  style={{ height: '38px', padding: '0 12px' }}
                 >
-                  <Search size={15} />
-                  Lọc
+                  <RefreshCw size={14} />
+                  Làm mới
                 </button>
               </div>
 
               <div className="admin-toolbar-right">
                 <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                  Tổng cộng: <strong>{orderTotalElements}</strong> đơn hàng
+                  Tổng cộng: <strong>{filteredAdminOrders.length}</strong> {filteredAdminOrders.length !== adminOrders.length && `(trong ${adminOrders.length})`} đơn hàng
                 </span>
               </div>
             </div>
@@ -4983,7 +5090,7 @@ export const AdminPage = () => {
                 <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto', color: '#64748b' }} />
                 <div style={{ marginTop: '0.5rem', color: '#64748b' }}>Đang tải danh sách đơn hàng...</div>
               </div>
-            ) : adminOrders.length === 0 ? (
+            ) : filteredAdminOrders.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '3.5rem', color: '#64748b' }}>
                 <ShoppingBag size={40} style={{ margin: '0 auto 0.75rem', opacity: 0.3 }} />
                 <div>Không tìm thấy đơn hàng nào phù hợp với bộ lọc hiện tại.</div>
@@ -5004,7 +5111,7 @@ export const AdminPage = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {adminOrders.map((ord) => {
+                    {filteredAdminOrders.map((ord) => {
                       const badge = getOrderStatusBadge(ord.status);
                       const isPending = ord.status === 'PENDING' || ord.status === 'pending';
                       const isConfirmed = ord.status === 'CONFIRMED' || ord.status === 'confirmed';
