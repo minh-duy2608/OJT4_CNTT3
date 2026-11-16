@@ -1214,57 +1214,34 @@ export const ProductDetailPage = () => {
           )}
 
           {/* =================================================================== */}
-          {/* 4. SỐ LƯỢNG & TÁC VỤ MUA HÀNG (TRỰC TIẾP TRỰC TUYẾN) */}
+          {/* 4. TÁC VỤ MUA HÀNG (TRỰC TIẾP TRỰC TUYẾN) */}
           {/* =================================================================== */}
           <div className="detail-actions-row">
-            {/* Bộ điều khiển số lượng */}
-            <div className="quantity-control" style={isOutOfStock ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
-              <button
-                type="button"
-                className="quantity-btn"
-                disabled={isOutOfStock || quantity <= 1}
-                onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                aria-label="Giảm số lượng"
-              >
-                -
-              </button>
-              <span className="quantity-value">{isOutOfStock ? 0 : quantity}</span>
-              <button
-                type="button"
-                className="quantity-btn"
-                disabled={isOutOfStock || (stockQuantity > 0 && quantity >= stockQuantity)}
-                onClick={() => setQuantity(quantity + 1)}
-                aria-label="Tăng số lượng"
-              >
-                +
-              </button>
-            </div>
-
-            {/* Nút Thêm vào giỏ hàng */}
+            {/* Nút Thêm vào giỏ hàng (Chỉ hiển thị logo) */}
             <button 
               type="button" 
-              className={`detail-btn-cart ${isOutOfStock ? 'is-disabled' : ''}`}
+              className={`detail-btn-cart detail-btn-icon-only ${isOutOfStock ? 'is-disabled' : ''}`}
               onClick={handleAddToCart}
               disabled={isOutOfStock}
               style={isOutOfStock ? { opacity: 0.55, cursor: 'not-allowed', backgroundColor: '#e2e8f0', color: '#64748b', borderColor: '#cbd5e1' } : {}}
               title={isOutOfStock ? 'Sản phẩm này hiện đã hết hàng trong kho' : 'Thêm vào giỏ hàng'}
+              aria-label="Thêm vào giỏ hàng"
             >
-              <ShoppingCart size={18} />
-              <span>{isOutOfStock ? 'Hết hàng' : 'Thêm vào giỏ hàng'}</span>
+              <ShoppingCart size={22} />
             </button>
 
-            {/* Nút Chat ngay với Người bán */}
+            {/* Nút Chat ngay với Người bán (Chỉ hiển thị logo) */}
             <button
               type="button"
-              className="detail-btn-chat"
+              className="detail-btn-chat detail-btn-icon-only"
               onClick={handleChatNow}
               title="Chat trực tiếp với người bán"
+              aria-label="Chat ngay với người bán"
             >
-              <MessageCircle size={18} />
-              <span>Chat ngay</span>
+              <MessageCircle size={22} />
             </button>
 
-            {/* Nút Mua ngay */}
+            {/* Nút Mua ngay (Mở rộng cho rộng rãi) */}
             <button 
               type="button" 
               className={`detail-btn-buy ${isOutOfStock ? 'is-disabled' : ''}`}
@@ -1273,7 +1250,7 @@ export const ProductDetailPage = () => {
               style={isOutOfStock ? { opacity: 0.55, cursor: 'not-allowed', backgroundColor: '#94a3b8' } : {}}
               title={isOutOfStock ? 'Sản phẩm này hiện đã hết hàng trong kho' : 'Mua ngay'}
             >
-              <Zap size={18} />
+              <Zap size={20} />
               <span>{isOutOfStock ? 'Tạm hết hàng' : 'Mua ngay'}</span>
             </button>
           </div>
