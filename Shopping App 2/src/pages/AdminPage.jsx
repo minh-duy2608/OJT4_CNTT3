@@ -83,6 +83,7 @@ import { AdminReviewsTab } from '../components/admin/AdminReviewsTab';
 import { AdminAuditLogsTab } from '../components/admin/AdminAuditLogsTab';
 import { AdminSystemHealthCard } from '../components/admin/AdminSystemHealthCard';
 import { ShopDashboardTab } from '../components/admin/ShopDashboardTab';
+import { AdminPagination } from '../components/admin/AdminPagination';
 import { SellerChatPage } from './SellerChatPage';
 import './AdminPage.css';
 
@@ -533,6 +534,11 @@ export const AdminPage = () => {
   const [categories, setCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [categoryStatusFilter, setCategoryStatusFilter] = useState('');
+  const [categoryPage, setCategoryPage] = useState(0);
+
+  const paginatedCategories = useMemo(() => {
+    return categories.slice(categoryPage * 10, (categoryPage + 1) * 10);
+  }, [categories, categoryPage]);
 
   // Modals for Categories
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -697,6 +703,11 @@ export const AdminPage = () => {
   const [brands, setBrands] = useState([]);
   const [brandsLoading, setBrandsLoading] = useState(false);
   const [brandStatusFilter, setBrandStatusFilter] = useState('');
+  const [brandPage, setBrandPage] = useState(0);
+
+  const paginatedBrands = useMemo(() => {
+    return brands.slice(brandPage * 10, (brandPage + 1) * 10);
+  }, [brands, brandPage]);
 
   // Modals for Brands
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
@@ -1657,6 +1668,7 @@ export const AdminPage = () => {
   const [shopProdTotalElements, setShopProdTotalElements] = useState(0);
   const [shopProdKeyword, setShopProdKeyword] = useState('');
   const [shopProdStatusFilter, setShopProdStatusFilter] = useState('');
+  const [shopProdSortOption, setShopProdSortOption] = useState('id_desc');
 
   // Modals for Variants & Images
   const [activeShopProduct, setActiveShopProduct] = useState(null);
@@ -1696,13 +1708,29 @@ export const AdminPage = () => {
     if (!selectedShopId) return;
     setShopProductsLoading(true);
     try {
+      let sortBy = 'id';
+      let sortDir = 'desc';
+      if (shopProdSortOption === 'id_asc') {
+        sortBy = 'id';
+        sortDir = 'asc';
+      } else if (shopProdSortOption === 'price_asc') {
+        sortBy = 'price';
+        sortDir = 'asc';
+      } else if (shopProdSortOption === 'price_desc') {
+        sortBy = 'price';
+        sortDir = 'desc';
+      } else if (shopProdSortOption === 'name_asc') {
+        sortBy = 'name';
+        sortDir = 'asc';
+      }
+
       const res = await productApi.getShopManagedProducts(selectedShopId, {
         page,
         size: 10,
         keyword: shopProdKeyword.trim() || undefined,
         status: shopProdStatusFilter || undefined,
-        sortBy: 'id',
-        sortDir: 'desc'
+        sortBy,
+        sortDir
       });
       if (res) {
         setShopProducts(res.content || []);
@@ -1716,7 +1744,7 @@ export const AdminPage = () => {
     } finally {
       setShopProductsLoading(false);
     }
-  }, [selectedShopId, shopProdKeyword, shopProdStatusFilter]);
+  }, [selectedShopId, shopProdKeyword, shopProdStatusFilter, shopProdSortOption]);
 
   // Handle Shop Product Status Toggle (STT 49)
   const handleToggleShopProductStatus = async (prod) => {
@@ -4458,61 +4486,20 @@ export const AdminPage = () => {
               </table>
             </div>
 
-            {/* Pagination Controls */}
-            <div className="admin-pagination">
-              <div className="admin-pagination-info">
-                Trang <strong>{userPage + 1}</strong> trên <strong>{userTotalPages}</strong> ({userTotalElements} tài khoản)
-              </div>
-              <div className="admin-pagination-btns">
-                <button
-                  type="button"
-                  className="admin-page-btn"
-                  disabled={userPage <= 0}
-                  onClick={() => {
-                    const p = userPage - 1;
-                    setUserPage(p);
-                    fetchUsers(p);
-                  }}
-                >
-                  <ChevronLeft size={16} />
-                  Trước
-                </button>
-
-                {Array.from({ length: Math.min(5, userTotalPages) }, (_, idx) => {
-                  let pNum = idx;
-                  if (userTotalPages > 5 && userPage > 2) {
-                    pNum = Math.min(userTotalPages - 5, userPage - 2) + idx;
-                  }
-                  return (
-                    <button
-                      key={pNum}
-                      type="button"
-                      className={`admin-page-btn ${userPage === pNum ? 'active' : ''}`}
-                      onClick={() => {
-                        setUserPage(pNum);
-                        fetchUsers(pNum);
-                      }}
-                    >
-                      {pNum + 1}
-                    </button>
-                  );
-                })}
-
-                <button
-                  type="button"
-                  className="admin-page-btn"
-                  disabled={userPage >= userTotalPages - 1}
-                  onClick={() => {
-                    const p = userPage + 1;
-                    setUserPage(p);
-                    fetchUsers(p);
-                  }}
-                >
-                  Sau
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
+            {/* Users Pagination */}
+            {!usersLoading && users.length > 0 && (
+              <AdminPagination
+                currentPage={userPage}
+                totalPages={userTotalPages}
+                totalElements={userTotalElements || users.length}
+                pageSize={10}
+                itemName="tài khoản"
+                onPageChange={(p) => {
+                  setUserPage(p);
+                  fetchUsers(p);
+                }}
+              />
+            )}
           </div>
         )}
 
@@ -4682,7 +4669,7 @@ export const AdminPage = () => {
                       </td>
                     </tr>
                   ) : (
-                    categories.map((cat) => (
+                    paginatedCategories.map((cat) => (
                       <tr key={cat.id}>
                         <td style={{ fontWeight: 600, color: '#64748b' }}>#{cat.id}</td>
                         <td>
@@ -4755,6 +4742,18 @@ export const AdminPage = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Categories Pagination */}
+            {!categoriesLoading && categories.length > 0 && (
+              <AdminPagination
+                currentPage={categoryPage}
+                totalPages={Math.ceil(categories.length / 10)}
+                totalElements={categories.length}
+                pageSize={10}
+                itemName="danh mục"
+                onPageChange={(p) => setCategoryPage(p)}
+              />
+            )}
           </div>
         )}
 
@@ -4826,7 +4825,7 @@ export const AdminPage = () => {
                       </td>
                     </tr>
                   ) : (
-                    brands.map((brand) => (
+                    paginatedBrands.map((brand) => (
                       <tr key={brand.id}>
                         <td>
                           <span style={{ fontWeight: 600, color: '#64748b' }}>#{brand.id}</span>
@@ -4921,6 +4920,18 @@ export const AdminPage = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Brands Pagination */}
+            {!brandsLoading && brands.length > 0 && (
+              <AdminPagination
+                currentPage={brandPage}
+                totalPages={Math.ceil(brands.length / 10)}
+                totalElements={brands.length}
+                pageSize={10}
+                itemName="thương hiệu"
+                onPageChange={(p) => setBrandPage(p)}
+              />
+            )}
           </div>
         )}
 
@@ -5306,29 +5317,16 @@ export const AdminPage = () => {
               </div>
             )}
 
-            {/* Pagination */}
-            {orderTotalPages > 1 && (
-              <div className="admin-pagination">
-                <button
-                  type="button"
-                  disabled={orderPage === 0}
-                  onClick={() => fetchAdminOrders(orderPage - 1)}
-                  className="admin-page-btn"
-                >
-                  <ChevronLeft size={16} /> Trang trước
-                </button>
-                <span className="admin-page-info">
-                  Trang <strong>{orderPage + 1}</strong> / {orderTotalPages}
-                </span>
-                <button
-                  type="button"
-                  disabled={orderPage >= orderTotalPages - 1}
-                  onClick={() => fetchAdminOrders(orderPage + 1)}
-                  className="admin-page-btn"
-                >
-                  Trang sau <ChevronRight size={16} />
-                </button>
-              </div>
+            {/* Orders Pagination */}
+            {!adminOrdersLoading && filteredAdminOrders.length > 0 && (
+              <AdminPagination
+                currentPage={orderPage}
+                totalPages={orderTotalPages}
+                totalElements={orderTotalElements || filteredAdminOrders.length}
+                pageSize={10}
+                itemName="đơn hàng"
+                onPageChange={(newPage) => fetchAdminOrders(newPage)}
+              />
             )}
           </div>
         )}
@@ -5377,6 +5375,7 @@ export const AdminPage = () => {
                   className="admin-select-filter"
                   value={shopProdStatusFilter}
                   onChange={(e) => setShopProdStatusFilter(e.target.value)}
+                  title="Lọc theo trạng thái sản phẩm"
                 >
                   <option value="">Tất cả trạng thái</option>
                   <option value="ACTIVE">ACTIVE (Đang kinh doanh)</option>
@@ -5386,14 +5385,30 @@ export const AdminPage = () => {
                   <option value="DRAFT">DRAFT (Bản nháp)</option>
                 </select>
 
+                {/* Sắp xếp sản phẩm */}
+                <select
+                  className="admin-select-filter"
+                  value={shopProdSortOption}
+                  onChange={(e) => setShopProdSortOption(e.target.value)}
+                  title="Sắp xếp danh sách sản phẩm"
+                >
+                  <option value="id_desc">⏱️ Mới nhất</option>
+                  <option value="id_asc">⌛ Cũ nhất</option>
+                  <option value="price_desc">💰 Giá: Cao đến thấp</option>
+                  <option value="price_asc">💵 Giá: Thấp đến cao</option>
+                  <option value="name_asc">🔤 Tên A - Z</option>
+                </select>
+
+                {/* Nút Làm mới */}
                 <button
                   type="button"
                   onClick={() => fetchShopProducts(0)}
                   className="admin-btn-action-secondary"
-                  title="Tìm kiếm"
+                  title="Tải lại danh sách sản phẩm"
+                  style={{ height: '38px', padding: '0 12px' }}
                 >
-                  <Search size={15} />
-                  Tìm
+                  <RefreshCw size={14} className={shopProductsLoading ? 'animate-spin' : ''} />
+                  Làm mới
                 </button>
               </div>
 
@@ -5402,7 +5417,7 @@ export const AdminPage = () => {
                   type="button"
                   className="admin-btn-action-primary"
                   onClick={handleOpenCreateProduct}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '0.45rem 1rem' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '0 1rem', height: '38px' }}
                 >
                   <Plus size={16} /> Thêm sản phẩm Shop
                 </button>
@@ -5570,29 +5585,16 @@ export const AdminPage = () => {
               </div>
             )}
 
-            {/* Pagination */}
-            {shopProdTotalPages > 1 && (
-              <div className="admin-pagination">
-                <button
-                  type="button"
-                  disabled={shopProdPage === 0}
-                  onClick={() => fetchShopProducts(shopProdPage - 1)}
-                  className="admin-page-btn"
-                >
-                  <ChevronLeft size={16} /> Trang trước
-                </button>
-                <span className="admin-page-info">
-                  Trang <strong>{shopProdPage + 1}</strong> / {shopProdTotalPages}
-                </span>
-                <button
-                  type="button"
-                  disabled={shopProdPage >= shopProdTotalPages - 1}
-                  onClick={() => fetchShopProducts(shopProdPage + 1)}
-                  className="admin-page-btn"
-                >
-                  Trang sau <ChevronRight size={16} />
-                </button>
-              </div>
+            {/* Shop Products Pagination */}
+            {!shopProductsLoading && (
+              <AdminPagination
+                currentPage={shopProdPage}
+                totalPages={shopProdTotalPages}
+                totalElements={shopProdTotalElements || shopProducts.length}
+                pageSize={10}
+                itemName="sản phẩm cửa hàng"
+                onPageChange={(newPage) => fetchShopProducts(newPage)}
+              />
             )}
           </div>
         )}
@@ -5835,29 +5837,16 @@ export const AdminPage = () => {
               </div>
             )}
 
-            {/* Pagination */}
-            {adminShopsTotalPages > 1 && (
-              <div className="admin-pagination">
-                <button
-                  type="button"
-                  disabled={adminShopsPage === 0}
-                  onClick={() => fetchAdminShops(adminShopsPage - 1)}
-                  className="admin-page-btn"
-                >
-                  <ChevronLeft size={16} /> Trang trước
-                </button>
-                <span className="admin-page-info">
-                  Trang <strong>{adminShopsPage + 1}</strong> / {adminShopsTotalPages}
-                </span>
-                <button
-                  type="button"
-                  disabled={adminShopsPage >= adminShopsTotalPages - 1}
-                  onClick={() => fetchAdminShops(adminShopsPage + 1)}
-                  className="admin-page-btn"
-                >
-                  Trang sau <ChevronRight size={16} />
-                </button>
-              </div>
+            {/* Admin Shops Pagination */}
+            {!adminShopsLoading && adminShops.length > 0 && (
+              <AdminPagination
+                currentPage={adminShopsPage}
+                totalPages={adminShopsTotalPages}
+                totalElements={adminShopsTotalElements || adminShops.length}
+                pageSize={10}
+                itemName="cửa hàng"
+                onPageChange={(p) => fetchAdminShops(p)}
+              />
             )}
           </div>
         )}
@@ -6138,29 +6127,16 @@ export const AdminPage = () => {
               </div>
             )}
 
-            {/* Pagination */}
-            {moderationTotalPages > 1 && (
-              <div className="admin-pagination">
-                <button
-                  type="button"
-                  disabled={moderationPage === 0}
-                  onClick={() => fetchModerationProducts(moderationPage - 1)}
-                  className="admin-page-btn"
-                >
-                  <ChevronLeft size={16} /> Trang trước
-                </button>
-                <span className="admin-page-info">
-                  Trang <strong>{moderationPage + 1}</strong> / {moderationTotalPages}
-                </span>
-                <button
-                  type="button"
-                  disabled={moderationPage >= moderationTotalPages - 1}
-                  onClick={() => fetchModerationProducts(moderationPage + 1)}
-                  className="admin-page-btn"
-                >
-                  Trang sau <ChevronRight size={16} />
-                </button>
-              </div>
+            {/* Moderation Pagination */}
+            {!moderationLoading && moderationProducts.length > 0 && (
+              <AdminPagination
+                currentPage={moderationPage}
+                totalPages={moderationTotalPages}
+                totalElements={moderationTotalElements || moderationProducts.length}
+                pageSize={10}
+                itemName="sản phẩm chờ duyệt"
+                onPageChange={(p) => fetchModerationProducts(p)}
+              />
             )}
           </div>
         )}
@@ -6479,29 +6455,16 @@ export const AdminPage = () => {
               </div>
             )}
 
-            {/* Pagination cho Coupons */}
-            {couponTotalPages > 1 && (
-              <div className="admin-pagination">
-                <button
-                  type="button"
-                  disabled={couponPage === 0}
-                  onClick={() => fetchCoupons(couponPage - 1)}
-                  className="admin-page-btn"
-                >
-                  <ChevronLeft size={16} /> Trang trước
-                </button>
-                <span className="admin-page-info">
-                  Trang <strong>{couponPage + 1}</strong> / {couponTotalPages}
-                </span>
-                <button
-                  type="button"
-                  disabled={couponPage >= couponTotalPages - 1}
-                  onClick={() => fetchCoupons(couponPage + 1)}
-                  className="admin-page-btn"
-                >
-                  Trang sau <ChevronRight size={16} />
-                </button>
-              </div>
+            {/* Coupons Pagination */}
+            {!couponsLoading && coupons.length > 0 && (
+              <AdminPagination
+                currentPage={couponPage}
+                totalPages={couponTotalPages}
+                totalElements={couponTotalElements || coupons.length}
+                pageSize={10}
+                itemName="mã giảm giá"
+                onPageChange={(p) => fetchCoupons(p)}
+              />
             )}
           </div>
         )}
@@ -6668,29 +6631,16 @@ export const AdminPage = () => {
               </div>
             )}
 
-            {/* Pagination */}
-            {!isLowStockOnly && inventoryTotalPages > 1 && (
-              <div className="admin-pagination">
-                <button
-                  type="button"
-                  disabled={inventoryPage === 0}
-                  onClick={() => fetchInventory(inventoryPage - 1)}
-                  className="admin-page-btn"
-                >
-                  <ChevronLeft size={16} /> Trang trước
-                </button>
-                <span className="admin-page-info">
-                  Trang <strong>{inventoryPage + 1}</strong> / {inventoryTotalPages}
-                </span>
-                <button
-                  type="button"
-                  disabled={inventoryPage >= inventoryTotalPages - 1}
-                  onClick={() => fetchInventory(inventoryPage + 1)}
-                  className="admin-page-btn"
-                >
-                  Trang sau <ChevronRight size={16} />
-                </button>
-              </div>
+            {/* Inventory Pagination */}
+            {!inventoryLoading && inventoryList.length > 0 && (
+              <AdminPagination
+                currentPage={inventoryPage}
+                totalPages={isLowStockOnly ? 1 : inventoryTotalPages}
+                totalElements={isLowStockOnly ? inventoryList.length : (inventoryTotalElements || inventoryList.length)}
+                pageSize={15}
+                itemName="sản phẩm kho"
+                onPageChange={(p) => fetchInventory(p)}
+              />
             )}
           </div>
         )}

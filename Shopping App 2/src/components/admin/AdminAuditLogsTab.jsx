@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Search, RefreshCw, Eye, Calendar, User, Info, FileText } from 'lucide-react';
 import { auditLogApi } from '../../services/auditLogApi';
+import { AdminPagination } from './AdminPagination';
 
 export const AdminAuditLogsTab = ({ isAdmin, shopId }) => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
   const [filterAction, setFilterAction] = useState('');
   const [filterEntity, setFilterEntity] = useState('');
   const [selectedLog, setSelectedLog] = useState(null);
@@ -28,6 +30,7 @@ export const AdminAuditLogsTab = ({ isAdmin, shopId }) => {
       const list = res?.content || (Array.isArray(res) ? res : []);
       setLogs(list);
       setTotalPages(res?.totalPages || 1);
+      setTotalElements(res?.totalElements || list.length);
       setPage(p);
     } catch (err) {
       console.error('Lỗi tải nhật ký thao tác', err);
@@ -175,30 +178,15 @@ export const AdminAuditLogsTab = ({ isAdmin, shopId }) => {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '1rem' }}>
-          <button
-            type="button"
-            disabled={page === 0}
-            onClick={() => fetchLogs(page - 1)}
-            className="admin-btn-secondary"
-            style={{ padding: '4px 10px', fontSize: '0.8rem' }}
-          >
-            Trang trước
-          </button>
-          <span style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'center' }}>
-            Trang {page + 1} / {totalPages}
-          </span>
-          <button
-            type="button"
-            disabled={page >= totalPages - 1}
-            onClick={() => fetchLogs(page + 1)}
-            className="admin-btn-secondary"
-            style={{ padding: '4px 10px', fontSize: '0.8rem' }}
-          >
-            Trang sau
-          </button>
-        </div>
+      {!loading && logs.length > 0 && (
+        <AdminPagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalElements={totalElements || logs.length}
+          pageSize={15}
+          itemName="nhật ký thao tác"
+          onPageChange={(p) => fetchLogs(p)}
+        />
       )}
 
       {/* Modal Chi tiết Audit Log */}

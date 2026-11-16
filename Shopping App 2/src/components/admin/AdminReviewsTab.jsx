@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Star, MessageSquare, ShieldAlert, Eye, EyeOff, RefreshCw, Send, Trash2 } from 'lucide-react';
 import { shopReviewApi } from '../../services/shopReviewApi';
+import { AdminPagination } from './AdminPagination';
 
 export const AdminReviewsTab = ({ isAdmin, shopId }) => {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
   const [replyingReview, setReplyingReview] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [submittingReply, setSubmittingReply] = useState(false);
@@ -23,6 +25,7 @@ export const AdminReviewsTab = ({ isAdmin, shopId }) => {
       const list = res?.content || (Array.isArray(res) ? res : []);
       setReviews(list);
       setTotalPages(res?.totalPages || 1);
+      setTotalElements(res?.totalElements || list.length);
       setPage(p);
     } catch (err) {
       console.error('Lỗi tải đánh giá', err);
@@ -251,30 +254,15 @@ export const AdminReviewsTab = ({ isAdmin, shopId }) => {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '1rem' }}>
-          <button
-            type="button"
-            disabled={page === 0}
-            onClick={() => fetchReviews(page - 1)}
-            className="admin-btn-secondary"
-            style={{ padding: '4px 10px', fontSize: '0.8rem' }}
-          >
-            Trang trước
-          </button>
-          <span style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'center' }}>
-            Trang {page + 1} / {totalPages}
-          </span>
-          <button
-            type="button"
-            disabled={page >= totalPages - 1}
-            onClick={() => fetchReviews(page + 1)}
-            className="admin-btn-secondary"
-            style={{ padding: '4px 10px', fontSize: '0.8rem' }}
-          >
-            Trang sau
-          </button>
-        </div>
+      {!loading && reviews.length > 0 && (
+        <AdminPagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalElements={totalElements || reviews.length}
+          pageSize={10}
+          itemName="đánh giá"
+          onPageChange={(p) => fetchReviews(p)}
+        />
       )}
 
       {/* Modal Phản hồi đánh giá của Shop */}
