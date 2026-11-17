@@ -2568,6 +2568,8 @@ export const AdminPage = () => {
   const [revenueLoading, setRevenueLoading] = useState(false);
   const [revenueShopFilter, setRevenueShopFilter] = useState('');
   const [revenueTimeFilter, setRevenueTimeFilter] = useState('all');
+  const [recentOrderPage, setRecentOrderPage] = useState(0);
+  const recentOrderPageSize = 5;
 
   const fetchPlatformRevenue = useCallback(async () => {
     if (!isAdminUser) return;
@@ -4181,7 +4183,9 @@ export const AdminPage = () => {
                   <ShoppingBag size={18} color="#2563eb" />
                   Giao Dịch / Đơn Hàng Gần Nhất Trên Toàn Sàn
                 </h3>
-                <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>10 giao dịch mới nhất</span>
+                <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+                  Tổng <strong>{revenueData?.recentOrders?.length || 0}</strong> giao dịch gần nhất
+                </span>
               </div>
 
               <div className="admin-table-wrapper">
@@ -4199,7 +4203,9 @@ export const AdminPage = () => {
                   </thead>
                   <tbody>
                     {revenueData?.recentOrders && revenueData.recentOrders.length > 0 ? (
-                      revenueData.recentOrders.map((ord) => {
+                      revenueData.recentOrders
+                        .slice(recentOrderPage * recentOrderPageSize, (recentOrderPage + 1) * recentOrderPageSize)
+                        .map((ord) => {
                         const st = getOrderStatusBadge(ord.orderStatus);
                         return (
                           <tr key={ord.orderId}>
@@ -4255,6 +4261,20 @@ export const AdminPage = () => {
                   </tbody>
                 </table>
               </div>
+
+              {/* Phân trang cho Đơn hàng / Giao dịch gần nhất trên toàn sàn */}
+              {revenueData?.recentOrders && revenueData.recentOrders.length > recentOrderPageSize && (
+                <div style={{ marginTop: '0.75rem' }}>
+                  <AdminPagination
+                    currentPage={recentOrderPage}
+                    totalPages={Math.ceil(revenueData.recentOrders.length / recentOrderPageSize)}
+                    totalElements={revenueData.recentOrders.length}
+                    pageSize={recentOrderPageSize}
+                    itemName="giao dịch"
+                    onPageChange={(p) => setRecentOrderPage(p)}
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -5725,8 +5745,9 @@ export const AdminPage = () => {
                       <th style={{ width: '60px' }}>ID</th>
                       <th>Cửa hàng</th>
                       <th>Chủ cửa hàng</th>
-                      <th>Liên hệ</th>
-                      <th style={{ textAlign: 'center', width: '150px' }}>Trạng thái</th>
+                      <th>Email</th>
+                      <th>Số điện thoại</th>
+                      <th style={{ textAlign: 'center', width: '140px' }}>Trạng thái</th>
                       <th>Ngày đăng ký</th>
                       <th style={{ textAlign: 'center', width: '220px' }}>Thao tác</th>
                     </tr>
@@ -5763,12 +5784,18 @@ export const AdminPage = () => {
                             </div>
                           </td>
                           <td>
-                            <div style={{ fontWeight: 600 }}>{s.ownerName || 'Chưa cập nhật'}</div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Mã chủ shop: #{s.ownerId}</div>
+                            <div style={{ fontWeight: 600, color: '#0f172a' }}>{s.ownerName || `Chủ shop #${s.ownerId || s.id}`}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Mã chủ: #{s.ownerId || '—'}</div>
                           </td>
                           <td>
-                            <div style={{ fontSize: '0.8rem' }}>{s.contactEmail || 'Chưa có email'}</div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{s.contactPhone || 'Chưa có SĐT'}</div>
+                            <div style={{ fontSize: '0.8125rem', color: '#0f172a', fontWeight: 500 }}>
+                              {s.ownerEmail || s.email || s.contactEmail || 'Chưa cập nhật'}
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: '0.8125rem', color: '#0f172a', fontWeight: 500 }}>
+                              {s.ownerPhone || s.phone || s.contactPhone || 'Chưa cập nhật'}
+                            </div>
                           </td>
                           <td style={{ textAlign: 'center' }}>
                             <span
@@ -8638,12 +8665,12 @@ export const AdminPage = () => {
                   <span>{selectedAdminShop.ownerName || 'Chưa cập nhật'} (ID: #{selectedAdminShop.ownerId})</span>
                 </div>
                 <div>
-                  <strong style={{ display: 'block', color: '#64748b', fontSize: '0.75rem' }}>Email liên hệ:</strong>
-                  <span>{selectedAdminShop.contactEmail || 'Chưa có'}</span>
+                  <strong style={{ display: 'block', color: '#64748b', fontSize: '0.75rem' }}>Email chủ shop:</strong>
+                  <span>{selectedAdminShop.ownerEmail || selectedAdminShop.email || selectedAdminShop.contactEmail || 'Chưa có'}</span>
                 </div>
                 <div>
                   <strong style={{ display: 'block', color: '#64748b', fontSize: '0.75rem' }}>Số điện thoại:</strong>
-                  <span>{selectedAdminShop.contactPhone || 'Chưa có'}</span>
+                  <span>{selectedAdminShop.ownerPhone || selectedAdminShop.phone || selectedAdminShop.contactPhone || 'Chưa có'}</span>
                 </div>
                 <div style={{ gridColumn: 'span 2' }}>
                   <strong style={{ display: 'block', color: '#64748b', fontSize: '0.75rem' }}>Địa chỉ kinh doanh:</strong>

@@ -206,7 +206,7 @@ public class RevenueServiceImpl implements RevenueService {
 
     private List<RecentOrderSummary> mapRecentOrders(List<Order> orders, Map<Long, Shop> shopMap) {
         return orders.stream()
-                .limit(10)
+                .limit(100)
                 .map(o -> {
                     Shop s = o.getShopId() != null ? shopMap.get(o.getShopId()) : null;
                     return RecentOrderSummary.builder()

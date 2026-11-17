@@ -406,15 +406,17 @@ export const Header = () => {
               </Link>
             )}
 
-            {/* Giỏ hàng với hiệu ứng nhảy khi sản phẩm bay vào */}
+            {/* Giỏ hàng với hiệu ứng nhảy khi sản phẩm bay vào (chỉ hiện số lượng khi đã đăng nhập) */}
             <Link
               to="/cart"
               id="cyber-header-cart-btn"
               className={`cyber-action-btn ${cartBumping ? 'cyber-cart-btn-bumping' : ''}`}
-              aria-label={`Giỏ hàng có ${cartCount} sản phẩm`}
+              aria-label={isAuthenticated ? `Giỏ hàng có ${cartCount} sản phẩm` : 'Giỏ hàng'}
             >
               <ShoppingCart size={21} strokeWidth={1.8} />
-              {cartCount > 0 && <span className="cyber-cart-badge">{cartCount}</span>}
+              {isAuthenticated && cartCount > 0 && (
+                <span className="cyber-cart-badge">{cartCount > 99 ? '99+' : cartCount}</span>
+              )}
             </Link>
 
             {/* Tài khoản Người dùng */}

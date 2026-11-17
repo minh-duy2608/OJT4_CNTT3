@@ -68,14 +68,14 @@ public class AdminProductController {
     }
 
     @PatchMapping("/{productId}/approve")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ROLE_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN')")
     public ResponseEntity<ApiResponse<ProductDetailResponse>> approveProduct(@PathVariable Long productId) {
         ProductDetailResponse response = productService.approveProduct(productId);
         return ResponseEntity.ok(ApiResponse.success("Phê duyệt sản phẩm lên sàn thành công", response));
     }
 
     @PatchMapping("/{productId}/reject")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ROLE_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN')")
     public ResponseEntity<ApiResponse<ProductDetailResponse>> rejectProduct(
             @PathVariable Long productId,
             @RequestBody(required = false) Map<String, String> body
@@ -86,7 +86,7 @@ public class AdminProductController {
     }
 
     @PatchMapping("/{productId}/status")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ROLE_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN')")
     public ResponseEntity<ApiResponse<ProductDetailResponse>> updateProductStatus(
             @PathVariable Long productId,
             @Valid @RequestBody UpdateProductStatusRequest request

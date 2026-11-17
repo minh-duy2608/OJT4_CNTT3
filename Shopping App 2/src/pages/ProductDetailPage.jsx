@@ -1260,64 +1260,7 @@ export const ProductDetailPage = () => {
           </div>
 
           {/* =================================================================== */}
-          {/* 3. CHỌN SỐ LƯỢNG SẢN PHẨM MUỐN MUA */}
-          {/* =================================================================== */}
-          <div className="detail-variant-group">
-            <span className="variant-label">
-              3. Số lượng:
-            </span>
-            <div className="detail-quantity-box">
-              <button
-                type="button"
-                className="detail-qty-btn minus"
-                onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
-                disabled={quantity <= 1 || isOutOfStock}
-                aria-label="Giảm số lượng"
-                title="Giảm số lượng"
-              >
-                <Minus size={16} />
-              </button>
-              <input
-                type="number"
-                min="1"
-                max={stockQuantity > 0 ? stockQuantity : 999}
-                value={quantity}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value, 10);
-                  if (isNaN(val) || val < 1) {
-                    setQuantity(1);
-                  } else if (stockQuantity > 0 && val > stockQuantity) {
-                    setQuantity(stockQuantity);
-                    showToast('Số lượng bạn chọn vượt quá số lượng hiện có trong kho!', 'warning');
-                  } else {
-                    setQuantity(val);
-                  }
-                }}
-                className="detail-qty-input"
-                disabled={isOutOfStock}
-                aria-label="Số lượng muốn mua"
-              />
-              <button
-                type="button"
-                className="detail-qty-btn plus"
-                onClick={() => {
-                  if (stockQuantity > 0 && quantity >= stockQuantity) {
-                    showToast('Số lượng bạn chọn vượt quá số lượng hiện có trong kho!', 'warning');
-                    return;
-                  }
-                  setQuantity((prev) => prev + 1);
-                }}
-                disabled={isOutOfStock || (stockQuantity > 0 && quantity >= stockQuantity)}
-                aria-label="Tăng số lượng"
-                title="Tăng số lượng"
-              >
-                <Plus size={16} />
-              </button>
-            </div>
-          </div>
-
-          {/* =================================================================== */}
-          {/* 4. CÔNG NGHỆ & ĐẶC ĐIỂM NỔI BẬT */}
+          {/* 3. CÔNG NGHỆ & ĐẶC ĐIỂM NỔI BẬT */}
           {/* =================================================================== */}
           {product.shortDescription && (
             <div className="detail-highlights-box">
@@ -1352,7 +1295,7 @@ export const ProductDetailPage = () => {
           )}
 
           {/* =================================================================== */}
-          {/* 5. TÁC VỤ MUA HÀNG (TRỰC TIẾP TRỰC TUYẾN) */}
+          {/* 4. TÁC VỤ MUA HÀNG (TRỰC TIẾP TRỰC TUYẾN) */}
           {/* =================================================================== */}
           <div className="detail-actions-row">
             {/* Nút Thêm vào giỏ hàng (Chỉ hiển thị logo) */}

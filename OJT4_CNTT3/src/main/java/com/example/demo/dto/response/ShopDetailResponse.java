@@ -2,6 +2,7 @@ package com.example.demo.dto.response;
 
 import com.example.demo.entity.Shop;
 import com.example.demo.entity.ShopStatus;
+import com.example.demo.entity.User;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -19,6 +20,9 @@ public class ShopDetailResponse {
 
     private Long id;
     private Long ownerId;
+    private String ownerName;
+    private String ownerEmail;
+    private String ownerPhone;
     private String name;
     private String slug;
     private String description;
@@ -41,17 +45,38 @@ public class ShopDetailResponse {
     private boolean isAdminManaged;
 
     public static ShopDetailResponse fromEntity(Shop shop, boolean isOwner, boolean isAdminManaged) {
+        return fromEntity(shop, null, isOwner, isAdminManaged);
+    }
+
+    public static ShopDetailResponse fromEntity(Shop shop, User owner, boolean isOwner, boolean isAdminManaged) {
         if (shop == null) return null;
+        String ownerName = owner != null ? (owner.getFullName() != null && !owner.getFullName().isBlank() ? owner.getFullName() : owner.getUsername()) : null;
+        String ownerEmail = owner != null ? owner.getEmail() : null;
+        String ownerPhone = owner != null ? owner.getPhone() : null;
+
+        String shopEmail = shop.getEmail();
+        if ((shopEmail == null || shopEmail.isBlank()) && ownerEmail != null) {
+            shopEmail = ownerEmail;
+        }
+
+        String shopPhone = shop.getPhone();
+        if ((shopPhone == null || shopPhone.isBlank()) && ownerPhone != null) {
+            shopPhone = ownerPhone;
+        }
+
         return ShopDetailResponse.builder()
                 .id(shop.getId())
                 .ownerId(shop.getOwnerId())
+                .ownerName(ownerName)
+                .ownerEmail(ownerEmail)
+                .ownerPhone(ownerPhone)
                 .name(shop.getName())
                 .slug(shop.getSlug())
                 .description(shop.getDescription())
                 .logoUrl(shop.getLogoUrl())
                 .bannerUrl(shop.getBannerUrl())
-                .email(shop.getEmail())
-                .phone(shop.getPhone())
+                .email(shopEmail)
+                .phone(shopPhone)
                 .province(shop.getProvince())
                 .district(shop.getDistrict())
                 .ward(shop.getWard())
