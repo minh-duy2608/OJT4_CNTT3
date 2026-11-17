@@ -294,14 +294,21 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private ProductSummaryResponse toSummaryResponse(Product product) {
-        List<ProductVariant> variants = productVariantRepository.findByProductIdAndStatus(product.getId(), ProductVariantStatus.ACTIVE);
+        // Lấy tất cả biến thể của sản phẩm để đồng bộ chính xác giá bán và tồn kho
+        List<ProductVariant> variants = productVariantRepository.findByProductIdOrderByPriceAsc(product.getId());
 
         BigDecimal minPrice = null;
         BigDecimal maxPrice = null;
+        BigDecimal salePrice = null;
         for (ProductVariant v : variants) {
             BigDecimal effective = v.getSalePrice() != null ? v.getSalePrice() : v.getPrice();
-            if (minPrice == null || effective.compareTo(minPrice) < 0) minPrice = effective;
-            if (maxPrice == null || effective.compareTo(maxPrice) > 0) maxPrice = effective;
+            if (effective != null) {
+                if (minPrice == null || effective.compareTo(minPrice) < 0) minPrice = effective;
+                if (maxPrice == null || effective.compareTo(maxPrice) > 0) maxPrice = effective;
+            }
+            if (salePrice == null && v.getSalePrice() != null) {
+                salePrice = v.getSalePrice();
+            }
         }
 
         List<ProductImage> images = productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(product.getId());
@@ -319,16 +326,16 @@ public class ProductServiceImpl implements ProductService {
         int totalStock = variants.stream()
                 .mapToInt(v -> {
                     Inventory inv = invMap.get(v.getId());
-                    return inv != null ? inv.getAvailableQuantity() : 0;
+                    return inv != null && inv.getQuantity() != null ? inv.getQuantity() : 0;
                 }).sum();
 
-        boolean inStock = product.getStatus() == ProductStatus.ACTIVE && !variants.isEmpty() &&
-                variants.stream().anyMatch(v -> {
-                    Inventory inv = invMap.get(v.getId());
-                    return inv != null && inv.getAvailableQuantity() > 0;
-                });
+        boolean inStock = product.getStatus() == ProductStatus.ACTIVE && totalStock > 0;
 
-        return ProductSummaryResponse.fromEntity(product, minPrice, maxPrice, primaryImage, inStock, totalStock);
+        ProductSummaryResponse resp = ProductSummaryResponse.fromEntity(product, minPrice, maxPrice, primaryImage, inStock, totalStock);
+        resp.setPrice(minPrice);
+        resp.setSalePrice(salePrice);
+        resp.setVariantCount(variants.size());
+        return resp;
     }
 
     @Override

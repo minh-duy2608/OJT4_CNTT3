@@ -1334,6 +1334,7 @@ export const AdminPage = () => {
 
       setIsProductModalOpen(false);
       fetchShopProducts(shopProdPage);
+      fetchInventory(inventoryPage);
     } catch (err) {
       console.error('Save product error:', err);
       triggerAlert(err.message || 'Lỗi khi lưu thông tin sản phẩm.', 'error');
@@ -1755,6 +1756,7 @@ export const AdminPage = () => {
       await productApi.updateShopProductStatus(selectedShopId, prod.id, nextStatus);
       triggerAlert(`Đã chuyển trạng thái sản phẩm sang "${nextStatus}".`, 'success');
       fetchShopProducts(shopProdPage);
+      fetchInventory(inventoryPage);
     } catch (err) {
       triggerAlert(err.message || 'Lỗi khi cập nhật trạng thái sản phẩm.', 'error');
     }
@@ -1769,6 +1771,7 @@ export const AdminPage = () => {
       triggerAlert(`Đã xóa sản phẩm #${shopProductToDelete.id}.`, 'success');
       setShopProductToDelete(null);
       fetchShopProducts(shopProdPage);
+      fetchInventory(inventoryPage);
     } catch (err) {
       triggerAlert(err.message || 'Lỗi khi xóa sản phẩm.', 'error');
     } finally {
@@ -1841,6 +1844,7 @@ export const AdminPage = () => {
         imageUrl: activeShopProduct.primaryImage || ''
       });
       fetchShopProducts(shopProdPage);
+      fetchInventory(inventoryPage);
     } catch (err) {
       triggerAlert(err.message || 'Lỗi khi lưu biến thể.', 'error');
     } finally {
@@ -1858,6 +1862,7 @@ export const AdminPage = () => {
       const updatedVars = await productApi.getProductVariants(activeShopProduct.id);
       setProductVariants(updatedVars || []);
       fetchShopProducts(shopProdPage);
+      fetchInventory(inventoryPage);
     } catch (err) {
       triggerAlert(err.message || 'Lỗi khi xóa biến thể.', 'error');
     }
@@ -1908,6 +1913,7 @@ export const AdminPage = () => {
         sortOrder: (updatedImgs?.length || 0) + 1
       });
       fetchShopProducts(shopProdPage);
+      fetchInventory(inventoryPage);
     } catch (err) {
       triggerAlert(err.message || 'Lỗi khi thêm ảnh.', 'error');
     } finally {
@@ -1927,6 +1933,7 @@ export const AdminPage = () => {
       const updatedImgs = await productApi.getProductImages(activeShopProduct.id);
       setProductImages(updatedImgs || []);
       fetchShopProducts(shopProdPage);
+      fetchInventory(inventoryPage);
     } catch (err) {
       triggerAlert(err.message || 'Lỗi khi cập nhật ảnh.', 'error');
     }
@@ -1942,6 +1949,7 @@ export const AdminPage = () => {
       const updatedImgs = await productApi.getProductImages(activeShopProduct.id);
       setProductImages(updatedImgs || []);
       fetchShopProducts(shopProdPage);
+      fetchInventory(inventoryPage);
     } catch (err) {
       triggerAlert(err.message || 'Lỗi khi xóa ảnh.', 'error');
     }
@@ -2482,6 +2490,7 @@ export const AdminPage = () => {
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [adjustChangeQuantity, setAdjustChangeQuantity] = useState(0);
   const [adjustReason, setAdjustReason] = useState('');
+  const [adjustNewPrice, setAdjustNewPrice] = useState('');
   const [adjustingLoading, setAdjustingLoading] = useState(false);
 
   const fetchInventory = useCallback(async (page = 0) => {
@@ -2519,6 +2528,7 @@ export const AdminPage = () => {
   const handleOpenAdjustModal = (item) => {
     setSelectedInventoryItem(item);
     setAdjustChangeQuantity(0);
+    setAdjustNewPrice(item.price !== undefined && item.price !== null ? String(item.price) : '');
     setAdjustReason('Kiểm kê kho định kỳ');
     setShowAdjustModal(true);
   };
@@ -2526,39 +2536,74 @@ export const AdminPage = () => {
   const handleSaveAdjustInventory = async () => {
     if (!selectedInventoryItem || !selectedShopId) return;
     const qty = Number(adjustChangeQuantity);
-    if (!qty || isNaN(qty)) {
-      triggerAlert('Vui lòng nhập số lượng thay đổi khác 0 (ví dụ: +10 để nhập thêm hoặc -5 để xuất bớt).', 'warning');
+    const hasQtyChange = !isNaN(qty) && qty !== 0;
+    const newPriceNum = Number(adjustNewPrice);
+    const hasPriceChange = adjustNewPrice !== '' && !isNaN(newPriceNum) && newPriceNum >= 0 && newPriceNum !== Number(selectedInventoryItem.price);
+
+    if (!hasQtyChange && !hasPriceChange) {
+      triggerAlert('Vui lòng nhập số lượng thay đổi hoặc cập nhật giá mới.', 'warning');
       return;
     }
     try {
       setAdjustingLoading(true);
-      const res = await inventoryApi.adjustInventory(selectedShopId, selectedInventoryItem.variantId, {
-        operation: 'ADJUST',
-        adjustment: qty,
-        changeQuantity: qty,
-        quantity: Math.max(0, Number(selectedInventoryItem.quantity || 0) + qty),
-        reason: adjustReason.trim() || 'Điều chỉnh tồn kho'
-      });
-      triggerAlert(`Đã điều chỉnh tồn kho phiên bản "${selectedInventoryItem.variantName}" thành công!`, 'success');
-      setShowAdjustModal(false);
 
-      // Cập nhật ngay lập tức danh sách trong state để phản ánh thay đổi tức thì
-      if (res) {
+      // Cập nhật giá bán biến thể nếu có thay đổi
+      if (hasPriceChange && selectedInventoryItem.productId) {
+        try {
+          await productApi.updateShopProductVariant(selectedShopId, selectedInventoryItem.productId, selectedInventoryItem.variantId, {
+            price: newPriceNum,
+            variantName: selectedInventoryItem.variantName,
+            sku: selectedInventoryItem.sku
+          });
+        } catch (priceErr) {
+          console.warn('Lỗi khi cập nhật giá biến thể:', priceErr);
+        }
+      }
+
+      // Điều chỉnh số lượng tồn kho nếu có thay đổi
+      if (hasQtyChange) {
+        const res = await inventoryApi.adjustInventory(selectedShopId, selectedInventoryItem.variantId, {
+          operation: 'ADJUST',
+          adjustment: qty,
+          changeQuantity: qty,
+          quantity: Math.max(0, Number(selectedInventoryItem.quantity || 0) + qty),
+          reason: adjustReason.trim() || 'Điều chỉnh tồn kho'
+        });
+
+        // Cập nhật ngay lập tức danh sách trong state để phản ánh thay đổi tức thì
+        if (res) {
+          setInventoryList((prev) =>
+            prev.map((item) =>
+              (item.variantId === selectedInventoryItem.variantId || item.inventoryId === selectedInventoryItem.inventoryId)
+                ? {
+                    ...item,
+                    price: hasPriceChange ? newPriceNum : item.price,
+                    quantity: res.quantity ?? (Number(item.quantity || 0) + qty),
+                    availableQuantity: res.availableQuantity ?? Math.max(0, Number(item.availableQuantity || 0) + qty)
+                  }
+                : item
+            )
+          );
+        }
+      } else if (hasPriceChange) {
         setInventoryList((prev) =>
           prev.map((item) =>
             (item.variantId === selectedInventoryItem.variantId || item.inventoryId === selectedInventoryItem.inventoryId)
-              ? {
-                  ...item,
-                  quantity: res.quantity ?? (Number(item.quantity || 0) + qty),
-                  availableQuantity: res.availableQuantity ?? Math.max(0, Number(item.availableQuantity || 0) + qty)
-                }
+              ? { ...item, price: newPriceNum }
               : item
           )
         );
       }
+
+      triggerAlert(`Đã đồng bộ giá bán & tồn kho cho phiên bản "${selectedInventoryItem.variantName}" thành công!`, 'success');
+      setShowAdjustModal(false);
+
+      // Đồng bộ cả 2 bên: Quản lý Kho & Sản phẩm Cửa hàng
+      fetchInventory(inventoryPage);
+      fetchShopProducts(shopProdPage);
       fetchInventory(inventoryPage);
     } catch (err) {
-      triggerAlert(err.message || 'Lỗi khi điều chỉnh tồn kho.', 'error');
+      triggerAlert(err.message || 'Lỗi khi điều chỉnh tồn kho / giá bán.', 'error');
     } finally {
       setAdjustingLoading(false);
     }
@@ -2665,6 +2710,7 @@ export const AdminPage = () => {
     } else if (isShopManager) {
       if (activeTab === 'shops') {
         fetchShopProducts(shopProdPage);
+      fetchInventory(inventoryPage);
       } else if (activeTab === 'inventory') {
         fetchInventory(inventoryPage);
       } else if (activeTab === 'orders') {
@@ -5506,7 +5552,8 @@ export const AdminPage = () => {
                       <th style={{ width: '70px' }}>Ảnh</th>
                       <th>Tên sản phẩm & Mã Slug</th>
                       <th>Danh mục & Hãng</th>
-                      <th style={{ textAlign: 'right' }}>Giá bán</th>
+                      <th style={{ textAlign: 'right', width: '130px' }}>Giá bán</th>
+                      <th style={{ textAlign: 'center', width: '110px' }}>Tồn kho</th>
                       <th style={{ textAlign: 'center', width: '120px' }}>Trạng thái (STT 49)</th>
                       <th style={{ textAlign: 'center', width: '220px' }}>Quản lý chi tiết (STT 51-56)</th>
                       <th style={{ textAlign: 'right', width: '100px' }}>Xóa (STT 50)</th>
@@ -5544,7 +5591,26 @@ export const AdminPage = () => {
                             </div>
                           </td>
                           <td style={{ textAlign: 'right', fontWeight: 700, color: '#dc2626' }}>
-                            {formatVND(p.salePrice || p.price || 0)}
+                            {p.minPrice != null && p.maxPrice != null && p.minPrice !== p.maxPrice
+                              ? `${formatVND(p.minPrice)} - ${formatVND(p.maxPrice)}`
+                              : formatVND(p.salePrice || p.price || p.minPrice || 0)}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                padding: '3px 10px',
+                                borderRadius: '9999px',
+                                fontSize: '0.8rem',
+                                fontWeight: 700,
+                                color: (p.totalStockQuantity ?? 0) > 0 ? '#16a34a' : '#dc2626',
+                                backgroundColor: (p.totalStockQuantity ?? 0) > 0 ? '#f0fdf4' : '#fef2f2',
+                                border: `1px solid ${(p.totalStockQuantity ?? 0) > 0 ? '#bbf7d0' : '#fecaca'}`
+                              }}
+                              title={`Tổng tồn kho của ${p.variantCount ?? p.variants?.length ?? 1} phiên bản`}
+                            >
+                              {(p.totalStockQuantity ?? 0) > 0 ? `${p.totalStockQuantity} sp` : 'Hết hàng (0)'}
+                            </span>
                           </td>
                           <td style={{ textAlign: 'center' }}>
                             {p.status === 'PENDING' ? (
@@ -5611,7 +5677,7 @@ export const AdminPage = () => {
                                 title="STT 51-53: Quản lý biến thể màu sắc, dung lượng, giá và tồn kho"
                               >
                                 <SlidersHorizontal size={13} />
-                                Biến thể ({p.variants?.length || 0})
+                                Biến thể ({p.variantCount ?? p.variants?.length ?? 0})
                               </button>
                               <button
                                 type="button"
@@ -8814,9 +8880,9 @@ export const AdminPage = () => {
         <ConfirmModal
           isOpen={showAdjustModal}
           onClose={() => setShowAdjustModal(false)}
-          title={`Điều chỉnh tồn kho (STT 72) - ${selectedInventoryItem?.productName || ''}`}
+          title={`Điều chỉnh Giá bán & Tồn kho (STT 70-73) - ${selectedInventoryItem?.productName || ''}`}
           type="confirm"
-          confirmText={adjustingLoading ? 'Đang điều chỉnh...' : 'Xác nhận điều chỉnh'}
+          confirmText={adjustingLoading ? 'Đang cập nhật...' : 'Xác nhận cập nhật'}
           onConfirm={handleSaveAdjustInventory}
           isLoading={adjustingLoading}
         >
@@ -8827,14 +8893,29 @@ export const AdminPage = () => {
                 <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
                   Phiên bản: <strong>{selectedInventoryItem.variantName}</strong> | SKU: <code>{selectedInventoryItem.sku}</code>
                 </div>
-                <div style={{ marginTop: '0.4rem', fontSize: '0.85rem' }}>
-                  Tồn kho hiện tại: <strong style={{ color: '#2563eb', fontSize: '1rem' }}>{selectedInventoryItem.quantity}</strong> sản phẩm
+                <div style={{ marginTop: '0.4rem', fontSize: '0.85rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  <span>Tồn kho hiện tại: <strong style={{ color: '#2563eb', fontSize: '1rem' }}>{selectedInventoryItem.quantity}</strong> sp</span>
+                  <span>Giá bán hiện tại: <strong style={{ color: '#dc2626', fontSize: '1rem' }}>{formatVND(selectedInventoryItem.price || 0)}</strong></span>
                 </div>
               </div>
 
               <div style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
-                  Số lượng thay đổi (+ để nhập thêm, - để xuất bớt) *:
+                  Cập nhật Giá bán mới (VNĐ) - để trống nếu không đổi:
+                </label>
+                <input
+                  type="number"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  placeholder={`Giá hiện tại: ${selectedInventoryItem.price || 0}`}
+                  value={adjustNewPrice}
+                  onChange={(e) => setAdjustNewPrice(e.target.value)}
+                />
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Số lượng thay đổi (+ để nhập thêm, - để xuất bớt, hoặc 0 nếu chỉ đổi giá):
                 </label>
                 <input
                   type="number"
@@ -8851,13 +8932,13 @@ export const AdminPage = () => {
 
               <div style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
-                  Lý do điều chỉnh kho *:
+                  Lý do điều chỉnh kho:
                 </label>
                 <input
                   type="text"
                   className="admin-form-input"
                   style={{ width: '100%' }}
-                  placeholder="VD: Nhập thêm hàng mới, Kiểm kê định kỳ, Hàng hỏng xuất bỏ..."
+                  placeholder="VD: Nhập thêm hàng mới, Cập nhật giá bán, Kiểm kê định kỳ..."
                   value={adjustReason}
                   onChange={(e) => setAdjustReason(e.target.value)}
                 />

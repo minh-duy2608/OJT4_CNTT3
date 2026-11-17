@@ -34,6 +34,9 @@ public class ProductSummaryResponse {
     private String primaryImageUrl;
     private BigDecimal minPrice;
     private BigDecimal maxPrice;
+    private BigDecimal price;
+    private BigDecimal salePrice;
+    private Integer variantCount;
     private Boolean inStock;
     private Integer totalStockQuantity;
 
@@ -82,6 +85,7 @@ public class ProductSummaryResponse {
                 .primaryImageUrl(resolvedImage)
                 .minPrice(minPrice)
                 .maxPrice(maxPrice)
+                .price(minPrice)
                 .inStock(inStock != null ? inStock : (product.getStatus() == ProductStatus.ACTIVE))
                 .totalStockQuantity(totalStockQuantity)
                 .createdAt(product.getCreatedAt())
