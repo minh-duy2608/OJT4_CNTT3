@@ -71,5 +71,15 @@ public class OrderResponse {
     // Yêu cầu đổi trả / hoàn tiền (nếu có) & Hướng dẫn hoàn hàng
     private ReturnResponse returnRequest;
     private String returnInstructions;
+
+    // Nghiệp vụ đối soát & chuyển tiền cho Shop (Escrow Payout)
+    private String shopPayoutStatus;
+    private BigDecimal shopPayoutAmount;
+    private LocalDateTime shopPayoutAt;
+    private String shopPayoutNote;
+    private String shopBankName;
+    private String shopBankBin;
+    private String shopBankAccountNumber;
+    private String shopBankAccountName;
 }
 

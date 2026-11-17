@@ -28,3 +28,4 @@ public class PayOSPaymentResponse {
     private LocalDateTime expiresAt;
     private Long remainingSeconds;
 }
+

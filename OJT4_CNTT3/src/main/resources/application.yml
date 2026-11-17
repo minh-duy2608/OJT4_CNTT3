@@ -70,14 +70,14 @@ springdoc:
     doc-expansion: none
 
 payos:
-  client-id: ${PAYOS_CLIENT_ID:}
-  api-key: ${PAYOS_API_KEY:}
-  checksum-key: ${PAYOS_CHECKSUM_KEY:}
+  client-id: ${PAYOS_CLIENT_ID:84cc7e13-c3ee-42a6-836c-b05389c2c615}
+  api-key: ${PAYOS_API_KEY:35b18a36-d610-431f-b9ea-98de2a98692d}
+  checksum-key: ${PAYOS_CHECKSUM_KEY:1c1eeec05a98ad5f7f47e0599cfaa370255d703227fea18}
   bank-name: ${PAYOS_BANK_NAME:MB Bank (Ngân hàng Quân Đội)}
   bank-bin: ${PAYOS_BANK_BIN:970422}
   account-number: ${PAYOS_ACCOUNT_NUMBER:0362490374}
-  account-name: ${PAYOS_ACCOUNT_NAME:CYBER STORE}
-  return-url: ${PAYOS_RETURN_URL:http://localhost:3000/orders}
-  cancel-url: ${PAYOS_CANCEL_URL:http://localhost:3000/orders}
+  account-name: ${PAYOS_ACCOUNT_NAME:HOANG THIEN SON}
+  return-url: ${PAYOS_RETURN_URL:http://165.101.46.54/orders}
+  cancel-url: ${PAYOS_CANCEL_URL:http://165.101.46.54/orders}
   enabled: ${PAYOS_ENABLED:true}
 

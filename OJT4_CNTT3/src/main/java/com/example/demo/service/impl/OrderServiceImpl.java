@@ -582,6 +582,13 @@ public class OrderServiceImpl implements OrderService {
             order.setDeliveredAt(now);
         }
         order.setPaymentStatus(PaymentStatus.PAID);
+        // Nghiệp vụ Escrow: Khi khách nhận hàng thành công, số tiền Admin đang giữ chuyển sang trạng thái sẵn sàng để Admin chuyển tiền cho Shop
+        if ("HOLDING".equalsIgnoreCase(order.getShopPayoutStatus()) || (order.getPaymentMethod() != null && order.getPaymentMethod().toUpperCase().contains("PAYOS"))) {
+            order.setShopPayoutStatus("READY_FOR_PAYOUT");
+            if (order.getShopPayoutAmount() == null) {
+                order.setShopPayoutAmount(order.getTotalAmount());
+            }
+        }
         order.setUpdatedAt(now);
 
         Order saved = orderRepository.save(order);
@@ -881,6 +888,13 @@ public class OrderServiceImpl implements OrderService {
     private void handleStatusDelivered(Order order, Shop shop, User user, LocalDateTime now) {
         order.setDeliveredAt(now);
         order.setPaymentStatus(PaymentStatus.PAID);
+        // Nghiệp vụ Escrow: Đơn giao thành công -> tiền sẵn sàng để Admin chuyển cho Shop
+        if ("HOLDING".equalsIgnoreCase(order.getShopPayoutStatus()) || (order.getPaymentMethod() != null && order.getPaymentMethod().toUpperCase().contains("PAYOS"))) {
+            order.setShopPayoutStatus("READY_FOR_PAYOUT");
+            if (order.getShopPayoutAmount() == null) {
+                order.setShopPayoutAmount(order.getTotalAmount());
+            }
+        }
         log.info("Xác nhận GIAO THÀNH CÔNG (DELIVERED) cho đơn hàng #{} ({}) của Shop #{} ('{}') vào thời điểm: {}. Người thực hiện: '{}'",
                 order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), order.getDeliveredAt(), user.getUsername());
         auditLogService.log(
@@ -1344,6 +1358,14 @@ public class OrderServiceImpl implements OrderService {
                 .reviewConditionMessage(reviewConditionMessage)
                 .returnRequest(returnResponse)
                 .returnInstructions(DEFAULT_RETURN_INSTRUCTIONS)
+                .shopPayoutStatus(order.getShopPayoutStatus() != null ? order.getShopPayoutStatus() : "NONE")
+                .shopPayoutAmount(order.getShopPayoutAmount() != null ? order.getShopPayoutAmount() : order.getTotalAmount())
+                .shopPayoutAt(order.getShopPayoutAt())
+                .shopPayoutNote(order.getShopPayoutNote())
+                .shopBankName(order.getShop() != null ? order.getShop().getBankName() : null)
+                .shopBankBin(order.getShop() != null ? order.getShop().getBankBin() : null)
+                .shopBankAccountNumber(order.getShop() != null ? order.getShop().getBankAccountNumber() : null)
+                .shopBankAccountName(order.getShop() != null ? order.getShop().getBankAccountName() : null)
                 .build();
     }
 

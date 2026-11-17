@@ -13,6 +13,12 @@ import com.example.demo.repository.UserRepository;
 import com.example.demo.service.PayOSService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.demo.dto.payment.ShopPayoutItemResponse;
+import com.example.demo.dto.payment.ShopPayoutSummaryResponse;
+import com.example.demo.dto.request.UpdateShopBankRequest;
+import com.example.demo.dto.response.ShopDetailResponse;
+import com.example.demo.exception.ForbiddenException;
+import com.example.demo.repository.ShopRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +47,7 @@ public class PayOSServiceImpl implements PayOSService {
 
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
+    private final ShopRepository shopRepository;
     private final InventoryRepository inventoryRepository;
     private final PayOSProperties payOSProperties;
     private final ObjectMapper objectMapper;
@@ -297,6 +304,187 @@ public class PayOSServiceImpl implements PayOSService {
         return mapToResponse(order, "PAID", null, null);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public ShopPayoutSummaryResponse getPayoutSummary(String statusFilter, String username) {
+        verifyAdminAccess(username);
+        List<Order> escrowOrders = orderRepository.findAllEscrowOrders();
+        return buildPayoutSummary(escrowOrders, statusFilter);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ShopPayoutSummaryResponse getShopPayouts(Long shopId, String username) {
+        verifyShopAccess(shopId, username);
+        List<Order> escrowOrders = orderRepository.findEscrowOrdersByShopId(shopId);
+        return buildPayoutSummary(escrowOrders, null);
+    }
+
+    @Override
+    @Transactional
+    public ShopPayoutItemResponse confirmShopPayout(Long orderId, String note, String transactionRef, String username) {
+        User adminUser = verifyAdminAccess(username);
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
+
+        if (!"READY_FOR_PAYOUT".equalsIgnoreCase(order.getShopPayoutStatus()) && !"HOLDING".equalsIgnoreCase(order.getShopPayoutStatus())) {
+            throw new BadRequestException("Đơn hàng này không ở trạng thái chờ chuyển tiền (Trạng thái hiện tại: " + order.getShopPayoutStatus() + ")");
+        }
+
+        order.setShopPayoutStatus("PAID_OUT");
+        order.setShopPayoutAt(LocalDateTime.now());
+        String finalNote = (note != null && !note.isBlank()) ? note : ("Đã chuyển khoản thành công" + (transactionRef != null ? " - Mã GD: " + transactionRef : ""));
+        order.setShopPayoutNote(finalNote);
+        order.setShopPayoutTransferredBy(adminUser.getId());
+        Order saved = orderRepository.save(order);
+
+        log.info("Admin '{}' (ID #{}) đã xác nhận chuyển tiền đối soát đơn #{} cho Shop #{}. Số tiền: {}",
+                adminUser.getUsername(), adminUser.getId(), saved.getId(), saved.getShopId(), saved.getShopPayoutAmount());
+
+        // Bắn WebSocket thông báo cho Shop
+        if (messagingTemplate != null && saved.getShopId() != null) {
+            Map<String, Object> event = new HashMap<>();
+            event.put("event", "SHOP_PAYOUT_CONFIRMED");
+            event.put("orderId", saved.getId());
+            event.put("orderCode", saved.getOrderCode());
+            event.put("shopId", saved.getShopId());
+            event.put("amount", saved.getShopPayoutAmount());
+            event.put("message", "Admin đã chuyển tiền đơn hàng #" + saved.getOrderCode() + " về tài khoản ngân hàng của bạn!");
+            messagingTemplate.convertAndSend("/topic/shop-orders." + saved.getShopId(), (Object) event);
+        }
+
+        return mapToPayoutItem(saved);
+    }
+
+    @Override
+    @Transactional
+    public ShopDetailResponse updateShopBankAccount(Long shopId, UpdateShopBankRequest request, String username) {
+        verifyShopAccess(shopId, username);
+        Shop shop = shopRepository.findById(shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
+
+        shop.setBankName(request.getBankName());
+        shop.setBankBin(request.getBankBin() != null && !request.getBankBin().isBlank() ? request.getBankBin() : "970422");
+        shop.setBankAccountNumber(request.getBankAccountNumber().trim());
+        shop.setBankAccountName(request.getBankAccountName().trim().toUpperCase());
+        Shop saved = shopRepository.save(shop);
+
+        log.info("Cập nhật thông tin ngân hàng cho Shop #{}: {} - {} - {}",
+                saved.getId(), saved.getBankName(), saved.getBankAccountNumber(), saved.getBankAccountName());
+
+        return ShopDetailResponse.fromEntity(saved, true, true);
+    }
+
+    private ShopPayoutSummaryResponse buildPayoutSummary(List<Order> orders, String statusFilter) {
+        BigDecimal totalHolding = BigDecimal.ZERO;
+        long holdingCount = 0;
+        BigDecimal totalReady = BigDecimal.ZERO;
+        long readyCount = 0;
+        BigDecimal totalPaidOut = BigDecimal.ZERO;
+        long paidOutCount = 0;
+
+        List<ShopPayoutItemResponse> items = new ArrayList<>();
+
+        for (Order ord : orders) {
+            BigDecimal amt = ord.getShopPayoutAmount() != null ? ord.getShopPayoutAmount() : (ord.getTotalAmount() != null ? ord.getTotalAmount() : BigDecimal.ZERO);
+            String st = ord.getShopPayoutStatus() != null ? ord.getShopPayoutStatus() : "NONE";
+
+            if ("HOLDING".equalsIgnoreCase(st)) {
+                totalHolding = totalHolding.add(amt);
+                holdingCount++;
+            } else if ("READY_FOR_PAYOUT".equalsIgnoreCase(st)) {
+                totalReady = totalReady.add(amt);
+                readyCount++;
+            } else if ("PAID_OUT".equalsIgnoreCase(st)) {
+                totalPaidOut = totalPaidOut.add(amt);
+                paidOutCount++;
+            }
+
+            if (statusFilter == null || statusFilter.isBlank() || "ALL".equalsIgnoreCase(statusFilter) || statusFilter.equalsIgnoreCase(st)) {
+                items.add(mapToPayoutItem(ord));
+            }
+        }
+
+        return ShopPayoutSummaryResponse.builder()
+                .totalHoldingAmount(totalHolding)
+                .totalHoldingCount(holdingCount)
+                .totalReadyAmount(totalReady)
+                .totalReadyCount(readyCount)
+                .totalPaidOutAmount(totalPaidOut)
+                .totalPaidOutCount(paidOutCount)
+                .items(items)
+                .build();
+    }
+
+    private ShopPayoutItemResponse mapToPayoutItem(Order order) {
+        Shop shop = order.getShop();
+        if (shop == null && order.getShopId() != null) {
+            shop = shopRepository.findById(order.getShopId()).orElse(null);
+        }
+
+        String shopBankBin = shop != null && shop.getBankBin() != null && !shop.getBankBin().isBlank() ? shop.getBankBin() : "970422";
+        String shopBankAcc = shop != null && shop.getBankAccountNumber() != null ? shop.getBankAccountNumber() : "";
+        String shopBankName = shop != null && shop.getBankName() != null ? shop.getBankName() : "";
+        String shopAccName = shop != null && shop.getBankAccountName() != null ? shop.getBankAccountName() : (shop != null ? shop.getName() : "");
+
+        BigDecimal payoutAmount = order.getShopPayoutAmount() != null ? order.getShopPayoutAmount() : (order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO);
+
+        String vietQrUrl = null;
+        if (!shopBankAcc.isBlank()) {
+            String desc = "CYBER DON " + order.getOrderCode();
+            if (desc.length() > 25) desc = desc.substring(0, 25);
+            vietQrUrl = String.format("https://img.vietqr.io/image/%s-%s-compact2.png?amount=%d&addInfo=%s&accountName=%s",
+                    shopBankBin, shopBankAcc, payoutAmount.intValue(),
+                    URLEncoder.encode(desc, StandardCharsets.UTF_8),
+                    URLEncoder.encode(shopAccName, StandardCharsets.UTF_8));
+        }
+
+        return ShopPayoutItemResponse.builder()
+                .orderId(order.getId())
+                .orderCode(order.getOrderCode())
+                .shopId(order.getShopId())
+                .shopName(shop != null ? shop.getName() : "Shop #" + order.getShopId())
+                .totalAmount(order.getTotalAmount())
+                .shopPayoutAmount(payoutAmount)
+                .shopPayoutStatus(order.getShopPayoutStatus() != null ? order.getShopPayoutStatus() : "NONE")
+                .shopPayoutAt(order.getShopPayoutAt())
+                .shopPayoutNote(order.getShopPayoutNote())
+                .deliveredAt(order.getDeliveredAt())
+                .buyerConfirmedDelivery(order.getBuyerConfirmedDelivery())
+                .shopBankName(shopBankName)
+                .shopBankBin(shopBankBin)
+                .shopBankAccountNumber(shopBankAcc)
+                .shopBankAccountName(shopAccName)
+                .vietQrUrl(vietQrUrl)
+                .recipientName(order.getRecipientName())
+                .createdAt(order.getCreatedAt())
+                .build();
+    }
+
+    private User verifyAdminAccess(String username) {
+        if (username == null || username.isBlank()) throw new UnauthorizedException("Vui lòng đăng nhập");
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản: " + username));
+        boolean isAdmin = user.getRoles().stream().anyMatch(r -> "ADMIN".equals(r.getCode()));
+        if (!isAdmin) {
+            throw new ForbiddenException("Chỉ Quản trị viên hệ thống (Admin) mới có quyền đối soát và quyết toán tiền!");
+        }
+        return user;
+    }
+
+    private void verifyShopAccess(Long shopId, String username) {
+        if (username == null || username.isBlank()) throw new UnauthorizedException("Vui lòng đăng nhập");
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản: " + username));
+        boolean isAdmin = user.getRoles().stream().anyMatch(r -> "ADMIN".equals(r.getCode()));
+        Shop shop = shopRepository.findById(shopId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
+        boolean isOwner = Objects.equals(shop.getOwnerId(), user.getId());
+        if (!isAdmin && !isOwner) {
+            throw new ForbiddenException("Bạn không có quyền quản lý tài khoản ngân hàng của cửa hàng này");
+        }
+    }
+
     /**
      * Xác nhận đơn hàng đã thanh toán thành công, trừ tồn kho vật lý và phát sự kiện Real-time
      */
@@ -304,6 +492,11 @@ public class PayOSServiceImpl implements PayOSService {
         order.setPaymentStatus(PaymentStatus.PAID);
         order.setStatus(OrderStatus.CONFIRMED);
         order.setConfirmedAt(LocalDateTime.now());
+        // NGHIỆP VỤ ESCROW: Tiền về tài khoản Admin trước, Admin tạm giữ tiền (HOLDING). Khi khách nhận hàng thành công -> READY_FOR_PAYOUT
+        order.setShopPayoutStatus("HOLDING");
+        if (order.getShopPayoutAmount() == null) {
+            order.setShopPayoutAmount(order.getTotalAmount());
+        }
 
         // Chuyển hàng giữ tạm sang bán thật (trừ tồn kho vật lý)
         if (order.getItems() != null) {

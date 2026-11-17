@@ -14,9 +14,9 @@ public class PayOSProperties {
     private String bankName = "MB Bank (Ngân hàng Quân Đội)";
     private String bankBin = "970422";
     private String accountNumber = "0362490374";
-    private String accountName = "CYBER STORE";
-    private String returnUrl = "http://localhost:3000/orders";
-    private String cancelUrl = "http://localhost:3000/orders";
+    private String accountName = "HOANG THIEN SON";
+    private String returnUrl = "http://165.101.46.54/orders";
+    private String cancelUrl = "http://165.101.46.54/orders";
     private boolean enabled = true;
 
     public boolean isConfigured() {
@@ -25,3 +25,4 @@ public class PayOSProperties {
                 && checksumKey != null && !checksumKey.isBlank();
     }
 }
+

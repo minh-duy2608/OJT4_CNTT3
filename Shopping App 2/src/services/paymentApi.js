@@ -64,5 +64,45 @@ export const paymentApi = {
     return request(`/api/v1/payment/payos/simulate-success/${orderId}`, {
       method: 'POST'
     });
+  },
+
+  /**
+   * Admin: Lấy danh sách đối soát & chuyển tiền cho Shop (Escrow Payouts)
+   */
+  getPayoutSummary(status = 'ALL') {
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    return request(`/api/v1/payment/payouts${query}`, {
+      method: 'GET'
+    });
+  },
+
+  /**
+   * Shop: Lấy danh sách đối soát tiền của Shop
+   */
+  getShopPayouts(shopId) {
+    return request(`/api/v1/payment/payouts/shop/${shopId}`, {
+      method: 'GET'
+    });
+  },
+
+  /**
+   * Admin: Xác nhận đã chuyển tiền cho Shop
+   */
+  confirmShopPayout(orderId, payload = {}) {
+    return request(`/api/v1/payment/payouts/${orderId}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  /**
+   * Shop: Cập nhật thông tin tài khoản ngân hàng nhận tiền
+   */
+  updateShopBankAccount(shopId, payload) {
+    return request(`/api/v1/shops/${shopId}/bank-account`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
   }
 };
+

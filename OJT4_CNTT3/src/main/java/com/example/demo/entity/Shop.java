@@ -67,6 +67,18 @@ public class Shop {
     @Column(name = "address_detail", length = 255)
     private String addressDetail;
 
+    @Column(name = "bank_name", length = 100)
+    private String bankName;
+
+    @Column(name = "bank_bin", length = 20)
+    private String bankBin;
+
+    @Column(name = "bank_account_number", length = 50)
+    private String bankAccountNumber;
+
+    @Column(name = "bank_account_name", length = 150)
+    private String bankAccountName;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default

@@ -116,6 +116,22 @@ public class Order {
     @Builder.Default
     private Boolean inventoryDeducted = false;
 
+    @Column(name = "shop_payout_status", length = 30)
+    @Builder.Default
+    private String shopPayoutStatus = "NONE";
+
+    @Column(name = "shop_payout_amount", precision = 15, scale = 2)
+    private BigDecimal shopPayoutAmount;
+
+    @Column(name = "shop_payout_at")
+    private LocalDateTime shopPayoutAt;
+
+    @Column(name = "shop_payout_note", length = 500)
+    private String shopPayoutNote;
+
+    @Column(name = "shop_payout_transferred_by")
+    private Long shopPayoutTransferredBy;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -138,6 +154,7 @@ public class Order {
         if (this.paymentStatus == null) this.paymentStatus = PaymentStatus.UNPAID;
         if (this.inventoryReserved == null) this.inventoryReserved = true;
         if (this.inventoryDeducted == null) this.inventoryDeducted = false;
+        if (this.shopPayoutStatus == null) this.shopPayoutStatus = "NONE";
         if (this.expiresAt == null) this.expiresAt = this.createdAt.plusMinutes(15);
     }
 

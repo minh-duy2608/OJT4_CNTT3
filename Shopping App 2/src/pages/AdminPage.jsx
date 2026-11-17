@@ -58,7 +58,8 @@ import {
   Truck,
   RotateCcw,
   Star,
-  ShieldAlert
+  ShieldAlert,
+  Landmark
 } from 'lucide-react';
 import { revenueApi } from '../services/revenueApi';
 import { couponApi } from '../services/couponApi';
@@ -84,6 +85,7 @@ import { AdminAuditLogsTab } from '../components/admin/AdminAuditLogsTab';
 import { AdminSystemHealthCard } from '../components/admin/AdminSystemHealthCard';
 import { ShopDashboardTab } from '../components/admin/ShopDashboardTab';
 import { AdminPagination } from '../components/admin/AdminPagination';
+import { AdminPayoutsTab } from '../components/admin/AdminPayoutsTab';
 import { SellerChatPage } from './SellerChatPage';
 import './AdminPage.css';
 
@@ -3644,6 +3646,16 @@ export const AdminPage = () => {
 
               <button
                 type="button"
+                className={`admin-tab-btn ${activeTab === 'payouts' ? 'active' : ''}`}
+                onClick={() => setActiveTab('payouts')}
+              >
+                <Landmark size={17} />
+                Đối soát & Quyết toán Shop
+                <span className="admin-tab-badge" style={{ backgroundColor: '#ecfdf5', color: '#065f46' }}>Escrow</span>
+              </button>
+
+              <button
+                type="button"
                 className={`admin-tab-btn ${activeTab === 'shipments' ? 'active' : ''}`}
                 onClick={() => setActiveTab('shipments')}
               >
@@ -5341,6 +5353,15 @@ export const AdminPage = () => {
                 onPageChange={(newPage) => fetchAdminOrders(newPage)}
               />
             )}
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* TAB: ĐỐI SOÁT & QUYẾT TOÁN CỬA HÀNG (ESCROW PAYOUTS - ADMIN) */}
+        {/* =================================================================== */}
+        {activeTab === 'payouts' && isAdminUser && (
+          <div className="admin-card-container">
+            <AdminPayoutsTab showToast={showToast} />
           </div>
         )}
 

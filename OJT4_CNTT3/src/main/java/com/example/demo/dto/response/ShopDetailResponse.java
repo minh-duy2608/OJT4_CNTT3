@@ -30,6 +30,10 @@ public class ShopDetailResponse {
     private String district;
     private String ward;
     private String addressDetail;
+    private String bankName;
+    private String bankBin;
+    private String bankAccountNumber;
+    private String bankAccountName;
     private ShopStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -52,6 +56,10 @@ public class ShopDetailResponse {
                 .district(shop.getDistrict())
                 .ward(shop.getWard())
                 .addressDetail(shop.getAddressDetail())
+                .bankName(shop.getBankName())
+                .bankBin(shop.getBankBin())
+                .bankAccountNumber(shop.getBankAccountNumber())
+                .bankAccountName(shop.getBankAccountName())
                 .status(shop.getStatus())
                 .createdAt(shop.getCreatedAt())
                 .updatedAt(shop.getUpdatedAt())
