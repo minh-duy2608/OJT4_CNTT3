@@ -131,6 +131,7 @@ public class PayOSServiceImpl implements PayOSService {
                         .header("x-client-id", payOSProperties.getClientId())
                         .header("x-api-key", payOSProperties.getApiKey())
                         .header("Content-Type", "application/json")
+                        .header("User-Agent", "CyberMall/1.0 (Macintosh; Intel Mac OS X)")
                         .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
                         .build();
 
@@ -214,6 +215,7 @@ public class PayOSServiceImpl implements PayOSService {
                         .uri(URI.create(queryUrl))
                         .header("x-client-id", payOSProperties.getClientId())
                         .header("x-api-key", payOSProperties.getApiKey())
+                        .header("User-Agent", "CyberMall/1.0 (Macintosh; Intel Mac OS X)")
                         .GET()
                         .build();
                 HttpResponse<String> res = client.send(req, HttpResponse.BodyHandlers.ofString());
@@ -270,7 +272,11 @@ public class PayOSServiceImpl implements PayOSService {
         }
 
         if (order == null && data.getDescription() != null) {
-            order = orderRepository.findByOrderCode(data.getDescription().trim()).orElse(null);
+            String desc = data.getDescription().trim();
+            order = orderRepository.findByOrderCode(desc).orElse(null);
+            if (order == null && desc.startsWith("CYBER ")) {
+                order = orderRepository.findByOrderCode(desc.substring(6).trim()).orElse(null);
+            }
         }
 
         if (order == null) {

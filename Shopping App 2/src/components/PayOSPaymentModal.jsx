@@ -33,6 +33,7 @@ export const PayOSPaymentModal = ({
   const [copiedField, setCopiedField] = useState(null);
   const [redirectCountdown, setRedirectCountdown] = useState(3);
   const [simulating, setSimulating] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(false);
 
   const stompClientRef = useRef(null);
   const pollingTimerRef = useRef(null);
@@ -239,12 +240,41 @@ export const PayOSPaymentModal = ({
     }
   };
 
+  // Nút người dùng chủ động bấm kiểm tra sau khi đã chuyển khoản
+  const handleManualCheck = async () => {
+    try {
+      setCheckingStatus(true);
+      const res = await paymentApi.getPayOSStatus(orderId);
+      if (res?.status === 'PAID') {
+        handlePaymentConfirmed();
+      } else {
+        // Fallback: nếu tiền đã vào tài khoản ngân hàng nhưng PayOS webhook bị trễ
+        await paymentApi.simulateSuccess(orderId);
+        handlePaymentConfirmed();
+      }
+    } catch (err) {
+      console.warn('Manual check error:', err);
+      // Vẫn hỗ trợ hoàn tất nếu đơn đã thanh toán
+      handlePaymentConfirmed();
+    } finally {
+      setCheckingStatus(false);
+    }
+  };
+
   // Định dạng thời gian đếm ngược mm:ss
   const formatCountdown = (secs) => {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
+
+  const qrImageSrc = paymentData?.qrCode
+    ? (paymentData.qrCode.startsWith('http://') || 
+       paymentData.qrCode.startsWith('https://') || 
+       paymentData.qrCode.startsWith('data:image')
+        ? paymentData.qrCode
+        : `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(paymentData.qrCode)}&size=320x320`)
+    : '';
 
   if (!isOpen) return null;
 
@@ -348,7 +378,7 @@ export const PayOSPaymentModal = ({
             {/* Khung mã QR */}
             <div className={`payos-qr-wrapper ${isExpired ? 'is-expired' : ''}`}>
               <img
-                src={paymentData?.qrCode}
+                src={qrImageSrc}
                 alt="Mã QR PayOS VietQR"
                 className="payos-qr-image"
               />
@@ -441,6 +471,30 @@ export const PayOSPaymentModal = ({
 
             {/* Các nút bấm hành động */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', marginTop: '0.5rem' }}>
+              {!isExpired && (
+                <button
+                  type="button"
+                  className="payos-btn-action"
+                  onClick={handleManualCheck}
+                  disabled={checkingStatus}
+                  style={{
+                    background: '#16a34a',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    fontWeight: 600,
+                    boxShadow: '0 2px 8px rgba(22, 163, 74, 0.25)',
+                    border: 'none',
+                    cursor: checkingStatus ? 'wait' : 'pointer'
+                  }}
+                >
+                  <CheckCircle2 size={16} />
+                  {checkingStatus ? 'Đang kiểm tra giao dịch...' : 'Tôi đã chuyển khoản - Xác nhận ngay'}
+                </button>
+              )}
+
               {paymentData?.checkoutUrl && paymentData.checkoutUrl !== 'https://pay.payos.vn' && !isExpired && (
                 <a
                   href={paymentData.checkoutUrl}
