@@ -870,6 +870,8 @@ public class ProductServiceImpl implements ProductService {
             if (finalCriteria.getStatus() != null) {
                 predicates.add(cb.equal(root.get(STATUS_FIELD), finalCriteria.getStatus()));
             } else {
+                // Hiển thị tất cả sản phẩm chưa bị xóa (ACTIVE, INACTIVE, PENDING, REJECTED)
+                // deletedAt IS NULL đảm bảo không hiện sản phẩm đã xóa thật sự
                 predicates.add(cb.isNull(root.get("deletedAt")));
             }
 
@@ -954,10 +956,13 @@ public class ProductServiceImpl implements ProductService {
         verifyShopAccess(shopId, currentUsername);
         Product product = productRepository.findByIdAndShopId(productId, shopId)
                 .orElseThrow(() -> new ResourceNotFoundException(PRODUCT_NOT_FOUND_PREFIX + productId + BELONGS_TO_SHOP_PREFIX + shopId));
-        product.setStatus(status != null ? status : ProductStatus.ACTIVE);
-        if (product.getStatus() == ProductStatus.INACTIVE && product.getDeletedAt() == null) {
-            product.setDeletedAt(java.time.LocalDateTime.now());
-        } else if (product.getStatus() == ProductStatus.ACTIVE) {
+        ProductStatus newStatus = status != null ? status : ProductStatus.ACTIVE;
+        product.setStatus(newStatus);
+        // Chỉ xóa mềm (deletedAt) khi thực sự xóa sản phẩm (qua deleteShopProduct).
+        // Toggle ACTIVE <-> INACTIVE chỉ cập nhật trạng thái, KHÔNG thay đổi deletedAt.
+        // Điều này đảm bảo sản phẩm INACTIVE vẫn hiện trong danh sách quản lý của shop.
+        if (newStatus == ProductStatus.ACTIVE && product.getDeletedAt() != null) {
+            // Nếu trước đó đã bị soft-delete nhưng nay được kích hoạt lại thì xóa deletedAt
             product.setDeletedAt(null);
         }
         productRepository.save(product);
