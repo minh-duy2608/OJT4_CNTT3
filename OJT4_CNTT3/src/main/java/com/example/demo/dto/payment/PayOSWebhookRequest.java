@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 public class PayOSWebhookRequest {
     private String code;
     private String desc;
-    private boolean success;
+    private Boolean success;
     private PayOSWebhookData data;
     private String signature;
 

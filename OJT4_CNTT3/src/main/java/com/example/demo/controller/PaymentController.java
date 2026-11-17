@@ -63,10 +63,10 @@ public class PaymentController {
             @RequestBody PayOSWebhookRequest request
     ) {
         log.info("Incoming PayOS Webhook received: code={}", request != null ? request.getCode() : "null");
-        boolean success = payOSService.handleWebhook(request);
+        boolean processed = payOSService.handleWebhook(request);
         return ResponseEntity.ok(Map.of(
-                "success", success,
-                "message", success ? "Xử lý webhook PayOS thành công" : "Bỏ qua hoặc không tìm thấy đơn"
+                "success", true,
+                "message", processed ? "Xử lý webhook PayOS thành công" : "PayOS webhook verified"
         ));
     }
 
