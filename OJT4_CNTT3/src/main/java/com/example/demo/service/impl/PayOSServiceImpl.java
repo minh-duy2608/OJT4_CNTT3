@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -382,21 +383,37 @@ public class PayOSServiceImpl implements PayOSService {
         long readyCount = 0;
         BigDecimal totalPaidOut = BigDecimal.ZERO;
         long paidOutCount = 0;
+        BigDecimal totalPlatformFee = BigDecimal.ZERO;
+        BigDecimal totalShippingFee = BigDecimal.ZERO;
+        BigDecimal totalProductAmount = BigDecimal.ZERO;
 
         List<ShopPayoutItemResponse> items = new ArrayList<>();
 
         for (Order ord : orders) {
-            BigDecimal amt = ord.getShopPayoutAmount() != null ? ord.getShopPayoutAmount() : (ord.getTotalAmount() != null ? ord.getTotalAmount() : BigDecimal.ZERO);
+            BigDecimal total = ord.getTotalAmount() != null ? ord.getTotalAmount() : BigDecimal.ZERO;
+            BigDecimal ship = ord.getShippingFee() != null ? ord.getShippingFee() : BigDecimal.ZERO;
+            BigDecimal productAmount = total.subtract(ship);
+            if (productAmount.compareTo(BigDecimal.ZERO) < 0) productAmount = BigDecimal.ZERO;
+            BigDecimal platformFee = ord.getPlatformFee() != null && ord.getPlatformFee().compareTo(BigDecimal.ZERO) > 0
+                    ? ord.getPlatformFee()
+                    : productAmount.multiply(new BigDecimal("0.025")).setScale(0, RoundingMode.HALF_UP);
+            BigDecimal payoutAmount = productAmount.subtract(platformFee);
+            if (payoutAmount.compareTo(BigDecimal.ZERO) < 0) payoutAmount = BigDecimal.ZERO;
+
             String st = ord.getShopPayoutStatus() != null ? ord.getShopPayoutStatus() : "NONE";
 
+            totalPlatformFee = totalPlatformFee.add(platformFee);
+            totalShippingFee = totalShippingFee.add(ship);
+            totalProductAmount = totalProductAmount.add(productAmount);
+
             if ("HOLDING".equalsIgnoreCase(st)) {
-                totalHolding = totalHolding.add(amt);
+                totalHolding = totalHolding.add(payoutAmount);
                 holdingCount++;
             } else if ("READY_FOR_PAYOUT".equalsIgnoreCase(st)) {
-                totalReady = totalReady.add(amt);
+                totalReady = totalReady.add(payoutAmount);
                 readyCount++;
             } else if ("PAID_OUT".equalsIgnoreCase(st)) {
-                totalPaidOut = totalPaidOut.add(amt);
+                totalPaidOut = totalPaidOut.add(payoutAmount);
                 paidOutCount++;
             }
 
@@ -412,6 +429,12 @@ public class PayOSServiceImpl implements PayOSService {
                 .totalReadyCount(readyCount)
                 .totalPaidOutAmount(totalPaidOut)
                 .totalPaidOutCount(paidOutCount)
+                .totalPlatformFee(totalPlatformFee)
+                .totalShippingFee(totalShippingFee)
+                .totalProductAmount(totalProductAmount)
+                .settlementDay(19)
+                .settlementDeadlineDays(2)
+                .settlementCycleDescription("Định kỳ ngày 19 hàng tháng (Hạn quyết toán: 2 ngày, đến hết ngày 21)")
                 .items(items)
                 .build();
     }
@@ -422,16 +445,32 @@ public class PayOSServiceImpl implements PayOSService {
             shop = shopRepository.findById(order.getShopId()).orElse(null);
         }
 
-        String shopBankBin = shop != null && shop.getBankBin() != null && !shop.getBankBin().isBlank() ? shop.getBankBin() : "970422";
-        String shopBankAcc = shop != null && shop.getBankAccountNumber() != null ? shop.getBankAccountNumber() : "";
-        String shopBankName = shop != null && shop.getBankName() != null ? shop.getBankName() : "";
-        String shopAccName = shop != null && shop.getBankAccountName() != null ? shop.getBankAccountName() : (shop != null ? shop.getName() : "");
+        // Mặc định tài khoản shop mẫu: BIDV 8814310515 HOANG THIEN SON
+        String shopBankBin = shop != null && shop.getBankBin() != null && !shop.getBankBin().isBlank() ? shop.getBankBin() : "970418";
+        String shopBankAcc = shop != null && shop.getBankAccountNumber() != null && !shop.getBankAccountNumber().isBlank() ? shop.getBankAccountNumber() : "8814310515";
+        String shopBankName = shop != null && shop.getBankName() != null && !shop.getBankName().isBlank() ? shop.getBankName() : "BIDV (Ngân hàng TMCP Đầu tư và Phát triển Việt Nam)";
+        String shopAccName = shop != null && shop.getBankAccountName() != null && !shop.getBankAccountName().isBlank() ? shop.getBankAccountName() : "HOANG THIEN SON";
 
-        BigDecimal payoutAmount = order.getShopPayoutAmount() != null ? order.getShopPayoutAmount() : (order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO);
+        BigDecimal total = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
+        BigDecimal ship = order.getShippingFee() != null ? order.getShippingFee() : BigDecimal.ZERO;
+        BigDecimal productAmount = total.subtract(ship);
+        if (productAmount.compareTo(BigDecimal.ZERO) < 0) productAmount = BigDecimal.ZERO;
+
+        BigDecimal platformFee = order.getPlatformFee() != null && order.getPlatformFee().compareTo(BigDecimal.ZERO) > 0
+                ? order.getPlatformFee()
+                : productAmount.multiply(new BigDecimal("0.025")).setScale(0, RoundingMode.HALF_UP);
+        BigDecimal payoutAmount = productAmount.subtract(platformFee);
+        if (payoutAmount.compareTo(BigDecimal.ZERO) < 0) payoutAmount = BigDecimal.ZERO;
+
+        if (order.getShopPayoutAmount() == null || !payoutAmount.equals(order.getShopPayoutAmount()) || order.getPlatformFee() == null) {
+            order.setPlatformFee(platformFee);
+            order.setShopPayoutAmount(payoutAmount);
+            orderRepository.save(order);
+        }
 
         String vietQrUrl = null;
         if (!shopBankAcc.isBlank()) {
-            String desc = "CYBER DON " + order.getOrderCode();
+            String desc = "CYBER QT " + (order.getOrderCode() != null ? order.getOrderCode() : order.getId());
             if (desc.length() > 25) desc = desc.substring(0, 25);
             vietQrUrl = String.format("https://img.vietqr.io/image/%s-%s-compact2.png?amount=%d&addInfo=%s&accountName=%s",
                     shopBankBin, shopBankAcc, payoutAmount.intValue(),
@@ -444,8 +483,13 @@ public class PayOSServiceImpl implements PayOSService {
                 .orderCode(order.getOrderCode())
                 .shopId(order.getShopId())
                 .shopName(shop != null ? shop.getName() : "Shop #" + order.getShopId())
-                .totalAmount(order.getTotalAmount())
+                .totalAmount(total)
+                .shippingFee(ship)
+                .productAmount(productAmount)
+                .platformFee(platformFee)
                 .shopPayoutAmount(payoutAmount)
+                .settlementCycle("Định kỳ ngày 19 hàng tháng (Hạn quyết toán: 2 ngày, đến hết ngày 21)")
+                .settlementDeadline("Ngày 21 hàng tháng")
                 .shopPayoutStatus(order.getShopPayoutStatus() != null ? order.getShopPayoutStatus() : "NONE")
                 .shopPayoutAt(order.getShopPayoutAt())
                 .shopPayoutNote(order.getShopPayoutNote())

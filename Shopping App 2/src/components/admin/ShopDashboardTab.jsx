@@ -12,6 +12,7 @@ import {
   CreditCard, 
   Edit3, 
   ShieldCheck,
+  Calendar,
   X,
   Check
 } from 'lucide-react';
@@ -53,10 +54,10 @@ export const ShopDashboardTab = ({ shopId, shopName }) => {
       setTopProducts(Array.isArray(topRes) ? topRes : (topRes?.data || []));
       if (shopRes) {
         setShopDetail(shopRes);
-        setBankName(shopRes.bankName || 'MB Bank (Ngân hàng Quân Đội)');
-        setBankBin(shopRes.bankBin || '970422');
-        setBankAccountNumber(shopRes.bankAccountNumber || '');
-        setBankAccountName(shopRes.bankAccountName || '');
+        setBankName(shopRes.bankName || 'BIDV (Ngân hàng TMCP Đầu tư và Phát triển Việt Nam)');
+        setBankBin(shopRes.bankBin || '970418');
+        setBankAccountNumber(shopRes.bankAccountNumber || '8814310515');
+        setBankAccountName(shopRes.bankAccountName || 'HOANG THIEN SON');
       }
       if (payoutRes) {
         setPayoutSummary(payoutRes);
@@ -118,6 +119,30 @@ export const ShopDashboardTab = ({ shopId, shopName }) => {
         >
           <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Làm mới
         </button>
+      </div>
+
+      {/* Banner Chu kỳ quyết toán dành cho Shop */}
+      <div style={{
+        background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
+        border: '1px solid #a7f3d0',
+        borderRadius: '10px',
+        padding: '12px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '10px',
+        marginTop: '1.25rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Calendar size={18} color="#059669" />
+          <div style={{ fontSize: '0.82rem', color: '#065f46' }}>
+            <strong>Chính sách quyết toán định kỳ:</strong> Doanh thu được chốt vào <strong>ngày 19 hàng tháng</strong> (Hạn giải ngân: <strong>2 ngày</strong>, đến hết ngày 21). Mức phí sàn dịch vụ tự động trích trừ: <strong>2.5%</strong> trên doanh thu sản phẩm.
+          </div>
+        </div>
+        <div style={{ fontSize: '0.78rem', color: '#047857', fontWeight: 600 }}>
+          🏦 STK nhận tiền: <strong>{bankName} - {bankAccountNumber || '8814310515'} ({bankAccountName || 'HOANG THIEN SON'})</strong>
+        </div>
       </div>
 
       {/* Box thông tin tài khoản ngân hàng nhận tiền của Shop */}

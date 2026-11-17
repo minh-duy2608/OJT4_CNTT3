@@ -17,6 +17,7 @@ public class AdminRevenueResponse {
 
     private BigDecimal totalRevenue;
     private BigDecimal grossMerchandiseValue;
+    private BigDecimal totalPlatformFee;
     private long totalOrders;
     private long completedOrders;
     private long processingOrders;

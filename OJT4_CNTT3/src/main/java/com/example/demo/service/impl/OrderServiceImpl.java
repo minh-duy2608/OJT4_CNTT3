@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -582,12 +583,16 @@ public class OrderServiceImpl implements OrderService {
             order.setDeliveredAt(now);
         }
         order.setPaymentStatus(PaymentStatus.PAID);
-        // Nghiệp vụ Escrow: Khi khách nhận hàng thành công, số tiền Admin đang giữ chuyển sang trạng thái sẵn sàng để Admin chuyển tiền cho Shop
+        // Nghiệp vụ Escrow: Khi khách nhận hàng thành công, số tiền Admin đang giữ chuyển sang trạng thái sẵn sàng để Admin chuyển tiền cho Shop (đã khấu trừ 2.5% phí sàn và cước ship)
         if ("HOLDING".equalsIgnoreCase(order.getShopPayoutStatus()) || (order.getPaymentMethod() != null && order.getPaymentMethod().toUpperCase().contains("PAYOS"))) {
             order.setShopPayoutStatus("READY_FOR_PAYOUT");
-            if (order.getShopPayoutAmount() == null) {
-                order.setShopPayoutAmount(order.getTotalAmount());
-            }
+            BigDecimal ship = order.getShippingFee() != null ? order.getShippingFee() : BigDecimal.ZERO;
+            BigDecimal prod = (order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO).subtract(ship);
+            if (prod.compareTo(BigDecimal.ZERO) < 0) prod = BigDecimal.ZERO;
+            BigDecimal fee = prod.multiply(new BigDecimal("0.025")).setScale(0, RoundingMode.HALF_UP);
+            BigDecimal net = prod.subtract(fee);
+            order.setPlatformFee(fee);
+            order.setShopPayoutAmount(net);
         }
         order.setUpdatedAt(now);
 
@@ -888,12 +893,16 @@ public class OrderServiceImpl implements OrderService {
     private void handleStatusDelivered(Order order, Shop shop, User user, LocalDateTime now) {
         order.setDeliveredAt(now);
         order.setPaymentStatus(PaymentStatus.PAID);
-        // Nghiệp vụ Escrow: Đơn giao thành công -> tiền sẵn sàng để Admin chuyển cho Shop
+        // Nghiệp vụ Escrow: Đơn giao thành công -> tiền sẵn sàng để Admin chuyển cho Shop (đã khấu trừ 2.5% phí sàn và cước ship)
         if ("HOLDING".equalsIgnoreCase(order.getShopPayoutStatus()) || (order.getPaymentMethod() != null && order.getPaymentMethod().toUpperCase().contains("PAYOS"))) {
             order.setShopPayoutStatus("READY_FOR_PAYOUT");
-            if (order.getShopPayoutAmount() == null) {
-                order.setShopPayoutAmount(order.getTotalAmount());
-            }
+            BigDecimal ship = order.getShippingFee() != null ? order.getShippingFee() : BigDecimal.ZERO;
+            BigDecimal prod = (order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO).subtract(ship);
+            if (prod.compareTo(BigDecimal.ZERO) < 0) prod = BigDecimal.ZERO;
+            BigDecimal fee = prod.multiply(new BigDecimal("0.025")).setScale(0, RoundingMode.HALF_UP);
+            BigDecimal net = prod.subtract(fee);
+            order.setPlatformFee(fee);
+            order.setShopPayoutAmount(net);
         }
         log.info("Xác nhận GIAO THÀNH CÔNG (DELIVERED) cho đơn hàng #{} ({}) của Shop #{} ('{}') vào thời điểm: {}. Người thực hiện: '{}'",
                 order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), order.getDeliveredAt(), user.getUsername());
@@ -1359,6 +1368,7 @@ public class OrderServiceImpl implements OrderService {
                 .returnRequest(returnResponse)
                 .returnInstructions(DEFAULT_RETURN_INSTRUCTIONS)
                 .shopPayoutStatus(order.getShopPayoutStatus() != null ? order.getShopPayoutStatus() : "NONE")
+                .platformFee(order.getPlatformFee() != null ? order.getPlatformFee() : BigDecimal.ZERO)
                 .shopPayoutAmount(order.getShopPayoutAmount() != null ? order.getShopPayoutAmount() : order.getTotalAmount())
                 .shopPayoutAt(order.getShopPayoutAt())
                 .shopPayoutNote(order.getShopPayoutNote())

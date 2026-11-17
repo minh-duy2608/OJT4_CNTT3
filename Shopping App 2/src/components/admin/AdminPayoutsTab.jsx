@@ -14,6 +14,9 @@ import {
   Store,
   DollarSign,
   ArrowRight,
+  Calendar,
+  Percent,
+  Truck,
   X
 } from 'lucide-react';
 import { paymentApi } from '../../services/paymentApi';
@@ -110,7 +113,7 @@ export const AdminPayoutsTab = ({ showToast: propShowToast }) => {
   return (
     <div className="admin-payouts-container">
       {/* Header Info Banner */}
-      <div className="payout-banner">
+      <div className="payout-banner" style={{ background: 'linear-gradient(135deg, #065f46 0%, #047857 100%)' }}>
         <div className="payout-banner-icon">
           <Landmark size={28} />
         </div>
@@ -118,29 +121,77 @@ export const AdminPayoutsTab = ({ showToast: propShowToast }) => {
           <h3>Mô hình Đối soát & Quyết toán Tiền cho Cửa hàng (Escrow Marketplace)</h3>
           <p>
             Khách hàng thanh toán PayOS trực tiếp vào tài khoản Admin <strong>HOANG THIEN SON - 0362 4903 74 (MB Bank)</strong>.
-            Khi khách nhận hàng thành công, hệ thống mở khóa để Admin chuyển tiền đối soát về số tài khoản của từng Shop.
+            Hệ thống tự động trích trừ <strong>2.5%</strong> phí sàn trên doanh thu sản phẩm và cước ship. Tiền được giải ngân định kỳ về tài khoản ngân hàng liên kết của Shop.
           </p>
         </div>
       </div>
 
-      {/* 3 Thẻ thống kê KPI */}
-      <div className="payout-kpi-grid">
-        <div className="payout-kpi-card holding">
-          <div className="kpi-header">
-            <span className="kpi-label">Sàn đang tạm giữ</span>
-            <ShieldCheck size={20} className="kpi-icon" />
+      {/* Banner Chu kỳ quyết toán định kỳ ngày 19 hàng tháng */}
+      <div style={{
+        background: '#eff6ff',
+        border: '1px solid #bfdbfe',
+        borderRadius: '10px',
+        padding: '12px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '10px',
+        marginBottom: '1rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ background: '#2563eb', color: '#fff', borderRadius: '8px', padding: '6px', display: 'flex' }}>
+            <Calendar size={18} />
           </div>
-          <div className="kpi-value">{formatVND(summaryData.totalHoldingAmount || 0)}</div>
-          <div className="kpi-subtext">{summaryData.totalHoldingCount || 0} đơn đang giao (chưa hoàn tất)</div>
+          <div>
+            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.88rem' }}>
+              Chu kỳ quyết toán định kỳ: Ngày 19 hàng tháng • Hạn chuyển: 2 ngày (đến hết ngày 21)
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '2px' }}>
+              Số tiền quyết toán chuyển cho Shop là <strong>97.5%</strong> tiền hàng (đã tự động cấn trừ 2.5% phí sàn). Cước ship (20.000đ/đơn) trả đơn vị giao vận.
+            </div>
+          </div>
         </div>
+        <div style={{
+          background: '#dcfce7',
+          color: '#166534',
+          padding: '5px 12px',
+          borderRadius: '999px',
+          fontWeight: 700,
+          fontSize: '0.78rem',
+          border: '1px solid #bbf7d0'
+        }}>
+          🏦 Mặc định tài khoản Shop mẫu: BIDV 8814310515 - HOANG THIEN SON
+        </div>
+      </div>
 
+      {/* 4 Thẻ thống kê KPI */}
+      <div className="payout-kpi-grid">
         <div className="payout-kpi-card ready">
           <div className="kpi-header">
-            <span className="kpi-label">Cần chuyển cho Shop</span>
+            <span className="kpi-label">Cần chuyển Shop (97.5%)</span>
             <Clock size={20} className="kpi-icon" />
           </div>
           <div className="kpi-value">{formatVND(summaryData.totalReadyAmount || 0)}</div>
-          <div className="kpi-subtext">{summaryData.totalReadyCount || 0} đơn khách đã nhận thành công</div>
+          <div className="kpi-subtext">{summaryData.totalReadyCount || 0} đơn sẵn sàng chuyển kỳ ngày 19</div>
+        </div>
+
+        <div className="payout-kpi-card fee">
+          <div className="kpi-header">
+            <span className="kpi-label">Lợi nhuận phí sàn (2.5%)</span>
+            <Percent size={20} className="kpi-icon" style={{ color: '#10b981' }} />
+          </div>
+          <div className="kpi-value" style={{ color: '#059669' }}>{formatVND(summaryData.totalPlatformFee || 0)}</div>
+          <div className="kpi-subtext">Lãi thuần sàn thu được từ các đơn hàng</div>
+        </div>
+
+        <div className="payout-kpi-card holding">
+          <div className="kpi-header">
+            <span className="kpi-label">Quỹ cước ship (Vận chuyển)</span>
+            <Truck size={20} className="kpi-icon" />
+          </div>
+          <div className="kpi-value">{formatVND(summaryData.totalShippingFee || 0)}</div>
+          <div className="kpi-subtext">Cước ship dành cho shipper / giao vận</div>
         </div>
 
         <div className="payout-kpi-card paid">
@@ -214,12 +265,15 @@ export const AdminPayoutsTab = ({ showToast: propShowToast }) => {
           <table className="admin-table payout-table">
             <thead>
               <tr>
-                <th style={{ width: '110px' }}>Mã đơn</th>
-                <th style={{ minWidth: '150px' }}>Cửa hàng nhận tiền</th>
-                <th style={{ width: '120px', textAlign: 'right' }}>Tiền cần chuyển</th>
-                <th style={{ minWidth: '190px' }}>Tài khoản ngân hàng của Shop</th>
-                <th style={{ width: '135px', textAlign: 'center' }}>Trạng thái Escrow</th>
-                <th className="sticky-col-right" style={{ width: '200px', textAlign: 'right' }}>Hành động của Admin</th>
+                <th style={{ width: '100px' }}>Mã đơn & Ngày</th>
+                <th style={{ minWidth: '130px' }}>Cửa hàng</th>
+                <th style={{ width: '100px', textAlign: 'right' }}>Tiền hàng</th>
+                <th style={{ width: '85px', textAlign: 'right' }}>Cước ship</th>
+                <th style={{ width: '95px', textAlign: 'right', color: '#059669' }}>Phí sàn (2.5%)</th>
+                <th style={{ width: '115px', textAlign: 'right' }}>Thực nhận (97.5%)</th>
+                <th style={{ minWidth: '180px' }}>Tài khoản BIDV Shop</th>
+                <th style={{ width: '120px', textAlign: 'center' }}>Trạng thái</th>
+                <th className="sticky-col-right" style={{ width: '180px', textAlign: 'right' }}>Hành động</th>
               </tr>
             </thead>
             <tbody>
@@ -250,9 +304,24 @@ export const AdminPayoutsTab = ({ showToast: propShowToast }) => {
                     </td>
 
                     <td style={{ textAlign: 'right' }}>
-                      <div style={{ fontWeight: 700, color: '#059669', fontSize: '0.95rem' }}>
-                        {formatVND(item.shopPayoutAmount || item.totalAmount || 0)}
+                      <div style={{ fontWeight: 600, color: '#0f172a' }}>
+                        {formatVND(item.productAmount || item.totalAmount || 0)}
                       </div>
+                    </td>
+
+                    <td style={{ textAlign: 'right', color: '#64748b', fontSize: '0.82rem' }}>
+                      {formatVND(item.shippingFee || 0)}
+                    </td>
+
+                    <td style={{ textAlign: 'right', color: '#059669', fontWeight: 600, fontSize: '0.82rem' }}>
+                      +{formatVND(item.platformFee || 0)}
+                    </td>
+
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 700, color: '#2563eb', fontSize: '0.92rem' }}>
+                        {formatVND(item.shopPayoutAmount || 0)}
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: '#64748b' }}>97.5% tiền hàng</div>
                     </td>
 
                     <td>
@@ -405,11 +474,23 @@ export const AdminPayoutsTab = ({ showToast: propShowToast }) => {
                   <span>Chủ tài khoản:</span>
                   <strong style={{ textTransform: 'uppercase' }}>{selectedPayoutForQR.shopBankAccountName}</strong>
                 </div>
+                <div className="detail-row">
+                  <span>Tiền hàng sau giảm giá:</span>
+                  <strong>{formatVND(selectedPayoutForQR.productAmount || selectedPayoutForQR.totalAmount || 0)}</strong>
+                </div>
+                <div className="detail-row">
+                  <span>Khấu trừ phí sàn Cyber (2.5%):</span>
+                  <strong style={{ color: '#059669' }}>-{formatVND(selectedPayoutForQR.platformFee || 0)}</strong>
+                </div>
                 <div className="detail-row highlight">
-                  <span>Số tiền cần chuyển:</span>
-                  <strong style={{ color: '#dc2626', fontSize: '1.15rem' }}>
-                    {formatVND(selectedPayoutForQR.shopPayoutAmount || selectedPayoutForQR.totalAmount || 0)}
+                  <span>Số tiền thực chuyển (97.5%):</span>
+                  <strong style={{ color: '#2563eb', fontSize: '1.2rem' }}>
+                    {formatVND(selectedPayoutForQR.shopPayoutAmount || 0)}
                   </strong>
+                </div>
+                <div className="detail-row">
+                  <span>Kỳ quyết toán:</span>
+                  <span style={{ fontSize: '0.8rem', color: '#475569' }}>Ngày 19 hàng tháng (Hạn 2 ngày)</span>
                 </div>
                 <div className="detail-row">
                   <span>Nội dung chuyển:</span>

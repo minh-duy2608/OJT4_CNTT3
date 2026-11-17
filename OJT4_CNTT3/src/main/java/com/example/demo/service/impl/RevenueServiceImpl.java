@@ -60,6 +60,7 @@ public class RevenueServiceImpl implements RevenueService {
         return AdminRevenueResponse.builder()
                 .totalRevenue(metrics.totalRevenue())
                 .grossMerchandiseValue(metrics.grossMerchandiseValue())
+                .totalPlatformFee(metrics.totalPlatformFee())
                 .totalOrders(metrics.totalOrders())
                 .completedOrders(metrics.completedOrders())
                 .processingOrders(metrics.processingOrders())
@@ -74,6 +75,7 @@ public class RevenueServiceImpl implements RevenueService {
     private record PlatformMetrics(
             BigDecimal totalRevenue,
             BigDecimal grossMerchandiseValue,
+            BigDecimal totalPlatformFee,
             long totalOrders,
             long completedOrders,
             long processingOrders,
@@ -84,6 +86,7 @@ public class RevenueServiceImpl implements RevenueService {
     private PlatformMetrics calculatePlatformTotals(List<Order> orders) {
         BigDecimal totalRevenue = BigDecimal.ZERO;
         BigDecimal grossMerchandiseValue = BigDecimal.ZERO;
+        BigDecimal totalPlatformFee = BigDecimal.ZERO;
         long totalOrders = orders.size();
         long completedOrders = 0;
         long processingOrders = 0;
@@ -91,6 +94,13 @@ public class RevenueServiceImpl implements RevenueService {
 
         for (Order order : orders) {
             BigDecimal amount = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
+            BigDecimal ship = order.getShippingFee() != null ? order.getShippingFee() : BigDecimal.ZERO;
+            BigDecimal prod = amount.subtract(ship);
+            if (prod.compareTo(BigDecimal.ZERO) < 0) prod = BigDecimal.ZERO;
+            BigDecimal fee = order.getPlatformFee() != null && order.getPlatformFee().compareTo(BigDecimal.ZERO) > 0
+                    ? order.getPlatformFee()
+                    : prod.multiply(new BigDecimal("0.025")).setScale(0, RoundingMode.HALF_UP);
+
             OrderStatus status = order.getStatus();
             PaymentStatus paymentStatus = order.getPaymentStatus();
 
@@ -100,6 +110,7 @@ public class RevenueServiceImpl implements RevenueService {
                 grossMerchandiseValue = grossMerchandiseValue.add(amount);
                 if (status == OrderStatus.DELIVERED || paymentStatus == PaymentStatus.PAID) {
                     totalRevenue = totalRevenue.add(amount);
+                    totalPlatformFee = totalPlatformFee.add(fee);
                 }
                 if (status == OrderStatus.DELIVERED) {
                     completedOrders++;
@@ -114,7 +125,7 @@ public class RevenueServiceImpl implements RevenueService {
             averageOrderValue = grossMerchandiseValue.divide(BigDecimal.valueOf(totalOrders), 0, RoundingMode.HALF_UP);
         }
 
-        return new PlatformMetrics(totalRevenue, grossMerchandiseValue, totalOrders, completedOrders, processingOrders, cancelledOrders, averageOrderValue);
+        return new PlatformMetrics(totalRevenue, grossMerchandiseValue, totalPlatformFee, totalOrders, completedOrders, processingOrders, cancelledOrders, averageOrderValue);
     }
 
     private record ShopOrderAmounts(BigDecimal revenue, BigDecimal pendingRevenue) {}

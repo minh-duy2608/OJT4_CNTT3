@@ -74,6 +74,7 @@ public class OrderResponse {
 
     // Nghiệp vụ đối soát & chuyển tiền cho Shop (Escrow Payout)
     private String shopPayoutStatus;
+    private BigDecimal platformFee;
     private BigDecimal shopPayoutAmount;
     private LocalDateTime shopPayoutAt;
     private String shopPayoutNote;

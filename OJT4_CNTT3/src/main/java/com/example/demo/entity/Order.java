@@ -120,6 +120,10 @@ public class Order {
     @Builder.Default
     private String shopPayoutStatus = "NONE";
 
+    @Column(name = "platform_fee", precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal platformFee = BigDecimal.ZERO;
+
     @Column(name = "shop_payout_amount", precision = 15, scale = 2)
     private BigDecimal shopPayoutAmount;
 

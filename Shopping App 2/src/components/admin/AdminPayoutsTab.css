@@ -40,14 +40,20 @@
   line-height: 1.5;
 }
 
-/* 3 KPI Cards */
+/* 4 KPI Cards */
 .payout-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 1rem;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
+  .payout-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
   .payout-kpi-grid {
     grid-template-columns: 1fr;
   }
@@ -67,6 +73,14 @@
 
 .payout-kpi-card.ready {
   border-left: 4px solid #2563eb;
+}
+
+.payout-kpi-card.fee {
+  border-left: 4px solid #10b981;
+}
+
+.payout-kpi-card.paid {
+  border-left: 4px solid #059669;
 }
 
 .payout-kpi-card.paid {

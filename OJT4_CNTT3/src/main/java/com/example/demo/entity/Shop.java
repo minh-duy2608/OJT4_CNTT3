@@ -79,6 +79,21 @@ public class Shop {
     @Column(name = "bank_account_name", length = 150)
     private String bankAccountName;
 
+    @Column(name = "contract_agreed")
+    @Builder.Default
+    private Boolean contractAgreed = true;
+
+    @Column(name = "contract_agreed_at")
+    private LocalDateTime contractAgreedAt;
+
+    @Column(name = "platform_fee_rate", precision = 5, scale = 4)
+    @Builder.Default
+    private java.math.BigDecimal platformFeeRate = new java.math.BigDecimal("0.025");
+
+    @Column(name = "settlement_day")
+    @Builder.Default
+    private Integer settlementDay = 19;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default

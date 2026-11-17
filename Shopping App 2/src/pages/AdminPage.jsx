@@ -2053,7 +2053,12 @@ export const AdminPage = () => {
     ward: '',
     addressDetail: '',
     logoUrl: '',
-    bannerUrl: ''
+    bannerUrl: '',
+    bankName: 'BIDV (Ngân hàng TMCP Đầu tư và Phát triển Việt Nam)',
+    bankBin: '970418',
+    bankAccountNumber: '8814310515',
+    bankAccountName: 'HOANG THIEN SON',
+    contractAgreed: true
   });
   const [isCreatingShop, setIsCreatingShop] = useState(false);
 
@@ -3929,10 +3934,10 @@ export const AdminPage = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
                     <div style={{ fontSize: '0.85rem', fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Doanh thu thực nhận
+                      Lợi nhuận Phí sàn (2.5%)
                     </div>
                     <div style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.35rem', letterSpacing: '-0.02em' }}>
-                      {formatVND(revenueData?.totalRevenue || 0)}
+                      {formatVND(revenueData?.totalPlatformFee || Math.round((revenueData?.totalRevenue || 0) * 0.025))}
                     </div>
                   </div>
                   <div style={{ background: 'rgba(255,255,255,0.2)', padding: '0.6rem', borderRadius: '10px' }}>
@@ -3940,7 +3945,7 @@ export const AdminPage = () => {
                   </div>
                 </div>
                 <div style={{ fontSize: '0.78rem', opacity: 0.85, marginTop: '0.75rem' }}>
-                  ✓ Đã giao thành công hoặc đã thanh toán
+                  ✓ Doanh thu & lãi thuần thực nhận của Admin (2.5% tiền hàng)
                 </div>
               </div>
 
@@ -9143,6 +9148,64 @@ export const AdminPage = () => {
                 value={createShopData.description}
                 onChange={(e) => setCreateShopData({ ...createShopData, description: e.target.value })}
               />
+            </div>
+
+            <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '10px', marginTop: '10px', marginBottom: '0.75rem' }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>
+                🏦 Tài khoản ngân hàng nhận tiền quyết toán (Mặc định BIDV HOANG THIEN SON):
+              </div>
+              <div className="admin-form-grid-2" style={{ marginBottom: '8px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: '#475569', marginBottom: '3px' }}>
+                    Tên ngân hàng:
+                  </label>
+                  <input
+                    type="text"
+                    className="admin-form-input"
+                    style={{ width: '100%' }}
+                    value={createShopData.bankName}
+                    onChange={(e) => setCreateShopData({ ...createShopData, bankName: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: '#475569', marginBottom: '3px' }}>
+                    Số tài khoản:
+                  </label>
+                  <input
+                    type="text"
+                    className="admin-form-input"
+                    style={{ width: '100%' }}
+                    value={createShopData.bankAccountNumber}
+                    onChange={(e) => setCreateShopData({ ...createShopData, bankAccountNumber: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: '#475569', marginBottom: '3px' }}>
+                  Tên chủ tài khoản:
+                </label>
+                <input
+                  type="text"
+                  className="admin-form-input"
+                  style={{ width: '100%' }}
+                  value={createShopData.bankAccountName}
+                  onChange={(e) => setCreateShopData({ ...createShopData, bankAccountName: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.75rem', color: '#475569' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', fontWeight: 600, color: '#0f172a' }}>
+                <input
+                  type="checkbox"
+                  checked={createShopData.contractAgreed}
+                  onChange={(e) => setCreateShopData({ ...createShopData, contractAgreed: e.target.checked })}
+                  style={{ marginTop: '2px', width: '15px', height: '15px' }}
+                />
+                <span>
+                  Đồng ý điều khoản hợp đồng: Tự động trích trừ 2.5% phí sàn trên doanh thu sản phẩm, quyết toán định kỳ vào ngày 19 hàng tháng (hạn 2 ngày đến ngày 21).
+                </span>
+              </label>
             </div>
           </div>
         </ConfirmModal>

@@ -10,7 +10,11 @@ import {
   FileText, 
   Image, 
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Landmark,
+  CreditCard,
+  ShieldCheck,
+  Calendar
 } from 'lucide-react';
 import { shopApi } from '../services/shopApi';
 import { useAuth } from '../context/AuthContext';
@@ -32,9 +36,14 @@ export const RegisterShopModal = ({
     ward: '',
     addressDetail: '',
     description: '',
-    logoUrl: ''
+    logoUrl: '',
+    bankName: 'BIDV (Ngân hàng TMCP Đầu tư và Phát triển Việt Nam)',
+    bankBin: '970418',
+    bankAccountNumber: '8814310515',
+    bankAccountName: 'HOANG THIEN SON'
   });
 
+  const [agreedToContract, setAgreedToContract] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [successShop, setSuccessShop] = useState(null);
@@ -95,6 +104,11 @@ export const RegisterShopModal = ({
       return;
     }
 
+    if (!agreedToContract) {
+      setError('Vui lòng tích chọn đồng ý điều khoản hợp đồng người bán (tự trừ 2.5% phí sàn và quyết toán ngày 19 hàng tháng) để hoàn tất đăng ký.');
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
@@ -108,7 +122,12 @@ export const RegisterShopModal = ({
         ward: formData.ward.trim() || undefined,
         addressDetail: formData.addressDetail.trim() || undefined,
         description: formData.description.trim() || undefined,
-        logoUrl: formData.logoUrl.trim() || undefined
+        logoUrl: formData.logoUrl.trim() || undefined,
+        bankName: formData.bankName.trim(),
+        bankBin: formData.bankBin.trim(),
+        bankAccountNumber: formData.bankAccountNumber.trim(),
+        bankAccountName: formData.bankAccountName.trim(),
+        contractAgreed: true
       });
 
       // Cập nhật lại phiên đăng nhập để nhận vai trò SHOP_MANAGER
@@ -321,6 +340,98 @@ export const RegisterShopModal = ({
                       onChange={handleChange}
                     />
                   </div>
+                </div>
+
+                {/* Tài khoản ngân hàng nhận tiền quyết toán */}
+                <div className="shop-field-group full-width" style={{ marginTop: '0.75rem', borderTop: '1px dashed #cbd5e1', paddingTop: '1rem' }}>
+                  <label className="shop-form-label" style={{ fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Landmark size={17} color="#2563eb" />
+                    Tài khoản ngân hàng liên kết nhận doanh thu <span className="req">*</span>
+                  </label>
+                  <p style={{ fontSize: '0.76rem', color: '#64748b', margin: '2px 0 10px 0' }}>
+                    Doanh thu bán hàng (đã khấu trừ 2.5% phí sàn) sẽ được tự động quyết toán định kỳ vào tài khoản này.
+                  </p>
+                </div>
+
+                <div className="shop-field-group">
+                  <label className="shop-form-label">Tên Ngân hàng <span className="req">*</span></label>
+                  <div className="shop-input-wrapper">
+                    <Landmark size={16} className="input-icon" />
+                    <input
+                      type="text"
+                      name="bankName"
+                      className="shop-form-input"
+                      placeholder="BIDV, Vietcombank, MB Bank..."
+                      value={formData.bankName}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="shop-field-group">
+                  <label className="shop-form-label">Số tài khoản ngân hàng <span className="req">*</span></label>
+                  <div className="shop-input-wrapper">
+                    <CreditCard size={16} className="input-icon" />
+                    <input
+                      type="text"
+                      name="bankAccountNumber"
+                      className="shop-form-input"
+                      placeholder="8814310515..."
+                      value={formData.bankAccountNumber}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="shop-field-group full-width">
+                  <label className="shop-form-label">Tên chủ tài khoản (in hoa không dấu) <span className="req">*</span></label>
+                  <input
+                    type="text"
+                    name="bankAccountName"
+                    className="shop-form-input"
+                    placeholder="HOANG THIEN SON"
+                    value={formData.bankAccountName}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+
+                {/* Hợp đồng & Điều khoản Người bán */}
+                <div className="shop-field-group full-width" style={{ marginTop: '0.75rem' }}>
+                  <div style={{
+                    background: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '10px',
+                    padding: '12px 14px',
+                    fontSize: '0.8rem',
+                    color: '#334155'
+                  }}>
+                    <div style={{ fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                      <ShieldCheck size={16} color="#059669" />
+                      Điều khoản Hợp đồng & Quy chế Người bán Cyber Mall:
+                    </div>
+                    <ul style={{ paddingLeft: '18px', margin: '4px 0', lineHeight: 1.55 }}>
+                      <li><strong>Phí dịch vụ sàn:</strong> Tự động trích trừ <strong>2.5%</strong> trên doanh thu sản phẩm của mỗi đơn hàng giao thành công để làm phí vận hành sàn.</li>
+                      <li><strong>Cước vận chuyển:</strong> Tiền ship (20.000đ/đơn) thuộc về đối tác vận chuyển, không tính vào doanh thu của shop.</li>
+                      <li><strong>Chu kỳ quyết toán:</strong> Doanh thu được chốt và quyết toán định kỳ vào <strong>ngày 19 hàng tháng</strong>, hạn thanh toán giải ngân trong vòng <strong>2 ngày</strong> (đến hết ngày 21 hàng tháng).</li>
+                      <li><strong>Số tiền nhận về:</strong> Là số tiền bán hàng thực tế sau khi đã tự động khấu trừ 2.5% phí sàn.</li>
+                    </ul>
+                  </div>
+
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginTop: '10px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, color: '#0f172a' }}>
+                    <input
+                      type="checkbox"
+                      checked={agreedToContract}
+                      onChange={(e) => setAgreedToContract(e.target.checked)}
+                      style={{ marginTop: '3px', width: '16px', height: '16px', accentColor: '#2563eb' }}
+                      required
+                    />
+                    <span>
+                      Tôi đã đọc, hiểu rõ và đồng ý với Điều khoản Hợp đồng Người bán, chấp thuận để Sàn Cyber Mall tự động khấu trừ 2.5% phí sàn và thanh toán doanh thu định kỳ vào ngày 19 hàng tháng. <span style={{ color: '#ef4444' }}>*</span>
+                    </span>
+                  </label>
                 </div>
               </div>
 

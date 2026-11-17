@@ -38,6 +38,9 @@ public class ShopDetailResponse {
     private String bankBin;
     private String bankAccountNumber;
     private String bankAccountName;
+    private Boolean contractAgreed;
+    private java.math.BigDecimal platformFeeRate;
+    private Integer settlementDay;
     private ShopStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -85,6 +88,9 @@ public class ShopDetailResponse {
                 .bankBin(shop.getBankBin())
                 .bankAccountNumber(shop.getBankAccountNumber())
                 .bankAccountName(shop.getBankAccountName())
+                .contractAgreed(shop.getContractAgreed() != null ? shop.getContractAgreed() : true)
+                .platformFeeRate(shop.getPlatformFeeRate() != null ? shop.getPlatformFeeRate() : new java.math.BigDecimal("0.025"))
+                .settlementDay(shop.getSettlementDay() != null ? shop.getSettlementDay() : 19)
                 .status(shop.getStatus())
                 .createdAt(shop.getCreatedAt())
                 .updatedAt(shop.getUpdatedAt())

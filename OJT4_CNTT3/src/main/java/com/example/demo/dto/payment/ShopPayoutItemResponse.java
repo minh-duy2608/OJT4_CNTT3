@@ -18,7 +18,12 @@ public class ShopPayoutItemResponse {
     private Long shopId;
     private String shopName;
     private BigDecimal totalAmount;
+    private BigDecimal shippingFee;
+    private BigDecimal productAmount;
+    private BigDecimal platformFee;
     private BigDecimal shopPayoutAmount;
+    private String settlementCycle;
+    private String settlementDeadline;
     private String shopPayoutStatus; // HOLDING, READY_FOR_PAYOUT, PAID_OUT
     private LocalDateTime shopPayoutAt;
     private String shopPayoutNote;

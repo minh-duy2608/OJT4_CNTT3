@@ -36,5 +36,15 @@ public class RegisterShopRequest {
     private String logoUrl;
 
     private String bannerUrl;
+
+    private String bankName;
+
+    private String bankBin;
+
+    private String bankAccountNumber;
+
+    private String bankAccountName;
+
+    private Boolean contractAgreed;
 }
 

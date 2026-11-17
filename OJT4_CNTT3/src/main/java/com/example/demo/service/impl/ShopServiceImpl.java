@@ -85,6 +85,16 @@ public class ShopServiceImpl implements ShopService {
             finalSlug = baseSlug + "-" + (System.currentTimeMillis() % 10000);
         }
 
+        // Gán thông tin tài khoản ngân hàng và điều khoản hợp đồng (mặc định BIDV HOANG THIEN SON nếu để trống)
+        String bankName = request.getBankName() != null && !request.getBankName().isBlank()
+                ? request.getBankName().trim() : "BIDV (Ngân hàng TMCP Đầu tư và Phát triển Việt Nam)";
+        String bankBin = request.getBankBin() != null && !request.getBankBin().isBlank()
+                ? request.getBankBin().trim() : "970418";
+        String bankAcc = request.getBankAccountNumber() != null && !request.getBankAccountNumber().isBlank()
+                ? request.getBankAccountNumber().trim() : "8814310515";
+        String bankHolder = request.getBankAccountName() != null && !request.getBankAccountName().isBlank()
+                ? request.getBankAccountName().trim() : "HOANG THIEN SON";
+
         // Tạo Shop mới với trạng thái ACTIVE để khách hàng và admin có thể trải nghiệm test ngay
         Shop shop = Shop.builder()
                 .ownerId(user.getId())
@@ -99,6 +109,14 @@ public class ShopServiceImpl implements ShopService {
                 .addressDetail(request.getAddressDetail())
                 .logoUrl(request.getLogoUrl())
                 .bannerUrl(request.getBannerUrl())
+                .bankName(bankName)
+                .bankBin(bankBin)
+                .bankAccountNumber(bankAcc)
+                .bankAccountName(bankHolder)
+                .contractAgreed(request.getContractAgreed() != null ? request.getContractAgreed() : true)
+                .contractAgreedAt(LocalDateTime.now())
+                .platformFeeRate(new java.math.BigDecimal("0.025"))
+                .settlementDay(19)
                 .status(ShopStatus.ACTIVE)
                 .build();
 
@@ -303,6 +321,18 @@ public class ShopServiceImpl implements ShopService {
         }
         if (request.getBannerUrl() != null) {
             shop.setBannerUrl(request.getBannerUrl());
+        }
+        if (request.getBankName() != null && !request.getBankName().isBlank()) {
+            shop.setBankName(request.getBankName().trim());
+        }
+        if (request.getBankBin() != null && !request.getBankBin().isBlank()) {
+            shop.setBankBin(request.getBankBin().trim());
+        }
+        if (request.getBankAccountNumber() != null && !request.getBankAccountNumber().isBlank()) {
+            shop.setBankAccountNumber(request.getBankAccountNumber().trim());
+        }
+        if (request.getBankAccountName() != null && !request.getBankAccountName().isBlank()) {
+            shop.setBankAccountName(request.getBankAccountName().trim());
         }
 
         Shop updated = shopRepository.save(shop);

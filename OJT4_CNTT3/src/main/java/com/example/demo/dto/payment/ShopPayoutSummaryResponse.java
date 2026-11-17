@@ -30,6 +30,24 @@ public class ShopPayoutSummaryResponse {
     private Long totalPaidOutCount = 0L;
 
     @Builder.Default
+    private BigDecimal totalPlatformFee = BigDecimal.ZERO;
+
+    @Builder.Default
+    private BigDecimal totalShippingFee = BigDecimal.ZERO;
+
+    @Builder.Default
+    private BigDecimal totalProductAmount = BigDecimal.ZERO;
+
+    @Builder.Default
+    private Integer settlementDay = 19;
+
+    @Builder.Default
+    private Integer settlementDeadlineDays = 2;
+
+    @Builder.Default
+    private String settlementCycleDescription = "Định kỳ ngày 19 hàng tháng (Hạn quyết toán: 2 ngày, đến hết ngày 21)";
+
+    @Builder.Default
     private List<ShopPayoutItemResponse> items = new ArrayList<>();
 }
 

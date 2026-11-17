@@ -490,7 +490,30 @@ public class RoleDataInitializer implements CommandLineRunner {
             );
         }
 
-        log.info("Initialized default shop and catalog sample products");
+        // Đảm bảo tất cả shop mẫu được liên kết tài khoản ngân hàng BIDV HOANG THIEN SON và áp dụng hợp đồng 2.5%
+        List<com.example.demo.entity.Shop> allShops = shopRepository.findAll();
+        for (var s : allShops) {
+            boolean updated = false;
+            if (s.getBankName() == null || s.getBankName().isBlank()) {
+                s.setBankName("BIDV (Ngân hàng TMCP Đầu tư và Phát triển Việt Nam)");
+                s.setBankBin("970418");
+                s.setBankAccountNumber("8814310515");
+                s.setBankAccountName("HOANG THIEN SON");
+                updated = true;
+            }
+            if (s.getContractAgreed() == null || !s.getContractAgreed()) {
+                s.setContractAgreed(true);
+                s.setContractAgreedAt(LocalDateTime.now());
+                s.setPlatformFeeRate(new java.math.BigDecimal("0.025"));
+                s.setSettlementDay(19);
+                updated = true;
+            }
+            if (updated) {
+                shopRepository.save(s);
+            }
+        }
+
+        log.info("Initialized default shop and catalog sample products with BIDV bank accounts");
     }
 
     private void createSampleProduct(
