@@ -3,7 +3,17 @@ package com.example.demo.service;
 import com.example.demo.dto.response.NotificationResponse;
 import com.example.demo.dto.response.PageResponse;
 
+import java.util.List;
+
 public interface NotificationService {
+
+    List<NotificationResponse> getNotificationsByUserId(Long userId);
+
+    long getUnreadCountByUserId(Long userId);
+
+    NotificationResponse markAsReadById(Long notificationId);
+
+    int markAllAsReadByUserId(Long userId);
 
     PageResponse<NotificationResponse> getUserNotifications(String currentUsername, int page, int size);
 

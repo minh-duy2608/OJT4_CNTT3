@@ -53,6 +53,39 @@ async function request(endpoint, options = {}, isRetry = false) {
 
 export const notificationApi = {
   /**
+   * GET /api/notifications/{userId} - Lấy danh sách thông báo theo userId
+   */
+  async getNotificationsByUser(userId) {
+    if (!userId) return [];
+    return await request(`/api/notifications/${userId}`, { method: 'GET' });
+  },
+
+  /**
+   * GET /api/notifications/{userId}/unread-count - Đếm số thông báo chưa đọc
+   */
+  async getUnreadCount(userId) {
+    if (!userId) return 0;
+    return await request(`/api/notifications/${userId}/unread-count`, { method: 'GET' });
+  },
+
+  /**
+   * PUT /api/notifications/{id}/read - Đánh dấu đã đọc thông báo
+   */
+  async markAsRead(id) {
+    return await request(`/api/notifications/${id}/read`, { method: 'PUT' });
+  },
+
+  /**
+   * PUT /api/notifications/{userId}/read-all - Đánh dấu tất cả thông báo của user đã đọc
+   */
+  async markAllAsRead(userId) {
+    if (userId) {
+      return await request(`/api/notifications/${userId}/read-all`, { method: 'PUT' });
+    }
+    return await request('/notifications/read-all', { method: 'PATCH' });
+  },
+
+  /**
    * STT 142: GET /notifications - Danh sách thông báo người dùng
    */
   async getNotifications(params = {}) {

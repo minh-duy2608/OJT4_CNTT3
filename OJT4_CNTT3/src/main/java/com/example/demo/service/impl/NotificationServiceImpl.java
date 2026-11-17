@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -26,6 +27,50 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<NotificationResponse> getNotificationsByUserId(Long userId) {
+        if (userId == null) {
+            return List.of();
+        }
+        return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long getUnreadCountByUserId(Long userId) {
+        if (userId == null) {
+            return 0L;
+        }
+        return notificationRepository.countByUserIdAndIsReadFalse(userId);
+    }
+
+    @Override
+    @Transactional
+    public NotificationResponse markAsReadById(Long notificationId) {
+        Notification notification = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông báo #" + notificationId));
+
+        if (!Boolean.TRUE.equals(notification.getIsRead())) {
+            notification.setIsRead(true);
+            notification.setReadAt(LocalDateTime.now());
+            notification = notificationRepository.save(notification);
+        }
+        return mapToResponse(notification);
+    }
+
+    @Override
+    @Transactional
+    public int markAllAsReadByUserId(Long userId) {
+        if (userId == null) {
+            return 0;
+        }
+        return notificationRepository.markAllAsRead(userId);
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -116,6 +161,9 @@ public class NotificationServiceImpl implements NotificationService {
         return NotificationResponse.builder()
                 .id(n.getId())
                 .userId(n.getUserId())
+                .orderId(n.getOrderId())
+                .orderCode(n.getOrderCode())
+                .status(n.getStatus())
                 .type(n.getType())
                 .title(n.getTitle())
                 .message(n.getMessage())

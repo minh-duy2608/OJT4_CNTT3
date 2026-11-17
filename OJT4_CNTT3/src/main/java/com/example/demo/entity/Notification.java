@@ -26,7 +26,17 @@ public class Notification {
     private User user;
 
     @Column(nullable = false, length = 100)
-    private String type;
+    @Builder.Default
+    private String type = "ORDER_STATUS";
+
+    @Column(name = "order_id")
+    private Long orderId;
+
+    @Column(name = "order_code", length = 50)
+    private String orderCode;
+
+    @Column(length = 50)
+    private String status;
 
     @Column(nullable = false, length = 200)
     private String title;
@@ -57,6 +67,9 @@ public class Notification {
         }
         if (this.isRead == null) {
             this.isRead = false;
+        }
+        if (this.type == null) {
+            this.type = "ORDER_STATUS";
         }
     }
 }

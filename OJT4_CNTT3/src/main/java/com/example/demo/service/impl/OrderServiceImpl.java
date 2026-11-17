@@ -3,6 +3,7 @@ package com.example.demo.service.impl;
 import com.example.demo.dto.request.CreateOrderItemRequest;
 import com.example.demo.dto.request.CreateOrderRequest;
 import com.example.demo.dto.request.UpdateOrderStatusRequest;
+import com.example.demo.dto.response.NotificationResponse;
 import com.example.demo.dto.response.OrderItemResponse;
 import com.example.demo.dto.response.OrderResponse;
 import com.example.demo.dto.response.OrderTrackingResponse;
@@ -71,6 +72,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderReturnRepository orderReturnRepository;
     private final ProductReviewRepository productReviewRepository;
     private final AuditLogService auditLogService;
+    private final NotificationRepository notificationRepository;
 
     @Autowired(required = false)
     private SimpMessagingTemplate messagingTemplate;
@@ -102,6 +104,92 @@ public class OrderServiceImpl implements OrderService {
                     response.getId(), response.getOrderCode(), response.getUserId(), response.getShopId());
         } catch (Exception e) {
             log.warn("Không thể gửi sự kiện cập nhật đơn hàng qua WebSocket: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Tự động tạo và gửi thông báo trạng thái đơn hàng thời gian thực (Real-time Notification)
+     * tới Người mua qua kênh WebSocket /topic/notifications.{userId} và lưu DB MySQL.
+     */
+    private void sendOrderStatusNotification(Order order, OrderStatus newStatus) {
+        if (order == null || order.getUserId() == null || newStatus == null) {
+            return;
+        }
+        String orderCode = order.getOrderCode() != null ? order.getOrderCode() : String.valueOf(order.getId());
+        String title;
+        String message;
+        String statusStr;
+
+        switch (newStatus) {
+            case CONFIRMED -> {
+                title = "Đơn hàng đã được xác nhận";
+                message = "Đơn hàng #" + orderCode + " của bạn đã được cửa hàng xác nhận.";
+                statusStr = "CONFIRMED";
+            }
+            case PROCESSING -> {
+                title = "Chờ shipper lấy hàng";
+                message = "Đơn hàng #" + orderCode + " đã đóng gói xong và đang chờ đơn vị vận chuyển đến lấy.";
+                statusStr = "WAITING_PICKUP";
+            }
+            case SHIPPED -> {
+                title = "Đơn hàng đang được giao";
+                message = "Đơn hàng #" + orderCode + " đang trên đường giao đến bạn.";
+                statusStr = "SHIPPING";
+            }
+            case DELIVERED -> {
+                title = "Giao hàng thành công";
+                message = "Đơn hàng #" + orderCode + " đã giao thành công. Cảm ơn bạn đã mua sắm tại Cyber!";
+                statusStr = "DELIVERED";
+            }
+            case CANCELLED -> {
+                title = "Đơn hàng đã bị hủy";
+                message = "Đơn hàng #" + orderCode + " đã bị hủy.";
+                statusStr = "CANCELLED";
+            }
+            default -> {
+                return;
+            }
+        }
+
+        try {
+            Notification notification = Notification.builder()
+                    .userId(order.getUserId())
+                    .orderId(order.getId())
+                    .orderCode(orderCode)
+                    .title(title)
+                    .message(message)
+                    .status(statusStr)
+                    .type("ORDER_" + statusStr)
+                    .referenceType("ORDER")
+                    .referenceId(order.getId())
+                    .isRead(false)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+
+            Notification saved = notificationRepository.save(notification);
+
+            NotificationResponse response = NotificationResponse.builder()
+                    .id(saved.getId())
+                    .userId(saved.getUserId())
+                    .orderId(saved.getOrderId())
+                    .orderCode(saved.getOrderCode())
+                    .status(saved.getStatus())
+                    .type(saved.getType())
+                    .title(saved.getTitle())
+                    .message(saved.getMessage())
+                    .referenceType(saved.getReferenceType())
+                    .referenceId(saved.getReferenceId())
+                    .isRead(saved.getIsRead())
+                    .createdAt(saved.getCreatedAt())
+                    .build();
+
+            if (messagingTemplate != null) {
+                messagingTemplate.convertAndSend("/topic/notifications." + order.getUserId(), response);
+                log.info("Đã gửi thông báo đơn hàng real-time tới /topic/notifications.{} cho đơn #{}",
+                        order.getUserId(), orderCode);
+            }
+        } catch (Exception e) {
+            log.error("Lỗi khi tạo và gửi thông báo đơn hàng #{}: {}", orderCode, e.getMessage(), e);
         }
     }
 
@@ -597,6 +685,7 @@ public class OrderServiceImpl implements OrderService {
         order.setUpdatedAt(now);
 
         Order saved = orderRepository.save(order);
+        sendOrderStatusNotification(saved, OrderStatus.DELIVERED);
         confirmInventorySale(saved);
         log.info("Customer '{}' (User #{}) confirmed delivery for order #{} ({}) at {}",
                 user.getUsername(), user.getId(), saved.getId(), saved.getOrderCode(), now);
@@ -707,6 +796,7 @@ public class OrderServiceImpl implements OrderService {
         restoreInventory(order);
 
         Order saved = orderRepository.save(order);
+        sendOrderStatusNotification(saved, OrderStatus.CANCELLED);
         OrderResponse response = mapToResponse(saved);
         broadcastOrderUpdate(response);
         return response;
@@ -967,6 +1057,9 @@ public class OrderServiceImpl implements OrderService {
         }
 
         Order saved = orderRepository.save(order);
+        if (newStatus != null && newStatus != oldStatus) {
+            sendOrderStatusNotification(saved, newStatus);
+        }
 
         // Ghi nhận nhật ký Audit Log nếu Quản trị viên Admin can thiệp đơn hàng
         if (isAdmin && !isShopManager) {
@@ -1013,6 +1106,7 @@ public class OrderServiceImpl implements OrderService {
         order.setCancellationReason("Hết thời gian thanh toán (quá " + RESERVATION_EXPIRATION_MINUTES + " phút). Hệ thống tự động hủy đơn và giải phóng tồn kho đã giữ.");
         releaseOrRestoreInventory(order);
         Order saved = orderRepository.save(order);
+        sendOrderStatusNotification(saved, OrderStatus.CANCELLED);
         broadcastOrderUpdate(mapToResponse(saved));
         log.info("Auto-cancelled expired order #{} ({}) and released reserved inventory", order.getId(), order.getOrderCode());
     }
