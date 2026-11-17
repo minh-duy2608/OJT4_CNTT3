@@ -18,9 +18,13 @@ import {
 } from 'lucide-react';
 import { paymentApi } from '../../services/paymentApi';
 import { formatVND } from '../../data/products';
+import { useCart } from '../../context/CartContext';
 import './AdminPayoutsTab.css';
 
-export const AdminPayoutsTab = ({ showToast }) => {
+export const AdminPayoutsTab = ({ showToast: propShowToast }) => {
+  const cartContext = useCart();
+  const showToast = propShowToast || cartContext?.showToast || ((msg) => console.log(msg));
+
   const [loading, setLoading] = useState(false);
   const [summaryData, setSummaryData] = useState({
     totalHoldingAmount: 0,

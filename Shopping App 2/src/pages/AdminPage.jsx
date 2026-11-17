@@ -5361,7 +5361,7 @@ export const AdminPage = () => {
         {/* =================================================================== */}
         {activeTab === 'payouts' && isAdminUser && (
           <div className="admin-card-container">
-            <AdminPayoutsTab showToast={showToast} />
+            <AdminPayoutsTab />
           </div>
         )}
 
