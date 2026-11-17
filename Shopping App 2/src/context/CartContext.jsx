@@ -103,6 +103,20 @@ export const CartProvider = ({ children }) => {
     syncWithBackendCart();
   }, [syncWithBackendCart]);
 
+  // Khi đăng xuất, xóa sạch giỏ hàng local để không hiển thị số lượng giỏ hàng cũ
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setCartItems([]);
+      setSelectedItemIds([]);
+      try {
+        localStorage.removeItem(CART_STORAGE_KEY);
+        localStorage.removeItem(CART_SELECTED_KEY);
+      } catch (e) {
+        console.error('Failed to clear cart storage on logout:', e);
+      }
+    }
+  }, [isAuthenticated]);
+
   // Đồng bộ giỏ hàng vào localStorage
   useEffect(() => {
     try {
@@ -356,8 +370,8 @@ export const CartProvider = ({ children }) => {
     setSelectedItemIds([]);
   };
 
-  // Tính toán số liệu tổng thể giỏ hàng (chỉ tính tiền các mặt hàng CÒN HÀNG)
-  const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+  // Tính toán số liệu tổng thể giỏ hàng (chỉ tính tiền các mặt hàng CÒN HÀNG, khi đăng xuất trả về 0)
+  const cartCount = isAuthenticated ? cartItems.reduce((acc, item) => acc + item.quantity, 0) : 0;
   const cartTotal = cartItems
     .filter((item) => !isItemOutOfStock(item))
     .reduce((acc, item) => acc + (item.price || 0) * item.quantity, 0);

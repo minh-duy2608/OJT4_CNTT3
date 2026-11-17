@@ -315,8 +315,19 @@ public class ShopServiceImpl implements ShopService {
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size), Sort.by(Sort.Direction.DESC, "createdAt"));
         String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
         Page<Shop> shopPage = shopRepository.searchShops(kw, status, pageable);
+
+        Map<Long, User> ownerMap = new java.util.HashMap<>();
+        List<Long> ownerIds = shopPage.getContent().stream()
+                .map(Shop::getOwnerId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (!ownerIds.isEmpty()) {
+            userRepository.findAllById(ownerIds).forEach(u -> ownerMap.put(u.getId(), u));
+        }
+
         List<ShopDetailResponse> content = shopPage.getContent().stream()
-                .map(s -> ShopDetailResponse.fromEntity(s, false, true))
+                .map(s -> ShopDetailResponse.fromEntity(s, ownerMap.get(s.getOwnerId()), false, true))
                 .toList();
         return PageResponse.<ShopDetailResponse>builder()
                 .content(content)
@@ -334,7 +345,8 @@ public class ShopServiceImpl implements ShopService {
     public ShopDetailResponse getAdminShopById(Long shopId) {
         Shop shop = shopRepository.findById(shopId)
                 .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND_SHOP_PREFIX + shopId));
-        return ShopDetailResponse.fromEntity(shop, false, true);
+        User owner = shop.getOwnerId() != null ? userRepository.findById(shop.getOwnerId()).orElse(null) : null;
+        return ShopDetailResponse.fromEntity(shop, owner, false, true);
     }
 
     @Override
@@ -360,7 +372,8 @@ public class ShopServiceImpl implements ShopService {
 
         Shop saved = shopRepository.save(shop);
         log.info("Admin {} changed shop #{} status from {} to {}", adminUsername, shopId, oldStatus, newStatus);
-        return ShopDetailResponse.fromEntity(saved, false, true);
+        User owner = saved.getOwnerId() != null ? userRepository.findById(saved.getOwnerId()).orElse(null) : null;
+        return ShopDetailResponse.fromEntity(saved, owner, false, true);
     }
 
     private User getCurrentUser(String username) {
