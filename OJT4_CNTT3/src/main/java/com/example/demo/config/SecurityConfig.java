@@ -58,6 +58,8 @@ public class SecurityConfig {
                         // ---- WebSocket Handshake & Chat API ----
                         // SockJS handshake cần permit để không bị 401 chặn TCP upgrade
                         .requestMatchers("/ws-chat/**").permitAll()
+                        // Notifications API - Cho phép truy cập lấy và cập nhật thông báo
+                        .requestMatchers("/api/notifications", "/api/notifications/**").permitAll()
                         // Chat REST API - yêu cầu đăng nhập
                         .requestMatchers("/api/chat/**").authenticated()
                         // Public Catalog Read-only Endpoints

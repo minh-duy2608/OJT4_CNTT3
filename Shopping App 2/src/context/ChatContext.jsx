@@ -27,6 +27,8 @@ export const ChatProvider = ({ children }) => {
   const stompClientRef = useRef(null);
   const messageSubRef = useRef(null);
   const readSubRef = useRef(null);
+  const notifSubRef = useRef(null);
+  const notificationListenersRef = useRef(new Set());
   const isConnectingRef = useRef(false);
 
   /* ─── Ngắt kết nối sạch sẽ ─── */
@@ -38,6 +40,10 @@ export const ChatProvider = ({ children }) => {
     if (readSubRef.current) {
       try { readSubRef.current.unsubscribe(); } catch {}
       readSubRef.current = null;
+    }
+    if (notifSubRef.current) {
+      try { notifSubRef.current.unsubscribe(); } catch {}
+      notifSubRef.current = null;
     }
     if (stompClientRef.current) {
       try { stompClientRef.current.deactivate(); } catch {}
@@ -81,6 +87,10 @@ export const ChatProvider = ({ children }) => {
         if (readSubRef.current) {
           try { readSubRef.current.unsubscribe(); } catch {}
           readSubRef.current = null;
+        }
+        if (notifSubRef.current) {
+          try { notifSubRef.current.unsubscribe(); } catch {}
+          notifSubRef.current = null;
         }
 
         // 1. Subscribe kênh nhận tin nhắn của chính mình
@@ -145,6 +155,27 @@ export const ChatProvider = ({ children }) => {
                 );
               }
             } catch {}
+          }
+        );
+
+        // 3. Subscribe kênh thông báo trạng thái đơn hàng thời gian thực
+        notifSubRef.current = client.subscribe(
+          `/topic/notifications.${user.id}`,
+          (frame) => {
+            try {
+              const incomingNotif = JSON.parse(frame.body);
+              if (!incomingNotif) return;
+
+              // Bắn cho các listener đã đăng ký
+              notificationListenersRef.current.forEach((cb) => {
+                try { cb(incomingNotif); } catch (e) { console.error('Lỗi notification listener:', e); }
+              });
+
+              // Bắn event toàn cục trên window
+              window.dispatchEvent(new CustomEvent('cyber:notification', { detail: incomingNotif }));
+            } catch (err) {
+              console.warn('Lỗi phân tích thông báo WebSocket:', err);
+            }
           }
         );
       },
@@ -240,6 +271,14 @@ export const ChatProvider = ({ children }) => {
     });
   }, []);
 
+  /* ─── Đăng ký nhận thông báo real-time ─── */
+  const subscribeNotifications = useCallback((callback) => {
+    notificationListenersRef.current.add(callback);
+    return () => {
+      notificationListenersRef.current.delete(callback);
+    };
+  }, []);
+
   return (
     <ChatContext.Provider value={{
       isChatOpen, isMinimized, activeSeller, productContext,
@@ -247,6 +286,8 @@ export const ChatProvider = ({ children }) => {
       openChatWithSeller, closeChat, toggleMinimize,
       sendMessage, markAsRead, addLocalMessage,
       setMessages,
+      subscribeNotifications,
+      stompClientRef,
     }}>
       {children}
     </ChatContext.Provider>

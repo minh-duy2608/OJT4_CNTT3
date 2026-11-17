@@ -14,6 +14,9 @@ import java.time.LocalDateTime;
 public class NotificationResponse {
     private Long id;
     private Long userId;
+    private Long orderId;
+    private String orderCode;
+    private String status;
     private String type;
     private String title;
     private String message;
