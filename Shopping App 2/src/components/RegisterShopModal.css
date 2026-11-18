@@ -297,8 +297,37 @@
 }
 
 @media (max-width: 640px) {
+  .register-shop-backdrop {
+    padding: 0.5rem;
+  }
+
+  .register-shop-card {
+    max-height: 94vh;
+    border-radius: 12px;
+  }
+
+  .register-shop-header {
+    padding: 0.85rem 1rem;
+  }
+
+  .register-shop-body {
+    padding: 1rem 0.85rem;
+  }
+
+  .register-shop-footer {
+    padding: 0.75rem 1rem;
+    flex-direction: column-reverse;
+  }
+
+  .btn-shop-secondary,
+  .btn-shop-primary {
+    width: 100%;
+    justify-content: center;
+  }
+
   .shop-form-grid {
     grid-template-columns: 1fr;
+    gap: 0.75rem;
   }
 }
 

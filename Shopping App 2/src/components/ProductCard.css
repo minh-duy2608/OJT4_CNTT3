@@ -198,3 +198,35 @@
   border-color: #2563eb;
   color: #ffffff;
 }
+
+/* Responsive Product Card on Mobile */
+@media (max-width: 640px) {
+  .cyber-product-card {
+    padding: 0.85rem 0.65rem 0.75rem;
+    border-radius: 10px;
+  }
+
+  .cyber-product-card .product-img-wrapper,
+  .product-img-wrapper {
+    height: 140px;
+    padding: 8px;
+    margin-bottom: 0.65rem;
+  }
+
+  .product-card-title {
+    font-size: 0.8125rem;
+    min-height: 2.2rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .product-card-price {
+    font-size: 1rem;
+    margin: 0.15rem 0 0.5rem;
+  }
+
+  .product-buy-btn {
+    padding: 0.45rem 0.65rem;
+    font-size: 0.75rem;
+    gap: 0.25rem;
+  }
+}

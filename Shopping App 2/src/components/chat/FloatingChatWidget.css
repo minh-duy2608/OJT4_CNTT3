@@ -532,3 +532,20 @@
 }
 .dark-theme .fcw-send-btn:disabled { background: #334155; }
 
+/* Responsive on Mobile Phones */
+@media (max-width: 480px) {
+  .fcw-wrapper {
+    width: calc(100vw - 20px);
+    right: 10px;
+    bottom: 12px;
+    height: min(500px, calc(100vh - 80px));
+    border-radius: 14px;
+  }
+
+  .fcw-wrapper.fcw-minimized {
+    width: auto;
+    max-width: calc(100vw - 20px);
+    height: 52px;
+  }
+}
+

@@ -474,3 +474,62 @@
   border-color: #ea580c;
 }
 
+/* Responsive on Mobile Phones & Tablets */
+@media (max-width: 640px) {
+  .payos-modal-overlay {
+    padding: 0.5rem;
+  }
+
+  .payos-modal-card {
+    border-radius: 16px;
+    max-height: 96vh;
+  }
+
+  .payos-modal-header {
+    padding: 1rem;
+  }
+
+  .payos-header-brand span {
+    font-size: 0.825rem !important;
+  }
+
+  .payos-modal-body {
+    padding: 1rem 0.85rem;
+    gap: 1rem;
+  }
+
+  .payos-qr-image {
+    width: 200px;
+    height: 200px;
+  }
+
+  .payos-info-card {
+    padding: 0.85rem;
+    font-size: 0.8125rem;
+  }
+
+  .payos-info-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .payos-info-value {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .payos-btn-action {
+    height: 42px;
+    font-size: 0.85rem;
+  }
+
+  .payos-success-title {
+    font-size: 1.35rem;
+  }
+
+  .payos-success-amount-badge {
+    font-size: 1.5rem;
+  }
+}
+

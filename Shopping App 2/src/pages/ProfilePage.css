@@ -513,3 +513,30 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 640px) {
+  .profile-page-wrapper {
+    padding: 1.5rem 0 3.5rem;
+  }
+
+  .profile-title {
+    font-size: 1.65rem;
+  }
+
+  .profile-sidebar-card {
+    padding: 1.5rem 1rem;
+  }
+
+  .profile-section-card {
+    padding: 1.25rem 1rem;
+  }
+
+  .address-card-item {
+    padding: 0.85rem;
+  }
+
+  .address-card-actions {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+}

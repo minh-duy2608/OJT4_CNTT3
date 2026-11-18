@@ -457,3 +457,42 @@
   }
 }
 
+@media (max-width: 640px) {
+  .checkout-page-wrapper {
+    padding: 1.5rem 0 3.5rem;
+  }
+
+  .checkout-page-title {
+    font-size: 1.65rem;
+  }
+
+  .checkout-page-subtitle {
+    margin-bottom: 1.5rem;
+    font-size: 0.85rem;
+  }
+
+  .checkout-section-box {
+    padding: 1.15rem 1rem;
+    border-radius: 12px;
+    margin-bottom: 1.25rem;
+  }
+
+  .checkout-summary-box {
+    padding: 1.25rem 1rem;
+    border-radius: 12px;
+  }
+
+  .checkout-address-card {
+    padding: 0.85rem;
+  }
+
+  .summary-items-list {
+    max-height: 200px;
+  }
+
+  .checkout-submit-btn {
+    padding: 0.85rem 1rem;
+    font-size: 0.95rem;
+  }
+}
+

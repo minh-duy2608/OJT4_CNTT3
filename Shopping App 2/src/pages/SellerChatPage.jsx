@@ -250,7 +250,7 @@ export const SellerChatPage = ({ embedded = false }) => {
   };
 
   return (
-    <div className={`seller-chat-container ${embedded ? 'is-embedded' : ''}`}>
+    <div className={`seller-chat-container ${embedded ? 'is-embedded' : ''} ${selectedPartner ? 'has-selected-room' : ''}`}>
       {/* ─── CỘT TRÁI: DANH SÁCH CUỘC HỘI THOẠI ─── */}
       <aside className="seller-chat-sidebar">
         <div className="seller-chat-sidebar-header">
@@ -327,6 +327,15 @@ export const SellerChatPage = ({ embedded = false }) => {
           <>
             {/* Header phòng chat đang chọn */}
             <div className="chat-main-header">
+              <button
+                type="button"
+                className="chat-mobile-back-btn"
+                onClick={() => setSelectedPartner(null)}
+                title="Quay lại danh sách hội thoại"
+                aria-label="Quay lại danh sách hội thoại"
+              >
+                <ArrowLeft size={20} />
+              </button>
               <div className="chat-partner-profile">
                 {selectedPartner.avatar ? (
                   <img src={selectedPartner.avatar} alt={selectedPartner.name} className="partner-header-avatar" />
