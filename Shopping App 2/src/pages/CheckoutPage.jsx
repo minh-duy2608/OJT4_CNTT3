@@ -59,6 +59,13 @@ export const CheckoutPage = () => {
 
   const isBuyNowMode = Boolean(buyNowItem);
 
+  // Phương thức thanh toán: COD hoặc PAYOS (VietQR)
+  const [paymentMethod, setPaymentMethod] = useState('PAYOS');
+  const [payOSModalOpen, setPayOSModalOpen] = useState(false);
+  const [activePayOSOrderId, setActivePayOSOrderId] = useState(null);
+  const [orderNotes, setOrderNotes] = useState('');
+  const [checkoutError, setCheckoutError] = useState('');
+
   // Lưu snapshot sản phẩm và tổng tiền thanh toán để không bị reset khi giỏ hàng được clear sau khi tạo đơn
   const [checkoutSessionItems, setCheckoutSessionItems] = useState(() => {
     if (isBuyNowMode) return [buyNowItem];
@@ -115,12 +122,7 @@ export const CheckoutPage = () => {
     }
   }, [addresses, selectedAddressId]);
 
-  // Phương thức thanh toán: COD hoặc PAYOS (VietQR)
-  const [paymentMethod, setPaymentMethod] = useState('PAYOS');
-  const [payOSModalOpen, setPayOSModalOpen] = useState(false);
-  const [activePayOSOrderId, setActivePayOSOrderId] = useState(null);
-  const [orderNotes, setOrderNotes] = useState('');
-  const [checkoutError, setCheckoutError] = useState('');
+
 
   // Tự động nhận diện Shop ID từ các sản phẩm đang được thanh toán
   const detectedShopId = useMemo(() => {
