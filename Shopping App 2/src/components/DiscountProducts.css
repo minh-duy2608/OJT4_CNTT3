@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Figma Exact Discount Products Section Styles ("Sản phẩm giảm giá")
+   Cyber Discount Products Section Styles (Auto-Scrolling Carousel)
    ========================================================================== */
 
 .discount-products-section {
@@ -9,26 +9,147 @@
 }
 
 .discount-products-header {
-  margin-bottom: 2rem;
+  margin-bottom: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.discount-products-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
 }
 
 .discount-products-title {
   font-size: 1.65rem;
-  font-weight: 600;
+  font-weight: 700;
   color: #000000;
   letter-spacing: -0.02em;
+  margin: 0;
 }
 
-.discount-products-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+/* Badge Flash Sale rực rỡ */
+.discount-flash-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+  animation: flashPulse 2s infinite ease-in-out;
+}
+
+.discount-flame-icon {
+  animation: flameFlicker 1.5s infinite alternate ease-in-out;
+}
+
+@keyframes flashPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+  }
+}
+
+@keyframes flameFlicker {
+  0% { transform: rotate(-5deg) scale(0.95); }
+  100% { transform: rotate(5deg) scale(1.08); }
+}
+
+/* Nút điều hướng Carousel */
+.discount-nav-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.discount-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid #e2e8f0;
+  background-color: #ffffff;
+  color: #0f172a;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.discount-nav-btn:hover {
+  background-color: #000000;
+  color: #ffffff;
+  border-color: #000000;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.discount-nav-btn:active {
+  transform: translateY(0) scale(0.95);
+}
+
+/* ==========================================================================
+   Carousel Track Container
+   ========================================================================== */
+.discount-carousel-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.discount-carousel-track {
+  display: flex;
   gap: 1.5rem;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  padding: 0.5rem 0.25rem 1rem;
+  /* Ẩn thanh cuộn trên mọi trình duyệt */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-/* Responsive Grid */
+.discount-carousel-track::-webkit-scrollbar {
+  display: none;
+}
+
+/* Mỗi phần tử card trong dải cuộn */
+.discount-carousel-item {
+  /* Mặc định desktop: 4 sản phẩm vừa khít màn hình */
+  flex: 0 0 calc((100% - 3 * 1.5rem) / 4);
+  min-width: 250px;
+  max-width: 310px;
+  scroll-snap-align: start;
+  box-sizing: border-box;
+  display: flex;
+}
+
+/* Đảm bảo ProductCard bên trong dải cuộn vừa vặn và không bị margin-bottom quá lớn */
+.discount-carousel-item .cyber-product-card {
+  width: 100%;
+  margin-bottom: 0 !important;
+  height: 100%;
+}
+
+/* ==========================================================================
+   Responsive Breakpoints
+   ========================================================================== */
 @media (max-width: 1100px) {
-  .discount-products-grid {
-    grid-template-columns: repeat(3, 1fr);
+  .discount-carousel-item {
+    /* Tablet lớn: 3 sản phẩm vừa khít */
+    flex: 0 0 calc((100% - 2 * 1.25rem) / 3);
+    min-width: 230px;
+  }
+  .discount-carousel-track {
     gap: 1.25rem;
   }
 }
@@ -39,19 +160,30 @@
     margin-bottom: 3rem;
   }
 
-  .discount-products-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
-  }
-
   .discount-products-title {
     font-size: 1.35rem;
+  }
+
+  .discount-carousel-item {
+    /* Tablet nhỏ / Điện thoại lớn: 2 sản phẩm */
+    flex: 0 0 calc((100% - 1rem) / 2);
+    min-width: 200px;
+  }
+
+  .discount-carousel-track {
+    gap: 1rem;
   }
 }
 
 @media (max-width: 480px) {
-  .discount-products-grid {
-    grid-template-columns: 1fr;
+  .discount-products-header {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .discount-carousel-item {
+    /* Điện thoại nhỏ: 1.15 sản phẩm để người dùng nhìn thấy dải cuộn */
+    flex: 0 0 82%;
+    min-width: 190px;
   }
 }
-

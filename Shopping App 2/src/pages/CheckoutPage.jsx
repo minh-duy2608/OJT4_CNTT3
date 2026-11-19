@@ -498,7 +498,7 @@ export const CheckoutPage = () => {
 
   if (itemsToCheckout.length === 0 && !payOSModalOpen && !activePayOSOrderId) {
     return (
-      <div className="container" style={{ padding: '5rem 0', textAlign: 'center' }}>
+      <div className="container" style={{ padding: '6rem 0 8rem', textAlign: 'center', minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '1rem' }}>Chưa chọn sản phẩm nào để thanh toán</h2>
         <p style={{ color: '#71717a', marginBottom: '2rem' }}>
           Bạn chưa chọn sản phẩm nào trong giỏ hàng để tiến hành thanh toán. Hãy vào giỏ hàng và tích chọn các món bạn muốn mua nhé!

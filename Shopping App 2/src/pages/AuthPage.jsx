@@ -600,27 +600,6 @@ export const AuthPage = () => {
             </button>
           </p>
 
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.75rem' }}>
-            <button
-              type="button"
-              onClick={() => {
-                setRegisteredEmail(email);
-                setOtpCode('');
-                setShowOtpModal(true);
-              }}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#4b5563',
-                fontSize: '0.8125rem',
-                textDecoration: 'underline',
-                cursor: 'pointer'
-              }}
-            >
-              Nhập mã xác minh email (6 số OTP)
-            </button>
-          </div>
-
           <div className="auth-guest-box">
             <div className="guest-box-header">
               <Package className="guest-box-icon" />
