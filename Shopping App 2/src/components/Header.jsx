@@ -18,7 +18,6 @@ import { useCart } from '../context/CartContext';
 import { useChat } from '../context/ChatContext';
 import { productApi } from '../services/productApi';
 import { formatVND } from '../data/products';
-import { RegisterShopModal } from './RegisterShopModal';
 import { WishlistModal } from './WishlistModal';
 import { ThemeToggle } from './ThemeToggle';
 import { NotificationDropdown } from './NotificationDropdown';
@@ -43,7 +42,7 @@ const CyberIcon = ({ className = "cyber-logo-icon" }) => (
 );
 
 export const Header = () => {
-  const { user, isAuthenticated, logout, refreshUser } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const { cartCount, cartBumping } = useCart();
   const { totalUnread } = useChat();
   const [searchTerm, setSearchTerm] = useState('');
@@ -61,7 +60,6 @@ export const Header = () => {
   }, [location.pathname]);
 
   // Shop state & Registration modal
-  const [isRegisterShopModalOpen, setIsRegisterShopModalOpen] = useState(false);
 
   // State tìm kiếm gợi ý tức thì (Live Search Typeahead - STT 43: GET /products/search)
   const [searchSuggestions, setSearchSuggestions] = useState([]);
@@ -317,37 +315,6 @@ export const Header = () => {
                 </li>
               )}
 
-              {/* Nếu là Khách hàng (chưa mở shop) hoặc Khách vãng lai: Hiện nút Đăng ký mở Shop */}
-              {(!isAuthenticated || (!isUserAdmin && !isShopManager)) && (
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!isAuthenticated) {
-                        navigate('/login?redirect=/');
-                      } else {
-                        setIsRegisterShopModalOpen(true);
-                      }
-                    }}
-                    className="cyber-nav-link"
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: '#059669',
-                      fontWeight: 600,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      fontSize: 'inherit',
-                      padding: 0
-                    }}
-                  >
-                    <Store size={16} />
-                    Đăng ký mở Shop
-                  </button>
-                </li>
-              )}
             </ul>
           </nav>
 
@@ -446,20 +413,6 @@ export const Header = () => {
                           <Store size={16} color="#059669" />
                           Kênh Người Bán của tôi
                         </Link>
-                      )}
-                      {!isUserAdmin && !isShopManager && (
-                        <button
-                          type="button"
-                          className="cyber-dropdown-item"
-                          onClick={() => {
-                            setShowAuthDropdown(false);
-                            setIsRegisterShopModalOpen(true);
-                          }}
-                          style={{ color: '#059669', fontWeight: 600, background: '#f0fdf4', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
-                        >
-                          <Store size={16} color="#059669" />
-                          Đăng ký mở Shop ngay
-                        </button>
                       )}
                       <Link
                         to="/profile"
@@ -617,23 +570,6 @@ export const Header = () => {
                     Kênh Người Bán của tôi
                   </NavLink>
                 )}
-                {(!isAuthenticated || (!isUserAdmin && !isShopManager)) && (
-                  <button
-                    type="button"
-                    className="cyber-mobile-nav-link highlight-register"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      if (!isAuthenticated) {
-                        navigate('/login?redirect=/');
-                      } else {
-                        setIsRegisterShopModalOpen(true);
-                      }
-                    }}
-                  >
-                    <Store size={18} />
-                    Đăng ký mở Shop ngay
-                  </button>
-                )}
               </div>
 
               {/* Thông tin tài khoản */}
@@ -717,16 +653,6 @@ export const Header = () => {
         onClose={() => setIsWishlistModalOpen(false)}
       />
 
-      {/* Modal đăng ký mở Shop cho Khách hàng */}
-      <RegisterShopModal
-        isOpen={isRegisterShopModalOpen}
-        onClose={() => setIsRegisterShopModalOpen(false)}
-        onSuccess={() => {
-          setIsRegisterShopModalOpen(false);
-          if (refreshUser) refreshUser();
-          navigate('/admin?tab=shops');
-        }}
-      />
     </header>
   );
 };
