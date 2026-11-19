@@ -142,6 +142,7 @@ class AuthServiceTest {
         verify(userRepository).save(any(User.class));
         verify(emailVerificationTokenRepository).save(any(EmailVerificationToken.class));
         verify(eventPublisher).publishEvent(any(UserRegisteredEvent.class));
+        verify(eventPublisher).publishEvent(any(EmailVerificationRequestedEvent.class));
     }
 
     @Test
