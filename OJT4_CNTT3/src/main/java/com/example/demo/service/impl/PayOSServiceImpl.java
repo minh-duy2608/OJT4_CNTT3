@@ -73,10 +73,10 @@ public class PayOSServiceImpl implements PayOSService {
             return mapToResponse(order, "EXPIRED", null, null);
         }
 
-        // Đảm bảo đơn hàng có expiresAt chuẩn 15 phút
+        // Đảm bảo đơn hàng có expiresAt chuẩn 5 phút
         LocalDateTime now = LocalDateTime.now();
         if (order.getExpiresAt() == null) {
-            order.setExpiresAt(order.getCreatedAt() != null ? order.getCreatedAt().plusMinutes(15) : now.plusMinutes(15));
+            order.setExpiresAt(order.getCreatedAt() != null ? order.getCreatedAt().plusMinutes(5) : now.plusMinutes(5));
         }
 
         // Cập nhật phương thức thanh toán sang PayOS nếu chưa có
@@ -198,7 +198,7 @@ public class PayOSServiceImpl implements PayOSService {
             return mapToResponse(order, "PAID", null, null);
         }
 
-        // 2. Kiểm tra hết hạn 15 phút
+        // 2. Kiểm tra hết hạn 5 phút
         if (order.isExpired() || order.getStatus() == OrderStatus.CANCELLED) {
             if (order.getStatus() != OrderStatus.CANCELLED) {
                 cancelExpiredOrder(order);
@@ -574,7 +574,7 @@ public class PayOSServiceImpl implements PayOSService {
     private void cancelExpiredOrder(Order order) {
         order.setStatus(OrderStatus.CANCELLED);
         order.setCancelledAt(LocalDateTime.now());
-        order.setCancellationReason("Hết thời gian thanh toán (15 phút). Tự động hủy và giải phóng tồn kho.");
+        order.setCancellationReason("Hết thời gian thanh toán (5 phút). Tự động hủy và giải phóng tồn kho.");
 
         // Hoàn lại số lượng đã giữ tạm trong kho
         if (order.getItems() != null && Boolean.TRUE.equals(order.getInventoryReserved())) {
@@ -684,7 +684,7 @@ public class PayOSServiceImpl implements PayOSService {
     }
 
     private Long calculateRemainingSeconds(LocalDateTime expiresAt) {
-        if (expiresAt == null) return 900L; // 15 phút mặc định
+        if (expiresAt == null) return 300L; // 5 phút mặc định
         long diff = Duration.between(LocalDateTime.now(), expiresAt).getSeconds();
         return Math.max(0, diff);
     }

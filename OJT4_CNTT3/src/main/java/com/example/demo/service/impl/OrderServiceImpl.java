@@ -46,8 +46,8 @@ import java.util.Set;
 public class OrderServiceImpl implements OrderService {
 
     public static final BigDecimal MAX_ORDER_AMOUNT_LIMIT = new BigDecimal("500000000"); // Hạn mức tối đa đặt hàng trực tuyến (500 triệu VNĐ)
-    public static final BigDecimal MAX_COD_AMOUNT_LIMIT = new BigDecimal("20000000"); // Hạn mức tối đa thanh toán COD (20 triệu VNĐ)
-    public static final int RESERVATION_EXPIRATION_MINUTES = 15; // Thời gian giữ hàng (Inventory Reservation) tối đa 15 phút
+    public static final BigDecimal MAX_COD_AMOUNT_LIMIT = new BigDecimal("500000000"); // Hạn mức tối đa thanh toán COD / Tiền mặt (500 triệu VNĐ)
+    public static final int RESERVATION_EXPIRATION_MINUTES = 5; // Thời gian giữ hàng và thanh toán chuyển khoản tối đa 5 phút
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String ROLE_ADMIN_STR = "ADMIN";
@@ -253,15 +253,12 @@ public class OrderServiceImpl implements OrderService {
 
     private Long resolveShopId(CreateOrderRequest request) {
         Long resolvedShopId = request.getShopId();
-        if (request.getItems() != null && !request.getItems().isEmpty()) {
+        if (resolvedShopId == null && request.getItems() != null && !request.getItems().isEmpty()) {
             for (CreateOrderItemRequest itemReq : request.getItems()) {
                 Product prod = resolveProductForItem(itemReq);
                 if (prod != null && prod.getShopId() != null) {
-                    if (resolvedShopId == null) {
-                        resolvedShopId = prod.getShopId();
-                    } else if (!resolvedShopId.equals(prod.getShopId())) {
-                        throw new BadRequestException("Đơn hàng chỉ được chứa các sản phẩm thuộc cùng một cửa hàng. Sản phẩm '" + prod.getName() + "' thuộc cửa hàng #" + prod.getShopId() + ", khác với cửa hàng #" + resolvedShopId);
-                    }
+                    resolvedShopId = prod.getShopId();
+                    break;
                 }
             }
         }
@@ -403,13 +400,13 @@ public class OrderServiceImpl implements OrderService {
             return;
         }
 
-        if (totalAmount.compareTo(MAX_ORDER_AMOUNT_LIMIT) > 0) {
-            throw new BadRequestException("Đơn hàng có tổng giá trị (" + formatVndAmount(totalAmount) + ") vượt quá hạn mức tối đa cho phép mua trực tuyến (" + formatVndAmount(MAX_ORDER_AMOUNT_LIMIT) + "). Đối với đơn hàng doanh nghiệp hoặc số lượng lớn (800 triệu - 1 tỷ VNĐ), quý khách vui lòng liên hệ bộ phận Chăm sóc khách hàng hoặc Hotline 1900 6868 để được hỗ trợ báo giá và ký hợp đồng thương mại.");
-        }
-
         boolean isCod = paymentMethod != null && paymentMethod.toUpperCase().contains("COD");
         if (isCod && totalAmount.compareTo(MAX_COD_AMOUNT_LIMIT) > 0) {
-            throw new BadRequestException("Phương thức thanh toán khi nhận hàng (COD) chỉ áp dụng cho đơn hàng có giá trị dưới " + formatVndAmount(MAX_COD_AMOUNT_LIMIT) + ". Với đơn hàng giá trị cao (" + formatVndAmount(totalAmount) + "), quý khách vui lòng chọn Chuyển khoản QR Ngân hàng để đảm bảo an toàn giao dịch.");
+            throw new BadRequestException("Phương thức thanh toán khi nhận hàng (COD) có hạn mức tối đa là " + formatVndAmount(MAX_COD_AMOUNT_LIMIT) + ". Với đơn hàng vượt quá hạn mức (" + formatVndAmount(totalAmount) + "), quý khách vui lòng liên hệ bộ phận Chăm sóc khách hàng hoặc Hotline 1900 6868 để được hỗ trợ báo giá và ký hợp đồng thương mại.");
+        }
+
+        if (totalAmount.compareTo(MAX_ORDER_AMOUNT_LIMIT) > 0) {
+            throw new BadRequestException("Đơn hàng có tổng giá trị (" + formatVndAmount(totalAmount) + ") vượt quá hạn mức tối đa cho phép mua trực tuyến (" + formatVndAmount(MAX_ORDER_AMOUNT_LIMIT) + "). Đối với đơn hàng doanh nghiệp hoặc số lượng lớn (800 triệu - 1 tỷ VNĐ), quý khách vui lòng liên hệ bộ phận Chăm sóc khách hàng hoặc Hotline 1900 6868 để được hỗ trợ báo giá và ký hợp đồng thương mại.");
         }
     }
 
@@ -490,6 +487,15 @@ public class OrderServiceImpl implements OrderService {
         order.setTotalAmount(totalAmount);
 
         Order saved = orderRepository.save(order);
+
+        // Nghiệp vụ: Thanh toán COD (tiền mặt) trừ stock thực tế ngay; Thanh toán chuyển khoản chỉ tạm giữ và chỉ trừ khi thanh toán thành công
+        boolean isCod = order.getPaymentMethod() != null && order.getPaymentMethod().toUpperCase().contains("COD");
+        if (isCod) {
+            confirmInventorySale(saved);
+            saved = orderRepository.save(saved);
+            log.info("COD order #{} placed: physical stock deducted immediately upon creation.", saved.getId());
+        }
+
         log.info("Successfully created order #{} ({}) for user #{}", saved.getId(), saved.getOrderCode(), user.getId());
 
         OrderResponse response = mapToResponse(saved);

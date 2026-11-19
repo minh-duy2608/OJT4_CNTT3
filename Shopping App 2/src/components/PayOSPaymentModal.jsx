@@ -27,7 +27,7 @@ export const PayOSPaymentModal = ({
   const [paymentData, setPaymentData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [remainingSeconds, setRemainingSeconds] = useState(900); // 15 phút
+  const [remainingSeconds, setRemainingSeconds] = useState(300); // 5 phút (giữ hàng & QR)
   const [isExpired, setIsExpired] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [copiedField, setCopiedField] = useState(null);
@@ -361,11 +361,11 @@ export const PayOSPaymentModal = ({
           </div>
         ) : (
           /* =================================================================== */
-          /* VIEW 2: HIỂN THỊ MÃ QR VÀ ĐỒNG HỒ ĐẾM NGƯỢC 15 PHÚT                */
+          /* VIEW 2: HIỂN THỊ MÃ QR VÀ ĐỒNG HỒ ĐẾM NGƯỢC 5 PHÚT                 */
           /* =================================================================== */
           <div className="payos-modal-body">
-            {/* Banner thời gian giữ hàng 15 phút */}
-            <div className={`payos-timer-banner ${remainingSeconds <= 180 ? 'warning' : ''}`}>
+            {/* Banner thời gian giữ hàng 5 phút */}
+            <div className={`payos-timer-banner ${remainingSeconds <= 60 ? 'warning' : ''}`}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Clock size={18} />
                 <span>Thời gian giữ hàng & thanh toán:</span>
@@ -387,13 +387,13 @@ export const PayOSPaymentModal = ({
                 <span>Mở app ngân hàng bất kỳ để quét mã VietQR</span>
               </div>
 
-              {/* Lớp phủ khi quá 15 phút */}
+              {/* Lớp phủ khi quá 5 phút */}
               {isExpired && (
                 <div className="payos-qr-expired-overlay">
                   <AlertTriangle size={36} color="#ef4444" style={{ marginBottom: '8px' }} />
                   <div style={{ fontWeight: 700, color: '#dc2626', fontSize: '1rem' }}>Mã QR đã hết hạn</div>
                   <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px', maxWidth: '240px' }}>
-                    Đã hết 15 phút giữ hàng. Đơn hàng được tự động hủy để giải phóng tồn kho.
+                    Đã hết 5 phút giữ hàng. Đơn hàng được tự động hủy để giải phóng tồn kho.
                   </div>
                 </div>
               )}
@@ -521,7 +521,7 @@ export const PayOSPaymentModal = ({
                   className="payos-btn-action payos-btn-secondary"
                   onClick={onClose}
                 >
-                  Tôi sẽ thanh toán sau (Giữ đơn 15 phút)
+                  Tôi sẽ thanh toán sau (Giữ đơn 5 phút)
                 </button>
               )}
 

@@ -271,10 +271,59 @@
 }
 
 .voucher-card-item.is-disabled {
-  opacity: 0.55;
+  opacity: 0.45;
+  filter: grayscale(0.8);
   cursor: not-allowed;
   background-color: #f8fafc;
   border: 1px dashed #cbd5e1;
+}
+
+.voucher-saved-tag {
+  font-size: 0.65rem;
+  color: #7c3aed;
+  background-color: #f5f3ff;
+  border: 1px solid #ddd6fe;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.voucher-action-btn {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+}
+
+.voucher-action-btn.is-apply {
+  background-color: #2563eb;
+  color: #ffffff;
+  border: 1px solid #1d4ed8;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+}
+
+.voucher-action-btn.is-apply:hover {
+  background-color: #1d4ed8;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
+}
+
+.voucher-action-btn.is-applied {
+  background-color: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.voucher-action-btn.is-disabled-btn {
+  background-color: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+  border: 1px solid #e2e8f0;
 }
 
 .voucher-card-info {

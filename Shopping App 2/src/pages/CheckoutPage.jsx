@@ -149,11 +149,14 @@ export const CheckoutPage = () => {
       setLoadingCoupons(true);
       try {
         const promises = [];
-        if (detectedShopId) {
-          promises.push(couponApi.getShopCoupons(detectedShopId));
-        } else {
-          promises.push(couponApi.getStorefrontCoupons());
-        }
+        // Lấy tất cả shopId của các sản phẩm đang có trong giỏ thanh toán
+        const allShopIds = Array.from(new Set(
+          itemsToCheckout.map((it) => it.shopId || it.shop?.id || it.product?.shopId).filter(Boolean)
+        ));
+        allShopIds.forEach((sId) => {
+          promises.push(couponApi.getShopCoupons(sId));
+        });
+        promises.push(couponApi.getStorefrontCoupons());
         if (isAuthenticated) {
           promises.push(couponApi.getUserWalletCoupons());
         }
@@ -179,11 +182,6 @@ export const CheckoutPage = () => {
           }
         });
 
-        const currentProductIds = itemsToCheckout.map((it) => {
-          const rawId = it.productId || it.product?.id || (typeof it.id === 'string' && it.id.includes('-') ? it.id.split('-')[0] : it.id);
-          return Number(rawId);
-        }).filter(Boolean);
-
         const now = new Date();
         const activeRealCoupons = Array.from(couponMap.values()).filter((c) => {
           // Phải có trạng thái ACTIVE
@@ -200,24 +198,9 @@ export const CheckoutPage = () => {
           if (c.perUserLimit !== null && c.perUserLimit !== undefined && c.userUsageCount !== null && c.userUsageCount !== undefined && c.userUsageCount >= c.perUserLimit) {
             return false;
           }
-          // Nếu coupon quy định cho 1 shop cụ thể và đơn hàng thuộc 1 shop khác
-          if (c.shopId && detectedShopId && Number(c.shopId) !== Number(detectedShopId)) {
-            return false;
-          }
 
-          // Nghiệp vụ cốt lõi: Khi mua sản phẩm chỉ render ra những mã giảm giá thuộc về sản phẩm đó (sản phẩm có thể add mã đó)
-          const isSpecific = c.applicableToAllProducts === false || (Array.isArray(c.productIds) && c.productIds.length > 0);
-          if (isSpecific) {
-            const applicableProductIds = Array.isArray(c.productIds) ? c.productIds.map(Number) : [];
-            if (applicableProductIds.length === 0) {
-              return false; // Mã chỉ định cụ thể nhưng không có sản phẩm nào hợp lệ -> không render
-            }
-            const hasMatchingProduct = currentProductIds.some((pid) => applicableProductIds.includes(pid));
-            if (!hasMatchingProduct) {
-              return false; // Không có sản phẩm nào trong giỏ thanh toán khớp với mã này -> không render
-            }
-          }
-
+          // HIỂN THỊ TOÀN BỘ VOUCHER ĐÃ LƯU: Không filter bỏ các mã của shop khác hay sản phẩm khác
+          // Điều kiện đủ/không đủ điều kiện sẽ được hiển thị sáng/mờ trực quan tại từng thẻ voucher
           return true;
         });
 
@@ -241,7 +224,7 @@ export const CheckoutPage = () => {
     return () => {
       isMounted = false;
     };
-  }, [detectedShopId, isAuthenticated]);
+  }, [itemsToCheckout, isAuthenticated]);
 
   // Form thêm nhanh địa chỉ tại trang Checkout
   const [showQuickAddAddress, setShowQuickAddAddress] = useState(false);
@@ -279,7 +262,7 @@ export const CheckoutPage = () => {
 
   // Hạn mức giao dịch chuẩn sàn Thương mại Điện tử
   const MAX_ONLINE_ORDER_AMOUNT = 500000000; // 500.000.000₫ (500 triệu)
-  const MAX_COD_AMOUNT = 20000000; // 20.000.000₫ (20 triệu)
+  const MAX_COD_AMOUNT = 500000000; // 500.000.000₫ (500 triệu)
 
   // Tự động chuyển phương thức nếu vượt quá hạn mức thanh toán tiền mặt (COD)
   useEffect(() => {
@@ -287,6 +270,73 @@ export const CheckoutPage = () => {
       setPaymentMethod('PAYOS');
     }
   }, [finalTotal, paymentMethod]);
+
+  // Đánh giá điều kiện áp dụng của từng Voucher đối với các sản phẩm đang có trong giỏ
+  // Voucher của sản phẩm/cửa hàng nào thì chỉ discount theo sản phẩm đó
+  const evaluateCouponEligibility = (coupon) => {
+    if (!coupon) return { isEligible: false, eligibleSubtotal: 0, reason: 'Mã không tồn tại' };
+
+    const minOrder = Number(coupon.minOrderAmount || 0);
+
+    // Lọc các sản phẩm trong giỏ thanh toán áp dụng cho mã này
+    const matchingItems = itemsToCheckout.filter((it) => {
+      // 1. Kiểm tra shopId nếu mã chỉ thuộc về 1 cửa hàng
+      if (coupon.shopId) {
+        const itemShopId = it.shopId || it.shop?.id || it.product?.shopId;
+        if (!itemShopId || Number(itemShopId) !== Number(coupon.shopId)) {
+          return false;
+        }
+      }
+
+      // 2. Kiểm tra danh sách sản phẩm nếu mã chỉ định sản phẩm cụ thể
+      const isSpecific = coupon.applicableToAllProducts === false || (Array.isArray(coupon.productIds) && coupon.productIds.length > 0);
+      if (isSpecific) {
+        const applicableProductIds = Array.isArray(coupon.productIds) ? coupon.productIds.map(Number) : [];
+        if (applicableProductIds.length > 0) {
+          const rawId = it.productId || it.product?.id || (typeof it.id === 'string' && it.id.includes('-') ? it.id.split('-')[0] : it.id);
+          const pId = Number(rawId);
+          if (!applicableProductIds.includes(pId)) {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    });
+
+    const hasMatchingProduct = matchingItems.length > 0;
+    const eligibleSubtotal = matchingItems.reduce((sum, it) => {
+      const price = Number(it.price || 0);
+      const qty = Number(it.quantity || 1);
+      return sum + (price * qty);
+    }, 0);
+
+    if (!hasMatchingProduct) {
+      const shopLabel = coupon.shopName ? `Shop "${coupon.shopName}"` : 'sản phẩm áp dụng';
+      return {
+        isEligible: false,
+        eligibleSubtotal: 0,
+        matchingItems: [],
+        reason: `Chỉ áp dụng cho sản phẩm thuộc ${shopLabel}`
+      };
+    }
+
+    if (eligibleSubtotal < minOrder) {
+      return {
+        isEligible: false,
+        eligibleSubtotal,
+        matchingItems,
+        reason: `Đơn cho sản phẩm áp dụng cần tối thiểu ${formatVND(minOrder)} (Thiếu ${formatVND(minOrder - eligibleSubtotal)})`
+      };
+    }
+
+    return {
+      isEligible: true,
+      eligibleSubtotal,
+      matchingItems,
+      reason: minOrder > 0 ? `Đơn tối thiểu ${formatVND(minOrder)}` : 'Đủ điều kiện áp dụng'
+    };
+  };
 
   // Xử lý áp dụng Voucher thực tế qua API Backend (STT 90: POST /coupons/validate)
   const handleApplyVoucher = async (codeToApply) => {
@@ -306,9 +356,11 @@ export const CheckoutPage = () => {
         quantity: it.quantity || 1
       }));
 
+      const matchedCoupon = availableCoupons.find((c) => c.code?.trim().toUpperCase() === code);
+
       const res = await couponApi.validateCoupon({
         code,
-        shopId: detectedShopId || undefined,
+        shopId: matchedCoupon?.shopId || undefined,
         items: itemsPayload
       });
 
@@ -321,7 +373,9 @@ export const CheckoutPage = () => {
           type: 'fixed',
           value: discountVal,
           discountAmount: discountVal,
-          title: res.name ? `${res.name} (-${formatVND(discountVal)})` : `Giảm giá mã ${resolvedCode}`
+          title: res.name ? `${res.name} (-${formatVND(discountVal)})` : `Giảm giá mã ${resolvedCode}`,
+          shopName: matchedCoupon?.shopName || res.shopName,
+          eligibleSubtotal: res.eligibleSubtotal
         });
         setVoucherCodeInput(resolvedCode);
         setVoucherSuccess(res.message || `Đã áp dụng mã giảm giá ${resolvedCode} (-${formatVND(discountVal)})`);
@@ -481,7 +535,11 @@ export const CheckoutPage = () => {
         return;
       }
 
-      showToast('Đặt hàng thành công! Đơn hàng được tạm giữ tồn kho trong 15 phút.', 'success');
+      if (paymentMethod === 'COD') {
+        showToast('Đặt hàng COD thành công! Đơn hàng đã được xác nhận và trừ tồn kho trực tiếp.', 'success');
+      } else {
+        showToast('Đặt hàng thành công! Đơn hàng được tạm giữ tồn kho trong 5 phút.', 'success');
+      }
       navigate('/orders');
     } catch (err) {
       const errMsg = err.message || 'Lỗi đặt hàng';
@@ -839,7 +897,7 @@ export const CheckoutPage = () => {
                     <span>Thanh toán khi nhận hàng (COD)</span>
                     {finalTotal > MAX_COD_AMOUNT && (
                       <span style={{ fontSize: '0.68rem', color: '#dc2626', background: '#fee2e2', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
-                        Tối đa 20tr
+                        Tối đa 500tr
                       </span>
                     )}
                   </div>
@@ -989,8 +1047,7 @@ export const CheckoutPage = () => {
                   ) : (
                     <div className="quick-vouchers-list">
                       {availableCoupons.map((c) => {
-                        const minOrder = Number(c.minOrderAmount || 0);
-                        const isEligible = subtotalToCheckout >= minOrder;
+                        const { isEligible, eligibleSubtotal, reason } = evaluateCouponEligibility(c);
                         const isSelected = appliedVoucher?.code === c.code;
 
                         let discountBadge = '';
@@ -1004,20 +1061,9 @@ export const CheckoutPage = () => {
                         }
 
                         return (
-                          <button
+                          <div
                             key={c.id || c.code}
-                            type="button"
-                            disabled={!isEligible}
-                            className={`voucher-card-item ${isSelected ? 'is-selected' : ''} ${!isEligible ? 'is-disabled' : 'is-eligible'}`}
-                            onClick={() => {
-                              if (!isEligible) return;
-                              if (isSelected) {
-                                handleRemoveVoucher();
-                              } else {
-                                handleApplyVoucher(c.code);
-                              }
-                            }}
-                            title={!isEligible ? `Cần đơn hàng tối thiểu ${formatVND(minOrder)} để áp dụng mã này` : (c.description || c.name || `Mã ${c.code}`)}
+                            className={`voucher-card-item ${isSelected ? 'is-selected' : ''} ${isEligible ? 'is-eligible' : 'is-disabled'}`}
                           >
                             <div className="voucher-card-info">
                               <div className="voucher-card-header">
@@ -1026,29 +1072,44 @@ export const CheckoutPage = () => {
                                 {c.shopName && (
                                   <span className="voucher-shop-tag">{c.shopName}</span>
                                 )}
+                                {c.isSaved && (
+                                  <span className="voucher-saved-tag">Đã lưu trong ví</span>
+                                )}
                               </div>
                               <div className={`voucher-min-text ${!isEligible ? 'is-not-met' : ''}`}>
-                                {minOrder > 0 ? `Đơn tối thiểu ${formatVND(minOrder)}` : 'Áp dụng cho mọi giá trị đơn'}
-                                {!isEligible && ` (Thiếu ${formatVND(minOrder - subtotalToCheckout)})`}
+                                {reason}
                               </div>
                             </div>
 
                             <div className="voucher-card-action">
                               {isSelected ? (
-                                <span className="voucher-applied-tag">
+                                <button
+                                  type="button"
+                                  className="voucher-action-btn is-applied"
+                                  onClick={handleRemoveVoucher}
+                                >
                                   <Check size={13} /> Đã chọn
-                                </span>
+                                </button>
                               ) : isEligible ? (
-                                <span className="voucher-apply-tag">
+                                <button
+                                  type="button"
+                                  className="voucher-action-btn is-apply"
+                                  onClick={() => handleApplyVoucher(c.code)}
+                                >
                                   Áp dụng
-                                </span>
+                                </button>
                               ) : (
-                                <span className="voucher-ineligible-tag">
+                                <button
+                                  type="button"
+                                  disabled
+                                  className="voucher-action-btn is-disabled-btn"
+                                  title={reason}
+                                >
                                   Chưa đủ ĐK
-                                </span>
+                                </button>
                               )}
                             </div>
-                          </button>
+                          </div>
                         );
                       })}
                     </div>

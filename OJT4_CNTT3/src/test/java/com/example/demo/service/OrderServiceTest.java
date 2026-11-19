@@ -487,7 +487,7 @@ class OrderServiceTest extends BaseUnitTest {
     }
 
     @Test
-    @DisplayName("createOrder: creates order and deducts inventory successfully")
+    @DisplayName("createOrder: creates order via Bank transfer and reserves inventory successfully")
     void testCreateOrder_Success() {
         Product product = Product.builder().id(50L).shopId(10L).name("Phone").status(ProductStatus.ACTIVE).build();
         ProductVariant variant = ProductVariant.builder()
@@ -523,7 +523,7 @@ class OrderServiceTest extends BaseUnitTest {
                 .shippingAddress("456 Danang")
                 .shopId(10L)
                 .items(List.of(itemReq))
-                .paymentMethod("COD")
+                .paymentMethod("BANK")
                 .shippingFee(BigDecimal.valueOf(30000))
                 .subtotal(BigDecimal.valueOf(900000))
                 .totalAmount(BigDecimal.valueOf(930000))
@@ -537,6 +537,57 @@ class OrderServiceTest extends BaseUnitTest {
         assertEquals(8, inv.getAvailableQuantity());
         verify(inventoryRepository).save(inv);
         verify(orderRepository).save(any(Order.class));
+    }
+
+    @Test
+    @DisplayName("createOrder: creates COD order and deducts physical inventory immediately")
+    void testCreateOrder_Cod_ImmediateDeduction() {
+        Product product = Product.builder().id(50L).shopId(10L).name("Phone").status(ProductStatus.ACTIVE).build();
+        ProductVariant variant = ProductVariant.builder()
+                .id(200L)
+                .product(product)
+                .variantName("Blue")
+                .sku("SKU-BLUE")
+                .price(BigDecimal.valueOf(500000))
+                .salePrice(BigDecimal.valueOf(450000))
+                .build();
+
+        Inventory inv = Inventory.builder().variantId(200L).quantity(10).reservedQuantity(0).build();
+
+        when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
+        when(shopRepository.findById(10L)).thenReturn(Optional.of(shop));
+        when(productVariantRepository.findById(200L)).thenReturn(Optional.of(variant));
+        when(inventoryRepository.findById(200L)).thenReturn(Optional.of(inv));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+            Order o = invocation.getArgument(0);
+            o.setId(101L);
+            return o;
+        });
+
+        CreateOrderItemRequest itemReq = CreateOrderItemRequest.builder()
+                .variantId(200L)
+                .quantity(2)
+                .price(BigDecimal.valueOf(450000))
+                .build();
+
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .recipientName("Tran Customer")
+                .recipientPhone("0912345678")
+                .shippingAddress("456 Danang")
+                .shopId(10L)
+                .items(List.of(itemReq))
+                .paymentMethod("COD")
+                .shippingFee(BigDecimal.valueOf(30000))
+                .subtotal(BigDecimal.valueOf(900000))
+                .totalAmount(BigDecimal.valueOf(930000))
+                .build();
+
+        OrderResponse res = orderService.createOrder(request, "customer");
+
+        assertNotNull(res);
+        assertEquals(8, inv.getQuantity());
+        assertEquals(0, inv.getReservedQuantity());
+        assertEquals(8, inv.getAvailableQuantity());
     }
 
     @Test
@@ -624,7 +675,7 @@ class OrderServiceTest extends BaseUnitTest {
     }
 
     @Test
-    @DisplayName("createOrder: throws BadRequestException when COD order exceeds 20 million VND limit")
+    @DisplayName("createOrder: throws BadRequestException when COD order exceeds 500 million VND limit")
     void testCreateOrder_CodExceedsMaxCodLimit_ThrowsBadRequestException() {
         Product product = Product.builder().id(50L).shopId(10L).name("Phone").status(ProductStatus.ACTIVE).build();
         ProductVariant variant = ProductVariant.builder()
@@ -632,21 +683,21 @@ class OrderServiceTest extends BaseUnitTest {
                 .product(product)
                 .variantName("Pro")
                 .sku("SKU-PRO")
-                .price(BigDecimal.valueOf(25000000))
-                .salePrice(BigDecimal.valueOf(25000000))
+                .price(BigDecimal.valueOf(60000000))
+                .salePrice(BigDecimal.valueOf(60000000))
                 .build();
 
-        Inventory inv = Inventory.builder().variantId(200L).quantity(10).reservedQuantity(0).build();
+        Inventory inv = Inventory.builder().variantId(200L).quantity(20).reservedQuantity(0).build();
 
         when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customerUser));
         when(shopRepository.findById(10L)).thenReturn(Optional.of(shop));
         when(productVariantRepository.findById(200L)).thenReturn(Optional.of(variant));
         when(inventoryRepository.findById(200L)).thenReturn(Optional.of(inv));
 
-        // 1 unit * 25,000,000 = 25,000,000 VND (> 20M COD limit)
+        // 10 units * 60,000,000 = 600,000,000 VND (> 500M COD limit)
         CreateOrderItemRequest itemReq = CreateOrderItemRequest.builder()
                 .variantId(200L)
-                .quantity(1)
+                .quantity(10)
                 .build();
 
         CreateOrderRequest request = CreateOrderRequest.builder()
@@ -659,7 +710,7 @@ class OrderServiceTest extends BaseUnitTest {
                 () -> orderService.createOrder(request, "customer"));
 
         assertTrue(ex.getMessage().contains("COD"));
-        assertTrue(ex.getMessage().contains("chỉ áp dụng cho đơn hàng có giá trị dưới"));
+        assertTrue(ex.getMessage().contains("hạn mức tối đa"));
     }
 
     @Test
