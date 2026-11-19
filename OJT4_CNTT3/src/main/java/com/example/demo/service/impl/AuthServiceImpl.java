@@ -122,6 +122,14 @@ public class AuthServiceImpl implements AuthService {
                 verificationTokenString
         ));
 
+        // Publish email verification requested event to dispatch OTP email immediately upon registration
+        eventPublisher.publishEvent(new EmailVerificationRequestedEvent(
+                savedUser.getId(),
+                savedUser.getEmail(),
+                savedUser.getFullName(),
+                verificationTokenString
+        ));
+
         log.info("Successfully registered user with id: {}", savedUser.getId());
         return UserResponse.fromEntity(savedUser);
     }

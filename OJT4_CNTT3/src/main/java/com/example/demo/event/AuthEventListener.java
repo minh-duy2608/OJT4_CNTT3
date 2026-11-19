@@ -17,9 +17,6 @@ public class AuthEventListener {
     @EventListener
     public void handleUserRegistered(UserRegisteredEvent event) {
         log.info("[MICROSERVICE EVENT: USER_REGISTERED] User ID: {}, Email: {}", event.getUserId(), event.getEmail());
-        if (event.getVerificationToken() != null) {
-            emailService.sendVerificationOtp(event.getEmail(), event.getFullName(), event.getVerificationToken());
-        }
     }
 
     @EventListener
@@ -33,7 +30,7 @@ public class AuthEventListener {
     @EventListener
     public void handleEmailVerificationRequested(EmailVerificationRequestedEvent event) {
         log.info("[MICROSERVICE EVENT: EMAIL_VERIFICATION_REQUESTED] User ID: {}, Email: {}", event.getUserId(), event.getEmail());
-        if (event.getVerificationToken() != null) {
+        if (event.getVerificationToken() != null && event.getEmail() != null) {
             emailService.sendVerificationOtp(event.getEmail(), event.getFullName(), event.getVerificationToken());
         }
     }
