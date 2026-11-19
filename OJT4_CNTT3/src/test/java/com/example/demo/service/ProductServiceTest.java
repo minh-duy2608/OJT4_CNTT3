@@ -117,7 +117,7 @@ class ProductServiceTest extends BaseUnitTest {
     void getProducts_success() {
         Page<Product> page = new PageImpl<>(List.of(product1));
         when(productRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(page);
-        when(productVariantRepository.findByProductIdAndStatus(100L, ProductVariantStatus.ACTIVE))
+        when(productVariantRepository.findByProductIdOrderByPriceAsc(100L))
                 .thenReturn(List.of(variant1));
         when(productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(100L))
                 .thenReturn(List.of(image1));
@@ -206,7 +206,7 @@ class ProductServiceTest extends BaseUnitTest {
     void searchProducts_success() {
         Page<Product> page = new PageImpl<>(List.of(product1));
         when(productRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(page);
-        when(productVariantRepository.findByProductIdAndStatus(100L, ProductVariantStatus.ACTIVE))
+        when(productVariantRepository.findByProductIdOrderByPriceAsc(100L))
                 .thenReturn(List.of(variant1));
         when(productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(100L))
                 .thenReturn(List.of(image1));
@@ -224,7 +224,7 @@ class ProductServiceTest extends BaseUnitTest {
         when(shopRepository.findById(1L)).thenReturn(Optional.of(Shop.builder().id(1L).name("Cyber Store").build()));
         Page<Product> page = new PageImpl<>(List.of(product1));
         when(productRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(page);
-        when(productVariantRepository.findByProductIdAndStatus(100L, ProductVariantStatus.ACTIVE))
+        when(productVariantRepository.findByProductIdOrderByPriceAsc(100L))
                 .thenReturn(List.of(variant1));
         when(productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(100L))
                 .thenReturn(List.of(image1));
