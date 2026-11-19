@@ -588,6 +588,32 @@
   margin: 0;
 }
 
+.detail-quantity-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.detail-stock-hint {
+  font-size: 0.8125rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.detail-qty-subtotal-badge {
+  font-size: 0.8125rem;
+  color: #2563eb;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
 /* Quantity & Action Buttons */
 .detail-actions-row {
   display: flex;

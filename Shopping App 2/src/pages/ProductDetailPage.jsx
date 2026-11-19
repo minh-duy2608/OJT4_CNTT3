@@ -626,6 +626,31 @@ export const ProductDetailPage = () => {
     }
   }, [stockQuantity]);
 
+  // Xử lý tăng giảm số lượng sản phẩm
+  const handleQuantityDecrease = () => {
+    setQuantity((prev) => Math.max(1, prev - 1));
+  };
+
+  const handleQuantityIncrease = () => {
+    if (stockQuantity > 0 && quantity >= stockQuantity) {
+      showToast(`Rất tiếc, chỉ còn ${stockQuantity} sản phẩm trong kho!`, 'warning');
+      return;
+    }
+    setQuantity((prev) => prev + 1);
+  };
+
+  const handleQuantityInputChange = (e) => {
+    const val = parseInt(e.target.value, 10);
+    if (isNaN(val) || val < 1) {
+      setQuantity(1);
+    } else if (stockQuantity > 0 && val > stockQuantity) {
+      setQuantity(stockQuantity);
+      showToast(`Chỉ có thể chọn tối đa ${stockQuantity} sản phẩm!`, 'warning');
+    } else {
+      setQuantity(val);
+    }
+  };
+
   // Xử lý Thêm vào giỏ hàng trực tiếp từ trang chi tiết (Yêu cầu phải chọn phiên bản & màu sắc)
   const handleAddToCart = () => {
     if (!isAuthenticated) {
@@ -1260,7 +1285,65 @@ export const ProductDetailPage = () => {
           </div>
 
           {/* =================================================================== */}
-          {/* 3. CÔNG NGHỆ & ĐẶC ĐIỂM NỔI BẬT */}
+          {/* 3. CHỌN SỐ LƯỢNG (NẰM DƯỚI PHẦN PHIÊN BẢN & MÀU SẮC)              */}
+          {/* =================================================================== */}
+          <div className="detail-variant-group detail-quantity-group">
+            <span className="variant-label">
+              3. Số lượng:
+            </span>
+            <div className="detail-quantity-selector-row">
+              <div className="detail-quantity-box">
+                <button
+                  type="button"
+                  className="detail-qty-btn"
+                  onClick={handleQuantityDecrease}
+                  disabled={quantity <= 1 || isOutOfStock}
+                  aria-label="Giảm số lượng"
+                >
+                  <Minus size={16} />
+                </button>
+                <input
+                  type="number"
+                  min="1"
+                  max={stockQuantity > 0 ? stockQuantity : 99}
+                  value={quantity}
+                  onChange={handleQuantityInputChange}
+                  disabled={isOutOfStock}
+                  className="detail-qty-input"
+                  aria-label="Số lượng sản phẩm"
+                />
+                <button
+                  type="button"
+                  className="detail-qty-btn"
+                  onClick={handleQuantityIncrease}
+                  disabled={(stockQuantity > 0 && quantity >= stockQuantity) || isOutOfStock}
+                  aria-label="Tăng số lượng"
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+
+              <div className="detail-stock-hint">
+                {isOutOfStock ? (
+                  <span style={{ color: '#ef4444', fontWeight: 600 }}>Tạm hết hàng</span>
+                ) : stockQuantity > 0 ? (
+                  <span>
+                    Còn <strong style={{ color: '#0f172a' }}>{stockQuantity}</strong> sản phẩm có sẵn
+                  </span>
+                ) : (
+                  <span>Sẵn sàng giao</span>
+                )}
+                {quantity > 1 && currentPrice > 0 && (
+                  <span className="detail-qty-subtotal-badge">
+                    (Tổng: <strong>{formatVND(currentPrice * quantity)}</strong>)
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* =================================================================== */}
+          {/* 4. CÔNG NGHỆ & ĐẶC ĐIỂM NỔI BẬT */}
           {/* =================================================================== */}
           {product.shortDescription && (
             <div className="detail-highlights-box">
