@@ -3,6 +3,7 @@ import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   Search,
   X,
+  Menu,
   ShoppingCart,
   User,
   Smartphone,
@@ -54,10 +55,17 @@ export const Header = () => {
   const { totalUnread } = useChat();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAuthDropdown, setShowAuthDropdown] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isWishlistModalOpen, setIsWishlistModalOpen] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Tự động đóng menu trên mobile khi chuyển trang
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    setShowAuthDropdown(false);
+  }, [location.pathname]);
 
   // Shop state & Registration modal
   const [isRegisterShopModalOpen, setIsRegisterShopModalOpen] = useState(false);
@@ -555,9 +563,190 @@ export const Header = () => {
                 </div>
               )}
             </div>
+
+            {/* Nút Hamburger bật/tắt Mobile Navigation trên Điện thoại / Tablet */}
+            <button
+              type="button"
+              className="cyber-mobile-menu-toggle"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label={mobileMenuOpen ? "Đóng menu" : "Mở menu"}
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Menu Drawer trượt mượt mà dành riêng cho Mobile & Tablet */}
+      {mobileMenuOpen && (
+        <div className="cyber-mobile-drawer-backdrop" onClick={() => setMobileMenuOpen(false)}>
+          <div className="cyber-mobile-drawer" onClick={(e) => e.stopPropagation()}>
+            <div className="cyber-mobile-drawer-header">
+              <Link to="/" className="cyber-logo" onClick={() => setMobileMenuOpen(false)}>
+                <CyberIcon />
+                <span>cyber</span>
+              </Link>
+              <button
+                type="button"
+                className="cyber-mobile-drawer-close"
+                onClick={() => setMobileMenuOpen(false)}
+                aria-label="Đóng menu"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="cyber-mobile-drawer-body">
+              <div className="cyber-mobile-nav-group">
+                <span className="cyber-mobile-group-title">ĐIỀU HƯỚNG CHÍNH</span>
+                <NavLink
+                  to="/"
+                  className={({ isActive }) => `cyber-mobile-nav-link ${isActive ? 'active' : ''}`}
+                  onClick={() => setMobileMenuOpen(false)}
+                  end
+                >
+                  Trang chủ
+                </NavLink>
+                <NavLink
+                  to="/products"
+                  className={({ isActive }) => `cyber-mobile-nav-link ${isActive ? 'active' : ''}`}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Tất cả sản phẩm
+                </NavLink>
+                <NavLink
+                  to="/about"
+                  className={({ isActive }) => `cyber-mobile-nav-link ${isActive ? 'active' : ''}`}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Giới thiệu
+                </NavLink>
+                <NavLink
+                  to="/contact"
+                  className={({ isActive }) => `cyber-mobile-nav-link ${isActive ? 'active' : ''}`}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Liên hệ
+                </NavLink>
+              </div>
+
+              {/* Kênh quản trị & Bán hàng */}
+              <div className="cyber-mobile-nav-group">
+                <span className="cyber-mobile-group-title">KÊNH BÁN & QUẢN TRỊ</span>
+                {isAuthenticated && isUserAdmin && (
+                  <NavLink
+                    to="/admin"
+                    className="cyber-mobile-nav-link highlight-admin"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <ShieldCheck size={18} />
+                    Quản trị Hệ Thống
+                  </NavLink>
+                )}
+                {isAuthenticated && isShopManager && !isUserAdmin && (
+                  <NavLink
+                    to="/admin?tab=shops"
+                    className="cyber-mobile-nav-link highlight-seller"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <Store size={18} />
+                    Kênh Người Bán của tôi
+                  </NavLink>
+                )}
+                {(!isAuthenticated || (!isUserAdmin && !isShopManager)) && (
+                  <button
+                    type="button"
+                    className="cyber-mobile-nav-link highlight-register"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      if (!isAuthenticated) {
+                        navigate('/login?redirect=/');
+                      } else {
+                        setIsRegisterShopModalOpen(true);
+                      }
+                    }}
+                  >
+                    <Store size={18} />
+                    Đăng ký mở Shop ngay
+                  </button>
+                )}
+              </div>
+
+              {/* Thông tin tài khoản */}
+              <div className="cyber-mobile-nav-group">
+                <span className="cyber-mobile-group-title">TÀI KHOẢN CỦA BẠN</span>
+                {isAuthenticated && user ? (
+                  <>
+                    <NavLink
+                      to="/profile"
+                      className="cyber-mobile-nav-link"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <User size={18} />
+                      Tài khoản ({user.name})
+                    </NavLink>
+                    <NavLink
+                      to="/orders"
+                      className="cyber-mobile-nav-link"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <Package size={18} />
+                      Đơn hàng của tôi
+                    </NavLink>
+                    <NavLink
+                      to="/cart"
+                      className="cyber-mobile-nav-link"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <ShoppingCart size={18} />
+                      Giỏ hàng ({cartCount})
+                    </NavLink>
+                    <NavLink
+                      to={isUserAdmin || isShopManager ? "/admin?tab=messages" : "/chat"}
+                      className="cyber-mobile-nav-link"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <MessageCircle size={18} />
+                      Tin nhắn {totalUnread > 0 && `(${totalUnread} mới)`}
+                    </NavLink>
+                    <button
+                      type="button"
+                      className="cyber-mobile-nav-link danger"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        logout();
+                      }}
+                    >
+                      <LogOut size={18} />
+                      Đăng xuất
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <NavLink
+                      to="/auth?mode=login"
+                      className="cyber-mobile-nav-link"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <User size={18} />
+                      Đăng nhập
+                    </NavLink>
+                    <NavLink
+                      to="/auth?mode=register"
+                      className="cyber-mobile-nav-link"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <Package size={18} />
+                      Đăng ký tài khoản
+                    </NavLink>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal danh sách yêu thích cho Khách hàng (STT 79-82) */}
       <WishlistModal

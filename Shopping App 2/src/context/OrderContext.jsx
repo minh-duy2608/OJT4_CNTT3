@@ -219,8 +219,10 @@ export const OrderProvider = ({ children }) => {
 
     const newOrder = {
       ...orderData,
-      id: createdBackendOrder?.orderCode || `CYBER-${Math.floor(10000 + Math.random() * 90000)}`,
-      backendId: createdBackendOrder?.id || null,
+      id: createdBackendOrder?.orderCode || (typeof createdBackendOrder?.id === 'number' ? createdBackendOrder.id : null) || `CYBER-${Math.floor(10000 + Math.random() * 90000)}`,
+      backendId: createdBackendOrder?.id || createdBackendOrder?.orderId || (typeof createdBackendOrder?.data?.id === 'number' ? createdBackendOrder.data.id : null),
+      orderId: createdBackendOrder?.id || createdBackendOrder?.orderId || null,
+      orderCode: createdBackendOrder?.orderCode || null,
       createdAt: createdBackendOrder?.createdAt || new Date().toISOString(),
       status: 'pending' // Luôn bắt đầu ở trạng thái "Chờ xác nhận"
     };

@@ -335,5 +335,13 @@
 
   .cyber-modal-footer {
     padding: 0.85rem 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .cyber-modal-btn {
+    flex: 1;
+    min-width: 120px;
+    padding: 0.65rem 1rem;
   }
 }

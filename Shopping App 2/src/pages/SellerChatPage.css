@@ -676,17 +676,73 @@
   line-height: 1.5;
 }
 
+.chat-mobile-back-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-color, #0f172a);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  margin-right: 6px;
+  transition: background-color 0.15s;
+}
+
+.chat-mobile-back-btn:hover {
+  background-color: var(--bg-color, #f1f5f9);
+}
+
 /* ─── Responsive Media Queries ─── */
 @media (max-width: 768px) {
-  .seller-chat-sidebar {
-    width: 100%;
-    border-right: none;
+  .chat-mobile-back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .seller-chat-container {
+    height: calc(100vh - 120px);
+    margin: 0.5rem auto;
+    border-radius: 10px;
+    position: relative;
+  }
+
+  .seller-chat-sidebar {
+    width: 100%;
+    height: 100%;
+    border-right: none;
+    display: flex;
+  }
+
+  .seller-chat-main {
+    display: none;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Khi đã chọn 1 hội thoại: Ẩn danh sách, bung toàn màn hình khung chat */
+  .seller-chat-container.has-selected-room .seller-chat-sidebar {
+    display: none;
+  }
+
+  .seller-chat-container.has-selected-room .seller-chat-main {
+    display: flex;
     flex-direction: column;
-    height: auto;
-    min-height: 500px;
+  }
+
+  .chat-partner-profile {
+    gap: 8px;
+  }
+
+  .partner-header-avatar,
+  .partner-header-placeholder {
+    width: 34px;
+    height: 34px;
+  }
+
+  .chat-bubble {
+    max-width: 85%;
+    font-size: 0.875rem;
   }
 }
 

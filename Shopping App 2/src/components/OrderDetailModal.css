@@ -451,8 +451,37 @@
 }
 
 @media (max-width: 640px) {
+  .order-detail-backdrop {
+    padding: 0.5rem;
+  }
+
+  .order-detail-card {
+    max-height: 94vh;
+    border-radius: 12px;
+  }
+
+  .order-detail-header {
+    padding: 0.85rem 1rem;
+  }
+
+  .order-detail-body {
+    padding: 1rem 0.85rem;
+  }
+
+  .order-detail-footer {
+    padding: 0.75rem 1rem;
+    flex-direction: column-reverse;
+  }
+
+  .btn-detail-secondary,
+  .btn-detail-primary {
+    width: 100%;
+    justify-content: center;
+  }
+
   .order-detail-info-grid {
     grid-template-columns: 1fr;
+    gap: 0.75rem;
   }
 }
 

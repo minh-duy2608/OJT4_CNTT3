@@ -700,4 +700,59 @@ input[type="submit"]:active {
   opacity: 0.95;
 }
 
+/* ==========================================================================
+   Global Responsive Breakpoints for Mobile Phones & Tablets
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  :root {
+    --max-width: 100%;
+  }
+
+  .container {
+    padding: 0 0.85rem;
+  }
+
+  /* Typography scaling */
+  h1, .page-title {
+    font-size: 1.75rem !important;
+  }
+
+  h2 {
+    font-size: 1.35rem !important;
+  }
+
+  /* Touch-friendly buttons */
+  button:not(.cyber-modal-close-icon-btn):not(.chat-mobile-back-btn):not(.cart-mobile-qty-btn):not(.category-pill-btn),
+  .btn {
+    min-height: 40px;
+  }
+
+  /* Prevents auto-zoom on iOS Safari when focusing form inputs */
+  input[type="text"],
+  input[type="password"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="number"],
+  select,
+  textarea,
+  .form-input {
+    font-size: 16px !important;
+  }
+
+  .form-group {
+    margin-bottom: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 0 0.65rem;
+  }
+
+  img {
+    max-width: 100%;
+  }
+}
+
 

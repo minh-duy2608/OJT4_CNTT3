@@ -59,16 +59,43 @@ export const CheckoutPage = () => {
 
   const isBuyNowMode = Boolean(buyNowItem);
 
+  // Phương thức thanh toán: COD hoặc PAYOS (VietQR)
+  const [paymentMethod, setPaymentMethod] = useState('PAYOS');
+  const [payOSModalOpen, setPayOSModalOpen] = useState(false);
+  const [activePayOSOrderId, setActivePayOSOrderId] = useState(null);
+  const [orderNotes, setOrderNotes] = useState('');
+  const [checkoutError, setCheckoutError] = useState('');
+
+  // Lưu snapshot sản phẩm và tổng tiền thanh toán để không bị reset khi giỏ hàng được clear sau khi tạo đơn
+  const [checkoutSessionItems, setCheckoutSessionItems] = useState(() => {
+    if (isBuyNowMode) return [buyNowItem];
+    return selectedItems && selectedItems.length > 0 ? selectedItems : [];
+  });
+  const [checkoutSessionSubtotal, setCheckoutSessionSubtotal] = useState(() => {
+    if (isBuyNowMode) return Number(buyNowItem?.price || 0) * Number(buyNowItem?.quantity || 1);
+    return selectedTotal;
+  });
+
+  // Chỉ đồng bộ lại nếu chưa tạo đơn và chưa mở modal thanh toán PayOS
+  useEffect(() => {
+    if (!payOSModalOpen && !activePayOSOrderId && !isBuyNowMode) {
+      if (selectedItems && selectedItems.length > 0) {
+        setCheckoutSessionItems(selectedItems);
+        setCheckoutSessionSubtotal(selectedTotal);
+      }
+    }
+  }, [selectedItems, selectedTotal, payOSModalOpen, activePayOSOrderId, isBuyNowMode]);
+
   // PHÂN BIỆT RÕ RÀNG:
   // - Nếu Mua ngay từ trang chi tiết: CHỈ thanh toán DUY NHẤT 1 sản phẩm buyNowItem, KHÔNG ảnh hưởng giỏ hàng
   // - Nếu từ Giỏ hàng: Chỉ thanh toán các sản phẩm ĐƯỢC CHỌN (selectedItems)
   const itemsToCheckout = isBuyNowMode
     ? [buyNowItem]
-    : selectedItems;
+    : (checkoutSessionItems.length > 0 ? checkoutSessionItems : selectedItems);
 
   const subtotalToCheckout = isBuyNowMode
     ? Number(buyNowItem.price || 0) * Number(buyNowItem.quantity || 1)
-    : selectedTotal;
+    : (checkoutSessionSubtotal > 0 ? checkoutSessionSubtotal : selectedTotal);
 
   // Model Box xác nhận đặt hàng
   const [showConfirmOrderModal, setShowConfirmOrderModal] = useState(false);
@@ -95,12 +122,7 @@ export const CheckoutPage = () => {
     }
   }, [addresses, selectedAddressId]);
 
-  // Phương thức thanh toán: COD hoặc PAYOS (VietQR)
-  const [paymentMethod, setPaymentMethod] = useState('PAYOS');
-  const [payOSModalOpen, setPayOSModalOpen] = useState(false);
-  const [activePayOSOrderId, setActivePayOSOrderId] = useState(null);
-  const [orderNotes, setOrderNotes] = useState('');
-  const [checkoutError, setCheckoutError] = useState('');
+
 
   // Tự động nhận diện Shop ID từ các sản phẩm đang được thanh toán
   const detectedShopId = useMemo(() => {
@@ -450,8 +472,11 @@ export const CheckoutPage = () => {
         } catch { }
       }
 
-      if (paymentMethod === 'PAYOS' && newOrder?.backendId) {
-        setActivePayOSOrderId(newOrder.backendId);
+      const payOSOrderId = newOrder?.backendId || newOrder?.orderId || (typeof newOrder?.id === 'number' ? newOrder.id : null);
+      const isPayOS = paymentMethod === 'PAYOS' || String(paymentMethod).toUpperCase().includes('PAYOS') || String(paymentMethod).toUpperCase().includes('VIETQR');
+
+      if (isPayOS && payOSOrderId) {
+        setActivePayOSOrderId(payOSOrderId);
         setPayOSModalOpen(true);
         return;
       }
@@ -471,7 +496,7 @@ export const CheckoutPage = () => {
     return null;
   }
 
-  if (itemsToCheckout.length === 0) {
+  if (itemsToCheckout.length === 0 && !payOSModalOpen && !activePayOSOrderId) {
     return (
       <div className="container" style={{ padding: '5rem 0', textAlign: 'center' }}>
         <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '1rem' }}>Chưa chọn sản phẩm nào để thanh toán</h2>

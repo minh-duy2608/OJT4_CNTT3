@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { formatVND } from '../data/products';
 import { Trash2, ShoppingBag, ArrowRight, Lock, CreditCard } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
+import './CartPage.css';
 
 export const CartPage = () => {
   const { 
@@ -91,12 +92,12 @@ export const CartPage = () => {
   }
 
   return (
-    <section className="container cart-page" style={{ padding: '3rem 0 5rem' }}>
-      <header className="page-header" style={{ marginBottom: '2rem' }}>
-        <h1 className="page-title" style={{ fontSize: '2rem', fontWeight: 800 }}>
+    <section className="container cart-page cart-page-wrapper">
+      <header className="page-header cart-header">
+        <h1 className="page-title cart-title">
           Giỏ hàng của {user.name}
         </h1>
-        <p style={{ color: '#71717a' }}>Bạn đang có {cartCount} sản phẩm trong giỏ hàng.</p>
+        <p className="cart-subtitle">Bạn đang có {cartCount} sản phẩm trong giỏ hàng.</p>
       </header>
 
       {cartItems.length === 0 ? (
@@ -112,171 +113,292 @@ export const CartPage = () => {
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem' }}>
-          <div className="card" style={{ padding: '2rem' }}>
-            <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.875rem' }}>
-                  <th style={{ paddingBottom: '0.75rem', width: '44px', textAlign: 'center' }}>
-                    <input 
-                      type="checkbox"
-                      checked={isAllSelected}
-                      onChange={(e) => {
-                        if (e.target.checked) selectAllItems();
-                        else deselectAllItems();
-                      }}
-                      style={{ width: '18px', height: '18px', accentColor: '#000000', cursor: 'pointer', verticalAlign: 'middle' }}
-                      title={isAllSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
-                    />
-                  </th>
-                  <th style={{ paddingBottom: '0.75rem' }}>
-                    <span 
-                      style={{ cursor: 'pointer', userSelect: 'none', fontWeight: 700, color: '#18181b' }}
-                      onClick={() => isAllSelected ? deselectAllItems() : selectAllItems()}
-                    >
-                      Sản phẩm ({selectedCount}/{cartCount} đã chọn)
-                    </span>
-                  </th>
-                  <th style={{ paddingBottom: '0.75rem' }}>Đơn giá</th>
-                  <th style={{ paddingBottom: '0.75rem' }}>Số lượng</th>
-                  <th style={{ paddingBottom: '0.75rem' }}>Tạm tính</th>
-                  <th style={{ paddingBottom: '0.75rem' }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {cartItems.map((item) => {
-                  const isSelected = selectedItemIds.includes(item.id);
-                  const isItemOutOfStock = item.inStock === false || item.stockQuantity === 0 || (item.availableQuantity !== undefined && item.availableQuantity <= 0);
-                  const maxStock = item.availableQuantity ?? item.stockQuantity;
-                  const canIncrease = !isItemOutOfStock && (maxStock === undefined || maxStock === null || item.quantity < maxStock);
-                  return (
-                    <tr 
-                      key={item.id} 
-                      style={{ 
-                        borderBottom: '1px solid #f1f5f9',
-                        backgroundColor: isSelected ? 'rgba(0, 0, 0, 0.015)' : 'transparent',
-                        opacity: isItemOutOfStock ? 0.45 : (isSelected ? 1 : 0.7),
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <td style={{ padding: '1.25rem 0', textAlign: 'center' }}>
-                        <input 
+          <div className="card" style={{ padding: '1.5rem' }}>
+            {/* 1. GIAO DIỆN BẢNG DÀNH CHO MÀN HÌNH DESKTOP / TABLET LỚN (>= 769px) */}
+            <div className="cart-desktop-view">
+              <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.875rem' }}>
+                    <th style={{ paddingBottom: '0.75rem', width: '44px', textAlign: 'center' }}>
+                      <input 
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={(e) => {
+                          if (e.target.checked) selectAllItems();
+                          else deselectAllItems();
+                        }}
+                        style={{ width: '18px', height: '18px', accentColor: '#000000', cursor: 'pointer', verticalAlign: 'middle' }}
+                        title={isAllSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                      />
+                    </th>
+                    <th style={{ paddingBottom: '0.75rem' }}>
+                      <span 
+                        style={{ cursor: 'pointer', userSelect: 'none', fontWeight: 700, color: '#18181b' }}
+                        onClick={() => isAllSelected ? deselectAllItems() : selectAllItems()}
+                      >
+                        Sản phẩm ({selectedCount}/{cartCount} đã chọn)
+                      </span>
+                    </th>
+                    <th style={{ paddingBottom: '0.75rem' }}>Đơn giá</th>
+                    <th style={{ paddingBottom: '0.75rem' }}>Số lượng</th>
+                    <th style={{ paddingBottom: '0.75rem' }}>Tạm tính</th>
+                    <th style={{ paddingBottom: '0.75rem' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cartItems.map((item) => {
+                    const isSelected = selectedItemIds.includes(item.id);
+                    const isItemOutOfStock = item.inStock === false || item.stockQuantity === 0 || (item.availableQuantity !== undefined && item.availableQuantity <= 0);
+                    const maxStock = item.availableQuantity ?? item.stockQuantity;
+                    const canIncrease = !isItemOutOfStock && (maxStock === undefined || maxStock === null || item.quantity < maxStock);
+
+                    return (
+                      <tr 
+                        key={item.id} 
+                        style={{ 
+                          borderBottom: '1px solid #f1f5f9',
+                          backgroundColor: isSelected ? 'rgba(0, 0, 0, 0.015)' : 'transparent',
+                          opacity: isItemOutOfStock ? 0.45 : (isSelected ? 1 : 0.7),
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <td style={{ padding: '1.25rem 0', textAlign: 'center' }}>
+                          <input 
+                            type="checkbox"
+                            checked={isSelected && !isItemOutOfStock}
+                            disabled={isItemOutOfStock}
+                            onChange={() => toggleSelectItem(item.id)}
+                            style={{ width: '18px', height: '18px', accentColor: '#000000', cursor: isItemOutOfStock ? 'not-allowed' : 'pointer', verticalAlign: 'middle', opacity: isItemOutOfStock ? 0.35 : 1 }}
+                            aria-label={`Chọn sản phẩm ${item.name} để thanh toán`}
+                            title={isItemOutOfStock ? 'Sản phẩm đã hết hàng trong kho, không thể chọn thanh toán' : ''}
+                          />
+                        </td>
+                        <td style={{ padding: '1.25rem 0', fontWeight: 600 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            {item.image && (
+                              <img 
+                                src={item.image} 
+                                alt={item.name} 
+                                style={{ width: '48px', height: '48px', objectFit: 'contain', filter: isItemOutOfStock ? 'grayscale(40%)' : 'none' }} 
+                              />
+                            )}
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                <span style={{ color: isItemOutOfStock ? '#71717a' : (isSelected ? '#000000' : '#71717a') }}>{item.name}</span>
+                                {isItemOutOfStock && (
+                                  <span style={{ background: '#fee2e2', color: '#dc2626', fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', border: '1px solid #fecaca' }}>
+                                    Hết hàng
+                                  </span>
+                                )}
+                              </div>
+                              {item.selectedStorage && (
+                                <span style={{ fontSize: '0.75rem', color: '#71717a' }}>
+                                  {item.selectedColor} • {item.selectedStorage}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ padding: '1.25rem 0' }}>{formatVND(item.price)}</td>
+                        <td style={{ padding: '1.25rem 0' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleDecreaseQuantity(item)}
+                                style={{ 
+                                  padding: '2px 8px', 
+                                  border: '1px solid #cbd5e1', 
+                                  borderRadius: '4px', 
+                                  cursor: item.quantity <= 1 ? 'not-allowed' : 'pointer',
+                                  opacity: item.quantity <= 1 ? 0.45 : 1,
+                                  backgroundColor: item.quantity <= 1 ? '#f8fafc' : 'transparent',
+                                  userSelect: 'none'
+                                }}
+                                title={item.quantity <= 1 ? 'Số lượng tối thiểu là 1' : 'Giảm số lượng'}
+                              >
+                                -
+                              </button>
+                              <span style={{ minWidth: '24px', textAlign: 'center', fontWeight: 600 }}>{item.quantity}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleIncreaseQuantity(item)}
+                                style={{ 
+                                  padding: '2px 8px', 
+                                  border: '1px solid #cbd5e1', 
+                                  borderRadius: '4px', 
+                                  cursor: canIncrease ? 'pointer' : 'not-allowed',
+                                  opacity: canIncrease ? 1 : 0.45,
+                                  backgroundColor: canIncrease ? 'transparent' : '#f1f5f9',
+                                  userSelect: 'none'
+                                }}
+                                title={isItemOutOfStock ? 'Sản phẩm đã hết hàng trong kho' : (!canIncrease ? `Đã đạt giới hạn tồn kho (${maxStock})` : 'Tăng số lượng')}
+                              >
+                                +
+                              </button>
+                            </div>
+                            {maxStock !== undefined && maxStock !== null && (
+                              <div style={{ fontSize: '0.72rem', color: isItemOutOfStock ? '#dc2626' : (!canIncrease ? '#ea580c' : '#64748b'), fontWeight: 500 }}>
+                                {isItemOutOfStock 
+                                  ? 'Hết hàng trong kho' 
+                                  : (!canIncrease 
+                                      ? `Đã đạt tối đa (${maxStock} trong kho)` 
+                                      : `Còn ${maxStock} sản phẩm`)}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ padding: '1.25rem 0' }}>
+                          {isItemOutOfStock ? (
+                            <div>
+                              <div style={{ fontWeight: 700, color: '#94a3b8', textDecoration: 'line-through' }}>
+                                {formatVND((item.price || 0) * item.quantity)}
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: 600, marginTop: '2px' }}>
+                                (Hết hàng • Không tính tiền)
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ fontWeight: 700, color: '#000000' }}>
+                              {formatVND((item.price || 0) * item.quantity)}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '1.25rem 0', textAlign: 'right' }}>
+                          <button
+                            type="button"
+                            onClick={() => setItemToDelete(item)}
+                            style={{ color: '#ef4444', border: 'none', background: 'none', cursor: 'pointer' }}
+                            aria-label="Xóa sản phẩm"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* 2. GIAO DIỆN THẺ CARD TỐI ƯU CỰC ĐẸP TRÊN ĐIỆN THOẠI & TABLET (< 769px) */}
+            <div className="cart-mobile-view">
+              {/* Thanh chọn tất cả trên Mobile */}
+              <div className="cart-mobile-select-all-bar">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={isAllSelected}
+                    onChange={(e) => {
+                      if (e.target.checked) selectAllItems();
+                      else deselectAllItems();
+                    }}
+                    style={{ width: '18px', height: '18px', accentColor: '#000000' }}
+                  />
+                  <span>Chọn tất cả ({selectedCount}/{cartCount})</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowClearCartConfirmModal(true)}
+                  style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8125rem', fontWeight: 600 }}
+                >
+                  Xóa tất cả
+                </button>
+              </div>
+
+              {/* Danh sách từng sản phẩm dưới dạng Card cảm ứng */}
+              {cartItems.map((item) => {
+                const isSelected = selectedItemIds.includes(item.id);
+                const isItemOutOfStock = item.inStock === false || item.stockQuantity === 0 || (item.availableQuantity !== undefined && item.availableQuantity <= 0);
+                const maxStock = item.availableQuantity ?? item.stockQuantity;
+                const canIncrease = !isItemOutOfStock && (maxStock === undefined || maxStock === null || item.quantity < maxStock);
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`cart-mobile-card-item ${isSelected ? 'is-selected' : ''} ${isItemOutOfStock ? 'is-out-of-stock' : ''}`}
+                  >
+                    <div className="cart-mobile-card-top">
+                      <div className="cart-mobile-checkbox-wrap">
+                        <input
                           type="checkbox"
                           checked={isSelected && !isItemOutOfStock}
                           disabled={isItemOutOfStock}
                           onChange={() => toggleSelectItem(item.id)}
-                          style={{ width: '18px', height: '18px', accentColor: '#000000', cursor: isItemOutOfStock ? 'not-allowed' : 'pointer', verticalAlign: 'middle', opacity: isItemOutOfStock ? 0.35 : 1 }}
-                          aria-label={`Chọn sản phẩm ${item.name} để thanh toán`}
-                          title={isItemOutOfStock ? 'Sản phẩm đã hết hàng trong kho, không thể chọn thanh toán' : ''}
+                          style={{ width: '20px', height: '20px', accentColor: '#000000', cursor: isItemOutOfStock ? 'not-allowed' : 'pointer' }}
                         />
-                      </td>
-                      <td style={{ padding: '1.25rem 0', fontWeight: 600 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                          {item.image && (
-                            <img 
-                              src={item.image} 
-                              alt={item.name} 
-                              style={{ width: '48px', height: '48px', objectFit: 'contain', filter: isItemOutOfStock ? 'grayscale(40%)' : 'none' }} 
-                            />
-                          )}
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                              <span style={{ color: isItemOutOfStock ? '#71717a' : (isSelected ? '#000000' : '#71717a') }}>{item.name}</span>
-                              {isItemOutOfStock && (
-                                <span style={{ background: '#fee2e2', color: '#dc2626', fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', border: '1px solid #fecaca' }}>
-                                  Hết hàng
-                                </span>
-                              )}
-                            </div>
-                            {item.selectedStorage && (
-                              <span style={{ fontSize: '0.75rem', color: '#71717a' }}>
-                                {item.selectedColor} • {item.selectedStorage}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td style={{ padding: '1.25rem 0' }}>{formatVND(item.price)}</td>
-                      <td style={{ padding: '1.25rem 0' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <button
-                              type="button"
-                              onClick={() => handleDecreaseQuantity(item)}
-                              style={{ 
-                                padding: '2px 8px', 
-                                border: '1px solid #cbd5e1', 
-                                borderRadius: '4px', 
-                                cursor: item.quantity <= 1 ? 'not-allowed' : 'pointer',
-                                opacity: item.quantity <= 1 ? 0.45 : 1,
-                                backgroundColor: item.quantity <= 1 ? '#f8fafc' : 'transparent',
-                                userSelect: 'none'
-                              }}
-                              title={item.quantity <= 1 ? 'Số lượng tối thiểu là 1' : 'Giảm số lượng'}
-                            >
-                              -
-                            </button>
-                            <span style={{ minWidth: '24px', textAlign: 'center', fontWeight: 600 }}>{item.quantity}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleIncreaseQuantity(item)}
-                              style={{ 
-                                padding: '2px 8px', 
-                                border: '1px solid #cbd5e1', 
-                                borderRadius: '4px', 
-                                cursor: canIncrease ? 'pointer' : 'not-allowed',
-                                opacity: canIncrease ? 1 : 0.45,
-                                backgroundColor: canIncrease ? 'transparent' : '#f1f5f9',
-                                userSelect: 'none'
-                              }}
-                              title={isItemOutOfStock ? 'Sản phẩm đã hết hàng trong kho' : (!canIncrease ? `Đã đạt giới hạn tồn kho (${maxStock})` : 'Tăng số lượng')}
-                            >
-                              +
-                            </button>
-                          </div>
-                          {maxStock !== undefined && maxStock !== null && (
-                            <div style={{ fontSize: '0.72rem', color: isItemOutOfStock ? '#dc2626' : (!canIncrease ? '#ea580c' : '#64748b'), fontWeight: 500 }}>
-                              {isItemOutOfStock 
-                                ? 'Hết hàng trong kho' 
-                                : (!canIncrease 
-                                    ? `Đã đạt tối đa (${maxStock} trong kho)` 
-                                    : `Còn ${maxStock} sản phẩm`)}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td style={{ padding: '1.25rem 0' }}>
-                        {isItemOutOfStock ? (
-                          <div>
-                            <div style={{ fontWeight: 700, color: '#94a3b8', textDecoration: 'line-through' }}>
-                              {formatVND((item.price || 0) * item.quantity)}
-                            </div>
-                            <div style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: 600, marginTop: '2px' }}>
-                              (Hết hàng • Không tính tiền)
-                            </div>
-                          </div>
-                        ) : (
-                          <div style={{ fontWeight: 700, color: '#000000' }}>
-                            {formatVND((item.price || 0) * item.quantity)}
+                      </div>
+                      {item.image && (
+                        <img src={item.image} alt={item.name} className="cart-mobile-thumb" />
+                      )}
+                      <div className="cart-mobile-card-info">
+                        <div className="cart-mobile-item-name">{item.name}</div>
+                        {item.selectedStorage && (
+                          <div className="cart-mobile-variant-tag">
+                            {item.selectedColor} • {item.selectedStorage}
                           </div>
                         )}
-                      </td>
-                      <td style={{ padding: '1.25rem 0', textAlign: 'right' }}>
+                        <div className="cart-mobile-item-price">
+                          {formatVND(item.price)}
+                        </div>
+                        {isItemOutOfStock && (
+                          <span style={{ display: 'inline-block', background: '#fee2e2', color: '#dc2626', fontSize: '0.7rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', marginTop: '2px' }}>
+                            Hết hàng trong kho
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setItemToDelete(item)}
+                        style={{ color: '#ef4444', border: 'none', background: 'none', padding: '4px', cursor: 'pointer' }}
+                        aria-label="Xóa sản phẩm"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+
+                    <div className="cart-mobile-card-bottom">
+                      <div className="cart-mobile-qty-stepper">
                         <button
                           type="button"
-                          onClick={() => setItemToDelete(item)}
-                          style={{ color: '#ef4444', border: 'none', background: 'none', cursor: 'pointer' }}
-                          aria-label="Xóa sản phẩm"
+                          className="cart-mobile-qty-btn"
+                          onClick={() => handleDecreaseQuantity(item)}
+                          disabled={item.quantity <= 1}
                         >
-                          <Trash2 size={18} />
+                          -
                         </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        <span className="cart-mobile-qty-val">{item.quantity}</span>
+                        <button
+                          type="button"
+                          className="cart-mobile-qty-btn"
+                          onClick={() => handleIncreaseQuantity(item)}
+                          disabled={!canIncrease}
+                        >
+                          +
+                        </button>
+                        {maxStock !== undefined && maxStock !== null && !isItemOutOfStock && (
+                          <span style={{ fontSize: '0.7rem', color: '#64748b', marginLeft: '4px' }}>
+                            (Còn {maxStock})
+                          </span>
+                        )}
+                      </div>
+                      <div className="cart-mobile-subtotal">
+                        {isItemOutOfStock ? (
+                          <span style={{ color: '#94a3b8', textDecoration: 'line-through' }}>
+                            {formatVND((item.price || 0) * item.quantity)}
+                          </span>
+                        ) : (
+                          formatVND((item.price || 0) * item.quantity)
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #e2e8f0', flexWrap: 'wrap', gap: '1rem' }}>
+            {/* THANH TỔNG TIỀN & NÚT TIẾN HÀNH THANH TOÁN (STICKY TRÊN MOBILE) */}
+            <div className="cart-summary-section">
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <button
                   type="button"
@@ -314,7 +436,7 @@ export const CartPage = () => {
                 )}
                 <button
                   type="button"
-                  className="btn"
+                  className="btn cart-checkout-btn-mobile"
                   disabled={selectedCount === 0 || selectedTotal > MAX_ONLINE_ORDER_AMOUNT}
                   onClick={() => {
                     if (selectedTotal > MAX_ONLINE_ORDER_AMOUNT) {
