@@ -6,12 +6,6 @@ import {
   Menu,
   ShoppingCart,
   User,
-  Smartphone,
-  Laptop,
-  Watch,
-  Camera,
-  Headphones,
-  Gamepad2,
   LogOut,
   ChevronDown,
   Package,
@@ -23,7 +17,6 @@ import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useChat } from '../context/ChatContext';
 import { productApi } from '../services/productApi';
-import { shopApi } from '../services/shopApi';
 import { formatVND } from '../data/products';
 import { RegisterShopModal } from './RegisterShopModal';
 import { WishlistModal } from './WishlistModal';
@@ -69,7 +62,6 @@ export const Header = () => {
 
   // Shop state & Registration modal
   const [isRegisterShopModalOpen, setIsRegisterShopModalOpen] = useState(false);
-  const [myShop, setMyShop] = useState(null);
 
   // State tìm kiếm gợi ý tức thì (Live Search Typeahead - STT 43: GET /products/search)
   const [searchSuggestions, setSearchSuggestions] = useState([]);
@@ -155,21 +147,6 @@ export const Header = () => {
     }
     return false;
   }, [user]);
-
-  // Lấy thông tin Shop của user hiện tại nếu đã có
-  useEffect(() => {
-    if (isAuthenticated) {
-      shopApi.getMyShop()
-        .then((res) => {
-          if (res?.data) {
-            setMyShop(res.data);
-          }
-        })
-        .catch(() => { });
-    } else {
-      setMyShop(null);
-    }
-  }, [isAuthenticated, user?.role]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -336,20 +313,6 @@ export const Header = () => {
                   >
                     <ShieldCheck size={16} />
                     Quản trị Hệ Thống
-                  </NavLink>
-                </li>
-              )}
-
-              {/* Nếu là Shop Manager (không phải admin): Hiện Kênh Người Bán */}
-              {isAuthenticated && isShopManager && !isUserAdmin && (
-                <li>
-                  <NavLink
-                    to="/admin?tab=shops"
-                    className="cyber-nav-link"
-                    style={{ color: '#059669', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
-                  >
-                    <Store size={16} />
-                    Kênh Người Bán
                   </NavLink>
                 </li>
               )}
@@ -758,9 +721,8 @@ export const Header = () => {
       <RegisterShopModal
         isOpen={isRegisterShopModalOpen}
         onClose={() => setIsRegisterShopModalOpen(false)}
-        onSuccess={(createdShop) => {
+        onSuccess={() => {
           setIsRegisterShopModalOpen(false);
-          setMyShop(createdShop);
           if (refreshUser) refreshUser();
           navigate('/admin?tab=shops');
         }}
