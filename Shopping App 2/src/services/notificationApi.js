@@ -72,7 +72,12 @@ export const notificationApi = {
    * PUT /api/notifications/{id}/read - Đánh dấu đã đọc thông báo
    */
   async markAsRead(id) {
-    return await request(`/api/notifications/${id}/read`, { method: 'PUT' });
+    if (!id) return;
+    try {
+      return await request(`/api/notifications/${id}/read`, { method: 'PUT' });
+    } catch {
+      return await request(`/notifications/${id}/read`, { method: 'PATCH' });
+    }
   },
 
   /**
@@ -80,7 +85,11 @@ export const notificationApi = {
    */
   async markAllAsRead(userId) {
     if (userId) {
-      return await request(`/api/notifications/${userId}/read-all`, { method: 'PUT' });
+      try {
+        return await request(`/api/notifications/${userId}/read-all`, { method: 'PUT' });
+      } catch {
+        return await request('/notifications/read-all', { method: 'PATCH' });
+      }
     }
     return await request('/notifications/read-all', { method: 'PATCH' });
   },
@@ -103,20 +112,6 @@ export const notificationApi = {
    */
   async getNotificationDetail(id) {
     return await request(`/notifications/${id}`, { method: 'GET' });
-  },
-
-  /**
-   * STT 144: PATCH /notifications/{notificationId}/read - Đánh dấu đã đọc thông báo
-   */
-  async markAsRead(id) {
-    return await request(`/notifications/${id}/read`, { method: 'PATCH' });
-  },
-
-  /**
-   * STT 145: PATCH /notifications/read-all - Đánh dấu đã đọc tất cả thông báo
-   */
-  async markAllAsRead() {
-    return await request('/notifications/read-all', { method: 'PATCH' });
   },
 
   /**

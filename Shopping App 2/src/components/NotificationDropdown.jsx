@@ -31,6 +31,8 @@ export const NotificationDropdown = () => {
   const toastTimerRef = useRef(null);
   const navigate = useNavigate();
 
+  const isItemRead = (item) => Boolean(item?.isRead ?? item?.read ?? false);
+
   // 1. Tải danh sách thông báo của user
   const fetchNotifications = useCallback(async () => {
     if (!isAuthenticated || !user?.id) {
@@ -43,7 +45,7 @@ export const NotificationDropdown = () => {
       const res = await notificationApi.getNotificationsByUser(user.id);
       const list = Array.isArray(res) ? res : (res?.content || []);
       setNotifications(list);
-      const unread = list.filter((n) => !n.isRead).length;
+      const unread = list.filter((n) => !isItemRead(n)).length;
       setUnreadCount(unread);
     } catch (err) {
       console.warn('Lỗi khi tải thông báo:', err);
@@ -114,12 +116,14 @@ export const NotificationDropdown = () => {
   // 4. Đánh dấu 1 thông báo đã đọc
   const handleMarkAsRead = async (id, e) => {
     e?.stopPropagation();
+    // Cập nhật giao diện ngay lập tức
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, isRead: true, read: true } : n))
+    );
+    setUnreadCount((c) => Math.max(0, c - 1));
+
     try {
       await notificationApi.markAsRead(id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-      );
-      setUnreadCount((c) => Math.max(0, c - 1));
     } catch (err) {
       console.error('Không thể đánh dấu đã đọc:', err);
     }
@@ -128,19 +132,25 @@ export const NotificationDropdown = () => {
   // 5. Đánh dấu tất cả thông báo đã đọc
   const handleMarkAllRead = async (e) => {
     e?.stopPropagation();
+    // Cập nhật giao diện ngay lập tức: xóa số lượng trên chuông về 0
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true, read: true })));
+    setUnreadCount(0);
+
     try {
       await notificationApi.markAllAsRead(user?.id);
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      setUnreadCount(0);
     } catch (err) {
       console.error('Không thể đánh dấu tất cả đã đọc:', err);
     }
   };
 
-  // 6. Click vào item thông báo -> đánh dấu đã đọc, đóng dropdown, chuyển hướng tới /orders
+  // 6. Click vào item thông báo -> đánh dấu đã đọc, giảm số lượng chuông, đóng dropdown, chuyển hướng tới /orders
   const handleItemClick = async (item) => {
-    if (!item.isRead) {
-      await handleMarkAsRead(item.id);
+    if (!isItemRead(item)) {
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === item.id ? { ...n, isRead: true, read: true } : n))
+      );
+      setUnreadCount((c) => Math.max(0, c - 1));
+      notificationApi.markAsRead(item.id).catch(console.warn);
     }
     setIsOpen(false);
     navigate('/orders');
@@ -149,8 +159,12 @@ export const NotificationDropdown = () => {
   // 7. Click vào toast nổi
   const handleToastClick = async () => {
     if (toastNotif) {
-      if (!toastNotif.isRead) {
-        await handleMarkAsRead(toastNotif.id);
+      if (!isItemRead(toastNotif)) {
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === toastNotif.id ? { ...n, isRead: true, read: true } : n))
+        );
+        setUnreadCount((c) => Math.max(0, c - 1));
+        notificationApi.markAsRead(toastNotif.id).catch(console.warn);
       }
       setToastNotif(null);
       navigate('/orders');
@@ -297,32 +311,35 @@ export const NotificationDropdown = () => {
                 <p>Bạn chưa có thông báo nào</p>
               </div>
             ) : (
-              notifications.map((item) => (
-                <div
-                  key={item.id}
-                  className={`notif-item ${!item.isRead ? 'unread' : ''}`}
-                  onClick={() => handleItemClick(item)}
-                >
-                  {/* Cột trái: Vòng tròn icon màu theo trạng thái */}
-                  <div className="notif-col-left">
-                    {getStatusIcon(item.status, item.type)}
-                  </div>
-
-                  {/* Cột giữa: Tiêu đề in đậm, mô tả nổi bật mã đơn, thời gian */}
-                  <div className="notif-col-center">
-                    <div className="notif-item-title">{item.title}</div>
-                    <div className="notif-item-desc">
-                      {renderMessageContent(item.message, item.orderCode)}
+              notifications.map((item) => {
+                const isUnread = !isItemRead(item);
+                return (
+                  <div
+                    key={item.id}
+                    className={`notif-item ${isUnread ? 'unread' : ''}`}
+                    onClick={() => handleItemClick(item)}
+                  >
+                    {/* Cột trái: Vòng tròn icon màu theo trạng thái */}
+                    <div className="notif-col-left">
+                      {getStatusIcon(item.status, item.type)}
                     </div>
-                    <div className="notif-item-time">{formatTime(item.createdAt)}</div>
-                  </div>
 
-                  {/* Cột phải: Chấm tròn xanh nếu chưa đọc */}
-                  <div className="notif-col-right">
-                    {!item.isRead && <span className="notif-unread-dot" title="Chưa đọc" />}
+                    {/* Cột giữa: Tiêu đề in đậm, mô tả nổi bật mã đơn, thời gian */}
+                    <div className="notif-col-center">
+                      <div className="notif-item-title">{item.title}</div>
+                      <div className="notif-item-desc">
+                        {renderMessageContent(item.message, item.orderCode)}
+                      </div>
+                      <div className="notif-item-time">{formatTime(item.createdAt)}</div>
+                    </div>
+
+                    {/* Cột phải: Chấm tròn xanh nếu chưa đọc */}
+                    <div className="notif-col-right">
+                      {isUnread && <span className="notif-unread-dot" title="Chưa đọc" />}
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
