@@ -908,15 +908,19 @@ public class OrderServiceImpl implements OrderService {
         }
 
         // NGHIỆP VỤ CỐT LÕI: Khi người mua hàng mua của shop nào thì CHỈ shop đó (chủ cửa hàng hoặc nhân viên active) mới có quyền chuyển trạng thái đơn hàng.
-        // Đối với Quản trị viên hệ thống (Admin): Cho phép can thiệp theo chính sách quản trị, kiểm soát luồng trạng thái hợp lệ và bắt buộc ghi nhật ký thao tác (Audit Log).
+        // Quản trị viên hệ thống (Admin) CHỈ có quyền xem và tra cứu tìm đơn hàng, KHÔNG có quyền quản trị hoặc cập nhật trạng thái đơn hàng.
         boolean isShopManager = isUserShopManagerForOrder(user, order);
         boolean isAdmin = isUserAdmin(user);
 
-        if (!isShopManager && !isAdmin) {
-            throw new ForbiddenException("Bạn không có quyền chuyển trạng thái đơn hàng này. Chỉ chủ cửa hàng hoặc nhân viên của cửa hàng '" + shop.getName() + "' (Mã shop: #" + orderShopId + ") hoặc Quản trị viên hệ thống mới có quyền thao tác!");
+        if (isAdmin && !isShopManager) {
+            throw new ForbiddenException("Quản trị viên (Admin) chỉ có quyền xem và tra cứu tìm kiếm đơn hàng, không có quyền quản trị hoặc can thiệp cập nhật trạng thái đơn hàng. Thao tác này thuộc thẩm quyền của Cửa hàng.");
         }
 
-        return processStatusUpdate(order, shop, request, user, isAdmin, isShopManager);
+        if (!isShopManager) {
+            throw new ForbiddenException("Bạn không có quyền chuyển trạng thái đơn hàng này. Chỉ chủ cửa hàng hoặc nhân viên của cửa hàng '" + shop.getName() + "' (Mã shop: #" + orderShopId + ") mới có quyền thao tác!");
+        }
+
+        return processStatusUpdate(order, shop, request, user, false, isShopManager);
     }
 
     @Override
@@ -969,11 +973,15 @@ public class OrderServiceImpl implements OrderService {
         boolean isMember = shopMemberRepository.existsByIdShopIdAndIdUserIdAndStatus(shopId, user.getId(), ShopMemberStatus.ACTIVE);
         boolean isAdmin = isUserAdmin(user);
 
-        if (!isOwner && !isMember && !isAdmin) {
-            throw new ForbiddenException("Bạn không có quyền cập nhật trạng thái đơn hàng của cửa hàng #" + shopId + ". Chỉ chủ sở hữu (Owner) của cửa hàng mới có quyền thao tác!");
+        if (isAdmin && !isOwner && !isMember) {
+            throw new ForbiddenException("Quản trị viên (Admin) chỉ có quyền xem và tra cứu tìm kiếm đơn hàng, không có quyền quản trị hoặc can thiệp cập nhật trạng thái đơn hàng. Thao tác này thuộc thẩm quyền của Cửa hàng.");
         }
 
-        return processStatusUpdate(order, shop, request, user, isAdmin, isOwner || isMember);
+        if (!isOwner && !isMember) {
+            throw new ForbiddenException("Bạn không có quyền cập nhật trạng thái đơn hàng của cửa hàng #" + shopId + ". Chỉ chủ sở hữu (Owner) hoặc nhân viên của cửa hàng mới có quyền thao tác!");
+        }
+
+        return processStatusUpdate(order, shop, request, user, false, isOwner || isMember);
     }
 
     private void handleStatusConfirmed(Order order, Shop shop, User user, LocalDateTime now) {
