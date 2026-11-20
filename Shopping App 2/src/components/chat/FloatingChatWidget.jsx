@@ -26,6 +26,9 @@ const QUICK_REPLIES = [
 /* ─── Component chính ─── */
 export const FloatingChatWidget = () => {
   const { user } = useAuth();
+  const isUserAdmin = user?.role === 'ADMIN' || user?.role === 'ROLE_ADMIN' || user?.roles?.some(r => r.code === 'ADMIN' || r.code === 'ROLE_ADMIN' || r === 'ADMIN' || r === 'ROLE_ADMIN');
+
+  if (isUserAdmin) return null;
   const {
     isChatOpen, isMinimized, activeSeller, productContext,
     messages, connected,

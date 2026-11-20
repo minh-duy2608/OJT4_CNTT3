@@ -19,6 +19,25 @@ const SELLER_QUICK_REPLIES = [
 
 export const SellerChatPage = ({ embedded = false }) => {
   const { user } = useAuth();
+  const isUserAdmin = user?.role === 'ADMIN' || user?.role === 'ROLE_ADMIN' || user?.roles?.some(r => r.code === 'ADMIN' || r.code === 'ROLE_ADMIN' || r === 'ADMIN' || r === 'ROLE_ADMIN');
+
+  if (isUserAdmin) {
+    return (
+      <div className="container" style={{ padding: '4rem 1rem', textAlign: 'center' }}>
+        <MessageCircle size={48} color="#94a3b8" style={{ margin: '0 auto 1rem' }} />
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.5rem' }}>
+          Tài khoản Quản trị viên (Admin) không có quyền tham gia Chat
+        </h2>
+        <p style={{ color: '#64748b', maxWidth: '500px', margin: '0 auto 1.5rem', lineHeight: '1.5' }}>
+          Tính năng chat thời gian thực chỉ phục vụ trao đổi thông tin mua bán giữa Chủ cửa hàng (Shop) và Khách hàng (Người dùng).
+        </p>
+        <Link to="/admin" className="btn btn-primary" style={{ display: 'inline-block' }}>
+          Về trang Quản trị
+        </Link>
+      </div>
+    );
+  }
+
   const {
     messages, connected, sendMessage, markAsRead, addLocalMessage, setMessages
   } = useChat();

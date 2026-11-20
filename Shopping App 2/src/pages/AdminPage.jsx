@@ -2736,7 +2736,7 @@ export const AdminPage = () => {
         setActiveTab('shops');
       }
     } else if (isAdminUser) {
-      const allowedAdminTabs = ['revenue', 'admin-shops', 'product-moderation', 'orders', 'shipments', 'returns', 'reviews', 'messages', 'users', 'roles', 'categories', 'brands', 'audit-logs'];
+      const allowedAdminTabs = ['revenue', 'admin-shops', 'product-moderation', 'orders', 'shipments', 'returns', 'reviews', 'users', 'roles', 'categories', 'brands', 'audit-logs'];
       if (!allowedAdminTabs.includes(activeTab)) {
         setActiveTab('revenue');
       }
@@ -3735,16 +3735,6 @@ export const AdminPage = () => {
               >
                 <Star size={17} />
                 Kiểm duyệt Đánh giá
-              </button>
-
-              <button
-                type="button"
-                className={`admin-tab-btn ${activeTab === 'messages' ? 'active' : ''}`}
-                onClick={() => setActiveTab('messages')}
-              >
-                <MessageCircle size={17} />
-                Tin nhắn khách hàng
-                <span className="admin-tab-badge">Live Chat</span>
               </button>
 
               <button
@@ -6799,9 +6789,9 @@ export const AdminPage = () => {
         )}
 
         {/* =================================================================== */}
-        {/* TAB: TIN NHẮN KHÁCH HÀNG (LIVE CHAT - ADMIN & SHOP MANAGER) */}
+        {/* TAB: TIN NHẮN KHÁCH HÀNG (LIVE CHAT - CHỈ DÀNH CHO SHOP MANAGER) */}
         {/* =================================================================== */}
-        {activeTab === 'messages' && (
+        {activeTab === 'messages' && isShopManager && !isAdminUser && (
           <div style={{ marginTop: '1rem' }}>
             <SellerChatPage embedded={true} />
           </div>

@@ -9,6 +9,7 @@ import com.example.demo.entity.ChatMessage;
 import com.example.demo.entity.ChatMessageType;
 import com.example.demo.entity.ChatRoom;
 import com.example.demo.entity.User;
+import com.example.demo.exception.ForbiddenException;
 import com.example.demo.repository.ChatMessageRepository;
 import com.example.demo.repository.ChatRoomRepository;
 import com.example.demo.repository.UserRepository;
@@ -43,6 +44,16 @@ public class ChatServiceImpl implements ChatService {
     public ChatMessageResponse sendMessage(ChatSendRequest req) {
         Long senderId   = req.getSenderId();
         Long receiverId = req.getReceiverId();
+
+        // Kiểm tra quyền: Admin không có quyền tham gia chat
+        User sender = userRepository.findById(senderId).orElse(null);
+        if (sender != null && isUserAdmin(sender)) {
+            throw new ForbiddenException("Tài khoản Quản trị viên (Admin) không có quyền gửi tin nhắn chat. Tính năng chat chỉ dành cho Chủ shop và Người dùng trao đổi với nhau.");
+        }
+        User receiver = userRepository.findById(receiverId).orElse(null);
+        if (receiver != null && isUserAdmin(receiver)) {
+            throw new ForbiddenException("Không thể gửi tin nhắn cho tài khoản Quản trị viên. Tính năng chat chỉ dành cho Chủ shop và Người dùng trao đổi với nhau.");
+        }
 
         // 1. Tìm hoặc tạo mới ChatRoom (sender luôn là buyer nếu chưa tồn tại)
         ChatRoom room = chatRoomRepository
@@ -132,6 +143,11 @@ public class ChatServiceImpl implements ChatService {
     @Override
     @Transactional(readOnly = true)
     public List<ChatRoomResponse> getRoomsForUser(Long userId) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user != null && isUserAdmin(user)) {
+            return List.of();
+        }
+
         List<ChatRoom> rooms = chatRoomRepository.findAllByUserId(userId);
 
         // Thu thập tất cả ID đối phương để batch-load từ DB (1 query)
@@ -167,6 +183,12 @@ public class ChatServiceImpl implements ChatService {
     @Override
     @Transactional
     public List<ChatMessageResponse> getHistory(Long userId1, Long userId2) {
+        User user1 = userRepository.findById(userId1).orElse(null);
+        User user2 = userRepository.findById(userId2).orElse(null);
+        if ((user1 != null && isUserAdmin(user1)) || (user2 != null && isUserAdmin(user2))) {
+            throw new ForbiddenException("Tài khoản Quản trị viên (Admin) không có quyền tham gia cuộc hội thoại chat. Tính năng chat chỉ dành cho Chủ shop và Người dùng.");
+        }
+
         // Tìm hoặc tạo phòng chat
         ChatRoom room = chatRoomRepository
                 .findByParticipants(userId1, userId2)
@@ -198,12 +220,27 @@ public class ChatServiceImpl implements ChatService {
     @Override
     @Transactional(readOnly = true)
     public long countUnread(Long userId) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user != null && isUserAdmin(user)) {
+            return 0L;
+        }
         return chatMessageRepository.countUnreadByReceiverId(userId);
     }
 
     // =========================================================================
     // Helpers
     // =========================================================================
+
+    private boolean isUserAdmin(User user) {
+        if (user == null) {
+            return false;
+        }
+        if (user.getRole() != null && ("ADMIN".equalsIgnoreCase(user.getRole().name()) || "ROLE_ADMIN".equalsIgnoreCase(user.getRole().name()))) {
+            return true;
+        }
+        return user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
+                "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode()));
+    }
 
     private ChatMessageResponse toMessageResponse(ChatMessage msg, User sender) {
         return ChatMessageResponse.builder()
