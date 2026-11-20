@@ -767,6 +767,11 @@ export const ProductDetailPage = () => {
       setShowAuthRequiredModal(true);
       return;
     }
+    const isUserAdmin = user?.role === 'ADMIN' || user?.role === 'ROLE_ADMIN' || user?.roles?.some(r => r.code === 'ADMIN' || r.code === 'ROLE_ADMIN' || r === 'ADMIN' || r === 'ROLE_ADMIN');
+    if (isUserAdmin) {
+      showToast('Tài khoản Quản trị viên (Admin) không có quyền tham gia chat. Tính năng chat chỉ dành cho Chủ shop và Người dùng trao đổi với nhau!', 'warning');
+      return;
+    }
     if (!product) return;
 
     // Kiểm tra nếu chính là người bán của sản phẩm này

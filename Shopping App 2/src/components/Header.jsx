@@ -326,10 +326,10 @@ export const Header = () => {
             {/* Thông báo nếu đã đăng nhập */}
             {isAuthenticated && <NotificationDropdown />}
 
-            {/* Tin nhắn trực tiếp thời gian thực */}
-            {isAuthenticated && (
+            {/* Tin nhắn trực tiếp thời gian thực (Chỉ dành cho Shop và Khách hàng, Admin không chat) */}
+            {isAuthenticated && !isUserAdmin && (
               <Link
-                to={isUserAdmin || isShopManager ? "/admin?tab=messages" : "/chat"}
+                to={isShopManager ? "/admin?tab=messages" : "/chat"}
                 className="cyber-action-btn"
                 title="Hộp thư tin nhắn"
                 aria-label={`Hộp thư tin nhắn ${totalUnread > 0 ? `(${totalUnread} tin mới)` : ''}`}
@@ -422,14 +422,16 @@ export const Header = () => {
                         <User size={15} />
                         Thông tin tài khoản
                       </Link>
-                      <Link
-                        to={isUserAdmin || isShopManager ? "/admin?tab=messages" : "/chat"}
-                        className="cyber-dropdown-item"
-                        onClick={() => setShowAuthDropdown(false)}
-                      >
-                        <MessageCircle size={15} />
-                        Hộp thư tin nhắn {totalUnread > 0 && `(${totalUnread})`}
-                      </Link>
+                      {!isUserAdmin && (
+                        <Link
+                          to={isShopManager ? "/admin?tab=messages" : "/chat"}
+                          className="cyber-dropdown-item"
+                          onClick={() => setShowAuthDropdown(false)}
+                        >
+                          <MessageCircle size={15} />
+                          Hộp thư tin nhắn {totalUnread > 0 && `(${totalUnread})`}
+                        </Link>
+                      )}
                       <Link
                         to="/orders"
                         className="cyber-dropdown-item"
@@ -601,14 +603,16 @@ export const Header = () => {
                       <ShoppingCart size={18} />
                       Giỏ hàng ({cartCount})
                     </NavLink>
-                    <NavLink
-                      to={isUserAdmin || isShopManager ? "/admin?tab=messages" : "/chat"}
-                      className="cyber-mobile-nav-link"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      <MessageCircle size={18} />
-                      Tin nhắn {totalUnread > 0 && `(${totalUnread} mới)`}
-                    </NavLink>
+                    {!isUserAdmin && (
+                      <NavLink
+                        to={isShopManager ? "/admin?tab=messages" : "/chat"}
+                        className="cyber-mobile-nav-link"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        <MessageCircle size={18} />
+                        Tin nhắn {totalUnread > 0 && `(${totalUnread} mới)`}
+                      </NavLink>
+                    )}
                     <button
                       type="button"
                       className="cyber-mobile-nav-link danger"
