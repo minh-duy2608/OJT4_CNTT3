@@ -1625,6 +1625,11 @@ export const AdminPage = () => {
 
   const handleUpdateOrderStatus = async () => {
     if (!statusChangeTarget) return;
+    if (isAdminUser) {
+      triggerAlert('Admin chỉ có quyền xem và tra cứu đơn hàng, không có quyền quản trị hoặc cập nhật trạng thái đơn hàng!', 'warning');
+      setStatusChangeTarget(null);
+      return;
+    }
     setStatusChangeLoading(true);
     try {
       const { order, newStatus, newPaymentStatus } = statusChangeTarget;
@@ -3692,7 +3697,7 @@ export const AdminPage = () => {
                 onClick={() => setActiveTab('orders')}
               >
                 <ShoppingBag size={17} />
-                Quản trị Đơn hàng
+                {isAdminUser ? 'Tra cứu Đơn hàng' : 'Quản lý Đơn hàng'}
               </button>
 
               <button
@@ -5181,7 +5186,9 @@ export const AdminPage = () => {
                       <th style={{ width: '115px', textAlign: 'right' }}>Tổng thanh toán</th>
                       <th style={{ width: '115px', textAlign: 'left' }}>Thanh toán</th>
                       <th style={{ width: '110px', textAlign: 'center' }}>Trạng thái</th>
-                      <th className="sticky-col-right" style={{ width: '175px', textAlign: 'right' }}>Thao tác & Trạng thái</th>
+                      <th className="sticky-col-right" style={{ width: isAdminUser ? '105px' : '175px', textAlign: 'right' }}>
+                        {isAdminUser ? 'Chi tiết đơn' : 'Thao tác & Trạng thái'}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -5324,64 +5331,68 @@ export const AdminPage = () => {
                                 Chi tiết
                               </button>
 
-                              {/* Hành động thông minh theo trạng thái */}
-                              {isPending && (
+                              {/* Hành động thông minh theo trạng thái - CHỈ DÀNH CHO SHOP MANAGER, ADMIN CHỈ CÓ QUYỀN XEM VÀ TRA CỨU */}
+                              {!isAdminUser && isShopManager && (
                                 <>
-                                  <button
-                                    type="button"
-                                    className="admin-btn-action-primary"
-                                    style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#2563eb' }}
-                                    onClick={() => setStatusChangeTarget({ order: ord, newStatus: 'CONFIRMED' })}
-                                    title="Xác nhận đơn hàng"
-                                  >
-                                    Xác nhận
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="admin-btn-action-danger"
-                                    style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                                    onClick={() => setStatusChangeTarget({ order: ord, newStatus: 'CANCELLED' })}
-                                    title="Hủy đơn hàng"
-                                  >
-                                    Hủy
-                                  </button>
+                                  {isPending && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="admin-btn-action-primary"
+                                        style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#2563eb' }}
+                                        onClick={() => setStatusChangeTarget({ order: ord, newStatus: 'CONFIRMED' })}
+                                        title="Xác nhận đơn hàng"
+                                      >
+                                        Xác nhận
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="admin-btn-action-danger"
+                                        style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                                        onClick={() => setStatusChangeTarget({ order: ord, newStatus: 'CANCELLED' })}
+                                        title="Hủy đơn hàng"
+                                      >
+                                        Hủy
+                                      </button>
+                                    </>
+                                  )}
+
+                                  {isConfirmed && (
+                                    <button
+                                      type="button"
+                                      className="admin-btn-action-primary"
+                                      style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#7c3aed' }}
+                                      onClick={() => setStatusChangeTarget({ order: ord, newStatus: 'PROCESSING' })}
+                                      title="Chuyển sang bước Đóng gói"
+                                    >
+                                      Đóng gói
+                                    </button>
+                                  )}
+
+                                  {isProcessing && (
+                                    <button
+                                      type="button"
+                                      className="admin-btn-action-primary"
+                                      style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#d97706' }}
+                                      onClick={() => setStatusChangeTarget({ order: ord, newStatus: 'SHIPPED' })}
+                                      title="Giao cho đơn vị vận chuyển"
+                                    >
+                                      Giao Shipper
+                                    </button>
+                                  )}
+
+                                  {isShipped && (
+                                    <button
+                                      type="button"
+                                      className="admin-btn-action-primary"
+                                      style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#059669' }}
+                                      onClick={() => setStatusChangeTarget({ order: ord, newStatus: 'DELIVERED', newPaymentStatus: 'PAID' })}
+                                      title="Xác nhận giao thành công"
+                                    >
+                                      Đã giao xong
+                                    </button>
+                                  )}
                                 </>
-                              )}
-
-                              {isConfirmed && (
-                                <button
-                                  type="button"
-                                  className="admin-btn-action-primary"
-                                  style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#7c3aed' }}
-                                  onClick={() => setStatusChangeTarget({ order: ord, newStatus: 'PROCESSING' })}
-                                  title="Chuyển sang bước Đóng gói"
-                                >
-                                  Đóng gói
-                                </button>
-                              )}
-
-                              {isProcessing && (
-                                <button
-                                  type="button"
-                                  className="admin-btn-action-primary"
-                                  style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#d97706' }}
-                                  onClick={() => setStatusChangeTarget({ order: ord, newStatus: 'SHIPPED' })}
-                                  title="Giao cho đơn vị vận chuyển"
-                                >
-                                  Giao Shipper
-                                </button>
-                              )}
-
-                              {isShipped && (
-                                <button
-                                  type="button"
-                                  className="admin-btn-action-primary"
-                                  style={{ padding: '4px 8px', fontSize: '0.75rem', background: '#059669' }}
-                                  onClick={() => setStatusChangeTarget({ order: ord, newStatus: 'DELIVERED', newPaymentStatus: 'PAID' })}
-                                  title="Xác nhận giao thành công"
-                                >
-                                  Đã giao xong
-                                </button>
                               )}
                             </div>
                           </td>
