@@ -3674,7 +3674,6 @@ export const AdminPage = () => {
               >
                 <Store size={17} />
                 Quản lý Cửa hàng
-                <span className="admin-tab-badge">STT 67-69</span>
               </button>
 
               <button
@@ -3694,7 +3693,6 @@ export const AdminPage = () => {
               >
                 <ShoppingBag size={17} />
                 Quản trị Đơn hàng
-                <span className="admin-tab-badge">STT 109-111</span>
               </button>
 
               <button
@@ -3714,7 +3712,6 @@ export const AdminPage = () => {
               >
                 <Truck size={17} />
                 Quản lý Vận chuyển
-                <span className="admin-tab-badge">STT 122-123</span>
               </button>
 
               <button
@@ -3724,7 +3721,6 @@ export const AdminPage = () => {
               >
                 <RotateCcw size={17} />
                 Quản lý Trả hàng
-                <span className="admin-tab-badge">STT 140-141</span>
               </button>
 
               <button
@@ -3734,7 +3730,6 @@ export const AdminPage = () => {
               >
                 <Star size={17} />
                 Kiểm duyệt Đánh giá
-                <span className="admin-tab-badge">STT 133-134</span>
               </button>
 
               <button
@@ -3754,7 +3749,6 @@ export const AdminPage = () => {
               >
                 <Users size={17} />
                 Quản lý Người dùng
-                <span className="admin-tab-badge">STT 12-17</span>
               </button>
 
               <button
@@ -3764,7 +3758,6 @@ export const AdminPage = () => {
               >
                 <ShieldCheck size={17} />
                 Vai trò & Phân quyền
-                <span className="admin-tab-badge">STT 18-25</span>
               </button>
 
               <button
@@ -3774,7 +3767,6 @@ export const AdminPage = () => {
               >
                 <FolderTree size={17} />
                 Danh mục Sản phẩm
-                <span className="admin-tab-badge">STT 27-32</span>
               </button>
 
               <button
@@ -3784,7 +3776,6 @@ export const AdminPage = () => {
               >
                 <Award size={17} />
                 Thương hiệu
-                <span className="admin-tab-badge">STT 33-38</span>
               </button>
 
               <button
@@ -3794,7 +3785,6 @@ export const AdminPage = () => {
               >
                 <Shield size={17} />
                 Nhật ký Hệ thống
-                <span className="admin-tab-badge">STT 160-161</span>
               </button>
             </>
           )}
@@ -3808,7 +3798,6 @@ export const AdminPage = () => {
               >
                 <TrendingUp size={17} />
                 Doanh thu Cửa hàng
-                <span className="admin-tab-badge">STT 155-159</span>
               </button>
 
               <button
@@ -3818,7 +3807,6 @@ export const AdminPage = () => {
               >
                 <Box size={17} />
                 Sản phẩm Cửa hàng
-                <span className="admin-tab-badge">STT 45-56</span>
               </button>
 
               <button
@@ -3828,7 +3816,6 @@ export const AdminPage = () => {
               >
                 <Archive size={17} />
                 Quản lý Kho
-                <span className="admin-tab-badge">STT 70-73</span>
               </button>
 
               <button
@@ -3838,7 +3825,6 @@ export const AdminPage = () => {
               >
                 <ShoppingBag size={17} />
                 Đơn hàng Cửa hàng
-                <span className="admin-tab-badge">Đơn hàng</span>
               </button>
 
               <button
@@ -3848,7 +3834,6 @@ export const AdminPage = () => {
               >
                 <Truck size={17} />
                 Vận chuyển Đơn
-                <span className="admin-tab-badge">STT 119-121</span>
               </button>
 
               <button
@@ -3858,7 +3843,6 @@ export const AdminPage = () => {
               >
                 <RotateCcw size={17} />
                 Yêu cầu Trả hàng
-                <span className="admin-tab-badge">STT 138-139</span>
               </button>
 
               <button
@@ -3868,7 +3852,6 @@ export const AdminPage = () => {
               >
                 <Star size={17} />
                 Đánh giá Cửa hàng
-                <span className="admin-tab-badge">STT 130-132</span>
               </button>
 
               <button
@@ -3898,7 +3881,6 @@ export const AdminPage = () => {
               >
                 <Shield size={17} />
                 Nhật ký Shop
-                <span className="admin-tab-badge">STT 162</span>
               </button>
 
               <button
@@ -3908,7 +3890,6 @@ export const AdminPage = () => {
               >
                 <Key size={17} />
                 Quyền hạn của tôi
-                <span className="admin-tab-badge">STT 26</span>
               </button>
             </>
           )}
@@ -4594,7 +4575,7 @@ export const AdminPage = () => {
             <div className="admin-toolbar">
               <div className="admin-toolbar-left">
                 <h2 style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0 }}>
-                  Quản lý Vai trò Hệ thống & Tùy chỉnh (STT 18 - 25)
+                  Quản lý Vai trò Hệ thống & Tùy chỉnh
                 </h2>
                 <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
                   Các vai trò cốt lõi (ADMIN, CLIENT, SHOP_MANAGER) được bảo vệ khỏi việc xóa hoặc sửa mã.
@@ -4698,7 +4679,7 @@ export const AdminPage = () => {
             <div className="admin-toolbar">
               <div className="admin-toolbar-left">
                 <h2 style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0 }}>
-                  Danh mục Sản phẩm (Catalog & Categories - STT 27-32)
+                  Danh mục Sản phẩm (Catalog & Categories)
                 </h2>
                 <select
                   className="admin-select-filter"
@@ -4850,7 +4831,6 @@ export const AdminPage = () => {
                 <h2 style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <Award size={20} color="#dc2626" />
                   Quản lý Thương hiệu Sản phẩm
-                  <span className="admin-tab-badge" style={{ fontSize: '0.6875rem' }}>STT 33-38</span>
                 </h2>
                 <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
                   Tổng cộng <strong>{brands.length}</strong> thương hiệu đối tác công nghệ trên hệ thống Cyber.
@@ -5554,9 +5534,9 @@ export const AdminPage = () => {
                       <th>Danh mục & Hãng</th>
                       <th style={{ textAlign: 'right', width: '130px' }}>Giá bán</th>
                       <th style={{ textAlign: 'center', width: '110px' }}>Tồn kho</th>
-                      <th style={{ textAlign: 'center', width: '120px' }}>Trạng thái (STT 49)</th>
-                      <th style={{ textAlign: 'center', width: '220px' }}>Quản lý chi tiết (STT 51-56)</th>
-                      <th style={{ textAlign: 'right', width: '100px' }}>Xóa (STT 50)</th>
+                      <th style={{ textAlign: 'center', width: '120px' }}>Trạng thái</th>
+                      <th style={{ textAlign: 'center', width: '220px' }}>Quản lý chi tiết</th>
+                      <th style={{ textAlign: 'right', width: '100px' }}>Xóa</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -5664,7 +5644,7 @@ export const AdminPage = () => {
                                 className="admin-btn-action-primary"
                                 style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                                 onClick={() => handleOpenEditProduct(p)}
-                                title="STT 48: Chỉnh sửa thông tin chi tiết sản phẩm"
+                                title="Chỉnh sửa thông tin chi tiết sản phẩm"
                               >
                                 <Edit size={13} />
                                 Sửa
@@ -5674,7 +5654,7 @@ export const AdminPage = () => {
                                 className="admin-btn-action-secondary"
                                 style={{ padding: '4px 8px', fontSize: '0.75rem' }}
                                 onClick={() => handleOpenVariantsModal(p)}
-                                title="STT 51-53: Quản lý biến thể màu sắc, dung lượng, giá và tồn kho"
+                                title="Quản lý biến thể màu sắc, dung lượng, giá và tồn kho"
                               >
                                 <SlidersHorizontal size={13} />
                                 Biến thể ({p.variantCount ?? p.variants?.length ?? 0})
@@ -5684,7 +5664,7 @@ export const AdminPage = () => {
                                 className="admin-btn-action-secondary"
                                 style={{ padding: '4px 8px', fontSize: '0.75rem' }}
                                 onClick={() => handleOpenImagesModal(p)}
-                                title="STT 54-56: Thư viện hình ảnh sản phẩm"
+                                title="Thư viện hình ảnh sản phẩm"
                               >
                                 <Image size={13} />
                                 Thư viện ảnh
@@ -5697,7 +5677,7 @@ export const AdminPage = () => {
                               className="admin-btn-action-danger"
                               style={{ padding: '5px 8px' }}
                               onClick={() => setShopProductToDelete(p)}
-                              title="STT 50: Xóa sản phẩm khỏi cửa hàng"
+                              title="Xóa sản phẩm khỏi cửa hàng"
                             >
                               <Trash2 size={14} />
                             </button>
@@ -5894,7 +5874,7 @@ export const AdminPage = () => {
                                 type="button"
                                 className="admin-action-btn view"
                                 onClick={() => handleViewAdminShopDetail(s.id)}
-                                title="STT 68: Xem chi tiết cửa hàng"
+                                title="Xem chi tiết cửa hàng"
                               >
                                 <Eye size={15} />
                               </button>
@@ -5917,7 +5897,7 @@ export const AdminPage = () => {
                                     type="button"
                                     className="admin-action-btn approve"
                                     onClick={() => handleOpenShopStatusModal(s, 'ACTIVE')}
-                                    title="STT 69: Duyệt cửa hàng"
+                                    title="Duyệt cửa hàng"
                                     style={{ color: '#16a34a', backgroundColor: '#f0fdf4' }}
                                   >
                                     <Check size={15} />
@@ -5926,7 +5906,7 @@ export const AdminPage = () => {
                                     type="button"
                                     className="admin-action-btn reject"
                                     onClick={() => handleOpenShopStatusModal(s, 'REJECTED')}
-                                    title="STT 69: Từ chối cửa hàng"
+                                    title="Từ chối cửa hàng"
                                     style={{ color: '#dc2626', backgroundColor: '#fef2f2' }}
                                   >
                                     <X size={15} />
@@ -5940,7 +5920,7 @@ export const AdminPage = () => {
                                   type="button"
                                   className="admin-action-btn lock"
                                   onClick={() => handleOpenShopStatusModal(s, 'SUSPENDED')}
-                                  title="STT 69: Tạm ngừng / Đình chỉ hoạt động"
+                                  title="Tạm ngừng / Đình chỉ hoạt động"
                                   style={{ color: '#ea580c', backgroundColor: '#fff7ed' }}
                                 >
                                   <Lock size={15} />
@@ -5953,7 +5933,7 @@ export const AdminPage = () => {
                                   type="button"
                                   className="admin-action-btn unlock"
                                   onClick={() => handleOpenShopStatusModal(s, 'ACTIVE')}
-                                  title="STT 69: Mở lại hoạt động kinh doanh"
+                                  title="Mở lại hoạt động kinh doanh"
                                   style={{ color: '#16a34a', backgroundColor: '#f0fdf4' }}
                                 >
                                   <Unlock size={15} />
@@ -6651,7 +6631,7 @@ export const AdminPage = () => {
                     color: isLowStockOnly ? '#dc2626' : undefined,
                     fontWeight: isLowStockOnly ? 700 : undefined
                   }}
-                  title="STT 73: Lọc sản phẩm sắp hết hàng"
+                  title="Lọc sản phẩm sắp hết hàng"
                 >
                   <TrendingDown size={15} />
                   Sắp hết hàng ({lowStockThreshold})
@@ -6749,7 +6729,7 @@ export const AdminPage = () => {
                               className="admin-btn-action-secondary"
                               style={{ padding: '4px 10px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                               onClick={() => handleOpenAdjustModal(item)}
-                              title="STT 72: Điều chỉnh tồn kho"
+                              title="Điều chỉnh tồn kho"
                             >
                               <SlidersHorizontal size={13} />
                               Điều chỉnh
@@ -8359,7 +8339,7 @@ export const AdminPage = () => {
         <ConfirmModal
           isOpen={isVariantModalOpen}
           onClose={() => setIsVariantModalOpen(false)}
-          title={`Quản lý Biến thể (STT 51-53) - ${activeShopProduct?.name || ''}`}
+          title={`Quản lý Biến thể - ${activeShopProduct?.name || ''}`}
           type="info"
           maxWidth="820px"
           showCancel={false}
@@ -8419,7 +8399,7 @@ export const AdminPage = () => {
                                     imageUrl: v.imageUrl || ''
                                   });
                                 }}
-                                title="STT 52: Sửa biến thể"
+                                title="Sửa biến thể"
                               >
                                 <Edit size={12} /> Sửa
                               </button>
@@ -8428,7 +8408,7 @@ export const AdminPage = () => {
                                 className="admin-btn-action-danger"
                                 style={{ padding: '3px 6px', fontSize: '0.7rem' }}
                                 onClick={() => handleDeleteVariant(v.id)}
-                                title="STT 53: Xóa biến thể"
+                                title="Xóa biến thể"
                               >
                                 <Trash2 size={12} />
                               </button>
@@ -8446,7 +8426,7 @@ export const AdminPage = () => {
             <form onSubmit={handleSaveVariant} style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                 <h4 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                  {editingVariant ? `Cập nhật biến thể #${editingVariant.id} (STT 52)` : 'Thêm biến thể mới (STT 51)'}
+                  {editingVariant ? `Cập nhật biến thể #${editingVariant.id}` : 'Thêm biến thể mới'}
                 </h4>
                 {editingVariant && (
                   <button
@@ -8554,7 +8534,7 @@ export const AdminPage = () => {
         <ConfirmModal
           isOpen={isImageModalOpen}
           onClose={() => setIsImageModalOpen(false)}
-          title={`Thư viện hình ảnh (STT 54-56) - ${activeShopProduct?.name || ''}`}
+          title={`Thư viện hình ảnh - ${activeShopProduct?.name || ''}`}
           type="info"
           maxWidth="700px"
           showCancel={false}
@@ -8607,7 +8587,7 @@ export const AdminPage = () => {
                             type="button"
                             style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', fontSize: '0.6875rem', padding: '2px 4px', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
                             onClick={() => handleSetShopPrimaryImage(img)}
-                            title="STT 55: Đặt làm ảnh đại diện chính"
+                            title="Đặt làm ảnh đại diện chính"
                           >
                             Làm ảnh chính
                           </button>
@@ -8616,7 +8596,7 @@ export const AdminPage = () => {
                           type="button"
                           style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', fontSize: '0.6875rem', padding: '2px 4px', borderRadius: '4px', cursor: 'pointer', marginLeft: 'auto' }}
                           onClick={() => handleDeleteImage(img.id)}
-                          title="STT 56: Xóa hình ảnh"
+                          title="Xóa hình ảnh"
                         >
                           <Trash2 size={11} />
                         </button>
@@ -8630,7 +8610,7 @@ export const AdminPage = () => {
             {/* Form Thêm ảnh mới (STT 54) */}
             <form onSubmit={handleSaveImage} style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
               <h4 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.75rem' }}>
-                Thêm hình ảnh vào thư viện (STT 54)
+                Thêm hình ảnh vào thư viện
               </h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 <div>
@@ -8880,7 +8860,7 @@ export const AdminPage = () => {
         <ConfirmModal
           isOpen={showAdjustModal}
           onClose={() => setShowAdjustModal(false)}
-          title={`Điều chỉnh Giá bán & Tồn kho (STT 70-73) - ${selectedInventoryItem?.productName || ''}`}
+          title={`Điều chỉnh Giá bán & Tồn kho - ${selectedInventoryItem?.productName || ''}`}
           type="confirm"
           confirmText={adjustingLoading ? 'Đang cập nhật...' : 'Xác nhận cập nhật'}
           onConfirm={handleSaveAdjustInventory}
