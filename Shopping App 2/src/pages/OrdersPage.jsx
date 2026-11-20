@@ -192,6 +192,7 @@ export const OrdersPage = () => {
             const currentStep = currentMeta.step || 1;
             // Tiến trình phần trăm cho thanh ngang (0% -> 25% -> 50% -> 75% -> 100%)
             const progressPercent = Math.max(0, Math.min(100, ((currentStep - 1) / 4) * 100));
+            const isCod = Boolean(order.paymentMethod && (order.paymentMethod.toUpperCase().includes('COD') || order.paymentMethod.toLowerCase().includes('tiền mặt')));
 
             return (
               <div key={order.id} className="order-card">
@@ -208,20 +209,37 @@ export const OrdersPage = () => {
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {(order.status === 'pending' || order.status === 'PENDING') && (
-                      <span style={{
-                        background: '#fef3c7',
-                        color: '#b45309',
-                        padding: '3px 8px',
-                        borderRadius: '6px',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        border: '1px solid #fde68a',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}>
-                        <Clock size={12} /> Giữ hàng 15p
-                      </span>
+                      isCod ? (
+                        <span style={{
+                          background: '#ecfdf5',
+                          color: '#065f46',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          border: '1px solid #a7f3d0',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }} title="Đơn hàng COD đã trừ tồn kho ngay khi đặt hàng, không có giới hạn hủy 15 phút">
+                          <CheckCircle2 size={12} /> Đã trừ kho (Tiền mặt)
+                        </span>
+                      ) : (
+                        <span style={{
+                          background: '#fef3c7',
+                          color: '#b45309',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          border: '1px solid #fde68a',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <Clock size={12} /> Giữ hàng 15p
+                        </span>
+                      )
                     )}
                     <div
                       className="order-status-badge"
@@ -335,10 +353,21 @@ export const OrdersPage = () => {
                       <Package size={16} /> Danh sách sản phẩm ({order.items?.length || 0})
                     </div>
                     {order.items?.map((item, idx) => (
-                      <div key={idx} className="order-item-row">
+                      <div
+                        key={idx}
+                        className="order-item-row is-clickable"
+                        onClick={() => {
+                          const targetId = item.productId || item.id;
+                          if (targetId) {
+                            navigate(`/products/${targetId}`);
+                          }
+                        }}
+                        title="Bấm để xem trang chi tiết sản phẩm này"
+                        style={{ cursor: 'pointer' }}
+                      >
                         <img src={item.image} alt={item.name} className="order-item-img" />
                         <div className="order-item-info">
-                          <div className="order-item-title">{item.name}</div>
+                          <div className="order-item-title" style={{ transition: 'color 0.2s' }}>{item.name}</div>
                           <div className="order-item-meta">
                             {item.selectedColor && <span>Màu: {item.selectedColor} • </span>}
                             {item.selectedStorage && <span>Bản: {item.selectedStorage} • </span>}
@@ -485,8 +514,8 @@ export const OrdersPage = () => {
                       <Eye size={15} /> Chi tiết đơn hàng
                     </button>
 
-                    {/* Nút thanh toán VietQR PayOS nếu đơn hàng chưa thanh toán */}
-                    {(order.status === 'pending' || order.rawStatus === 'PENDING') && (!order.paymentStatus || order.paymentStatus === 'UNPAID') && (
+                    {/* Nút thanh toán VietQR PayOS nếu đơn hàng chưa thanh toán và KHÔNG PHẢI đơn COD */}
+                    {(order.status === 'pending' || order.rawStatus === 'PENDING') && (!order.paymentStatus || order.paymentStatus === 'UNPAID') && !isCod && (
                       <button
                         type="button"
                         style={{

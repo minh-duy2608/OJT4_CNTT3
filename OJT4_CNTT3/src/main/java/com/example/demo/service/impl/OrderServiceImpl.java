@@ -384,6 +384,7 @@ public class OrderServiceImpl implements OrderService {
 
         return OrderItem.builder()
                 .variantId(variant.getId())
+                .variant(variant)
                 .productName(prodName)
                 .variantName(varName)
                 .sku(sku)
@@ -446,6 +447,11 @@ public class OrderServiceImpl implements OrderService {
         LocalDateTime now = LocalDateTime.now();
         String orderCode = "CYBER-" + (System.currentTimeMillis() % 1000000) + "-" + (100 + SECURE_RANDOM.nextInt(900));
 
+        boolean isCod = request.getPaymentMethod() != null && (
+                request.getPaymentMethod().toUpperCase().contains("COD") ||
+                request.getPaymentMethod().toLowerCase().contains("tiền mặt")
+        );
+
         Order order = Order.builder()
                 .orderCode(orderCode)
                 .userId(user.getId())
@@ -459,7 +465,7 @@ public class OrderServiceImpl implements OrderService {
                 .paymentStatus(PaymentStatus.UNPAID)
                 .paymentMethod(request.getPaymentMethod() != null ? request.getPaymentMethod() : "COD")
                 .note(request.getNotes())
-                .expiresAt(now.plusMinutes(RESERVATION_EXPIRATION_MINUTES))
+                .expiresAt(isCod ? null : now.plusMinutes(RESERVATION_EXPIRATION_MINUTES))
                 .inventoryReserved(true)
                 .inventoryDeducted(false)
                 .items(new ArrayList<>())
@@ -489,9 +495,9 @@ public class OrderServiceImpl implements OrderService {
         Order saved = orderRepository.save(order);
 
         // Nghiệp vụ: Thanh toán COD (tiền mặt) trừ stock thực tế ngay; Thanh toán chuyển khoản chỉ tạm giữ và chỉ trừ khi thanh toán thành công
-        boolean isCod = order.getPaymentMethod() != null && order.getPaymentMethod().toUpperCase().contains("COD");
         if (isCod) {
             confirmInventorySale(saved);
+            saved.setExpiresAt(null);
             saved = orderRepository.save(saved);
             log.info("COD order #{} placed: physical stock deducted immediately upon creation.", saved.getId());
         }
@@ -1417,7 +1423,11 @@ public class OrderServiceImpl implements OrderService {
         LocalDateTime expiresAt = order.getExpiresAt();
         Long remainingSeconds = null;
         boolean isExpired = false;
-        if (order.getStatus() == OrderStatus.PENDING) {
+        boolean isCod = order.getPaymentMethod() != null && (
+                order.getPaymentMethod().toUpperCase().contains("COD") ||
+                order.getPaymentMethod().toLowerCase().contains("tiền mặt")
+        );
+        if (!isCod && order.getStatus() == OrderStatus.PENDING) {
             LocalDateTime exp = expiresAt != null ? expiresAt : (order.getCreatedAt() != null ? order.getCreatedAt().plusMinutes(RESERVATION_EXPIRATION_MINUTES) : null);
             if (exp != null) {
                 long diff = Duration.between(LocalDateTime.now(), exp).getSeconds();

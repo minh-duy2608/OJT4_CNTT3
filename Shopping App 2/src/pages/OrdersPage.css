@@ -328,6 +328,23 @@
   gap: 1rem;
   padding: 0.85rem 0;
   border-bottom: 1px solid #f4f4f5;
+  transition: all 0.2s ease;
+}
+
+.order-item-row.is-clickable {
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 0.85rem 0.5rem;
+  margin: 0 -0.5rem;
+}
+
+.order-item-row.is-clickable:hover {
+  background-color: #f8fafc;
+}
+
+.order-item-row.is-clickable:hover .order-item-title {
+  color: #2563eb;
+  text-decoration: underline;
 }
 
 .order-item-row:last-child {

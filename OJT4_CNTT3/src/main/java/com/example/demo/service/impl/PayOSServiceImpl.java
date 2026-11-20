@@ -63,6 +63,11 @@ public class PayOSServiceImpl implements PayOSService {
     public PayOSPaymentResponse createPaymentLink(Long orderId, String username) {
         Order order = getOrderAndVerifyAccess(orderId, username);
 
+        // Đơn hàng thanh toán bằng tiền mặt (COD) không hỗ trợ chuyển khoản PayOS
+        if (order.getPaymentMethod() != null && (order.getPaymentMethod().toUpperCase().contains("COD") || order.getPaymentMethod().toLowerCase().contains("tiền mặt"))) {
+            throw new BadRequestException("Đơn hàng đã chọn phương thức thanh toán tiền mặt (COD), không thể chuyển sang thanh toán trực tuyến qua PayOS.");
+        }
+
         // Đơn hàng đã thanh toán thành công
         if (order.getPaymentStatus() == PaymentStatus.PAID || order.getStatus() == OrderStatus.DELIVERED) {
             return mapToResponse(order, "PAID", null, null);

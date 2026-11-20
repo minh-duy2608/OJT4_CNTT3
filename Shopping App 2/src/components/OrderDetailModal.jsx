@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   X, 
   Package, 
@@ -32,9 +33,12 @@ export const OrderDetailModal = ({
   onOpenReviewModal,
   onOpenReturnModal
 }) => {
+  const navigate = useNavigate();
   const [shipments, setShipments] = useState([]);
   const [existingReview, setExistingReview] = useState(null);
   const [activeReturn, setActiveReturn] = useState(order?.returnRequest || null);
+
+  const isCod = Boolean(order?.paymentMethod && (order.paymentMethod.toUpperCase().includes('COD') || order.paymentMethod.toLowerCase().includes('tiền mặt')));
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -258,34 +262,58 @@ export const OrderDetailModal = ({
             </div>
           </div>
 
-          {/* HỘP THÔNG BÁO TẠM GIỮ TỒN KHO 15 PHÚT (INVENTORY RESERVATION) */}
-          {(order.status === 'pending' || order.status === 'PENDING' || order.rawStatus === 'PENDING') && order.paymentStatus !== 'PAID' && (
-            <div style={{
-              marginTop: '1rem',
-              background: '#fffbeb',
-              border: '1px solid #fde68a',
-              borderRadius: '10px',
-              padding: '0.85rem 1rem',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '10px',
-              fontSize: '0.825rem',
-              color: '#92400e',
-              lineHeight: 1.5
-            }}>
-              <Clock size={18} style={{ flexShrink: 0, marginTop: '2px', color: '#d97706' }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, color: '#78350f', marginBottom: '2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>Tạm giữ tồn kho (Tối đa 15 phút)</span>
-                  <span style={{ background: '#fef3c7', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', border: '1px solid #fcd34d' }}>
-                    ⏱️ Giữ hàng 15:00
-                  </span>
-                </div>
+          {/* HỘP THÔNG BÁO TỒN KHO: GIỮ HÀNG 15P (ONLINE) HOẶC ĐÃ TRỪ KHO (TIỀN MẶT COD) */}
+          {(order.status === 'pending' || order.status === 'PENDING' || order.rawStatus === 'PENDING') && (
+            isCod ? (
+              <div style={{
+                marginTop: '1rem',
+                background: '#f0fdf4',
+                border: '1px solid #bbf7d0',
+                borderRadius: '10px',
+                padding: '0.85rem 1rem',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '10px',
+                fontSize: '0.825rem',
+                color: '#166534',
+                lineHeight: 1.5
+              }}>
+                <CheckCircle2 size={18} style={{ color: '#16a34a', flexShrink: 0, marginTop: '2px' }} />
                 <div>
-                  Số lượng sản phẩm trong đơn đã được hệ thống tạm giữ độc quyền cho bạn trong 15 phút. Vui lòng hoàn tất thanh toán trước khi thời gian giữ hàng kết thúc. Sau 15 phút hoặc nếu bạn hủy đơn, hệ thống sẽ tự động giải phóng số hàng đã giữ để người khác có thể đặt mua.
+                  <div style={{ fontWeight: 700, color: '#14532d', marginBottom: '2px' }}>
+                    Thanh toán tiền mặt (COD) - Đã giữ & trừ tồn kho
+                  </div>
+                  Đơn hàng của bạn đã được trừ số lượng trực tiếp trong tồn kho kho hàng ngay khi đặt thành công. Đơn hàng này không áp dụng cơ chế tự động hủy sau 15 phút, bạn sẽ thanh toán bằng tiền mặt trực tiếp khi nhận hàng.
                 </div>
               </div>
-            </div>
+            ) : order.paymentStatus !== 'PAID' && (
+              <div style={{
+                marginTop: '1rem',
+                background: '#fffbeb',
+                border: '1px solid #fde68a',
+                borderRadius: '10px',
+                padding: '0.85rem 1rem',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '10px',
+                fontSize: '0.825rem',
+                color: '#92400e',
+                lineHeight: 1.5
+              }}>
+                <Clock size={18} style={{ flexShrink: 0, marginTop: '2px', color: '#d97706' }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, color: '#78350f', marginBottom: '2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>Tạm giữ tồn kho (Tối đa 15 phút)</span>
+                    <span style={{ background: '#fef3c7', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', border: '1px solid #fcd34d' }}>
+                      ⏱️ Giữ hàng 15:00
+                    </span>
+                  </div>
+                  <div>
+                    Số lượng sản phẩm trong đơn đã được hệ thống tạm giữ độc quyền cho bạn trong 15 phút. Vui lòng hoàn tất thanh toán trước khi thời gian giữ hàng kết thúc. Sau 15 phút hoặc nếu bạn hủy đơn, hệ thống sẽ tự động giải phóng số hàng đã giữ để người khác có thể đặt mua.
+                  </div>
+                </div>
+              </div>
+            )
           )}
 
           {/* HỘP THÔNG BÁO ĐƠN ĐÃ HỦY & TỒN KHO ĐÃ ĐƯỢC GIẢI PHÓNG */}
@@ -322,7 +350,19 @@ export const OrderDetailModal = ({
             </div>
             <div className="detail-items-table">
               {items.map((item, idx) => (
-                <div key={idx} className="detail-item-row">
+                <div
+                  key={idx}
+                  className="detail-item-row is-clickable"
+                  onClick={() => {
+                    const targetId = item.productId || item.id;
+                    if (targetId) {
+                      onClose();
+                      navigate(`/products/${targetId}`);
+                    }
+                  }}
+                  title="Nhấn để xem trang chi tiết sản phẩm"
+                  style={{ cursor: 'pointer' }}
+                >
                   <div className="detail-item-thumb">
                     <img 
                       src={item.image || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100&auto=format&fit=crop&q=80'} 
