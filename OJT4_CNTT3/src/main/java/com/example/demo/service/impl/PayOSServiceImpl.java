@@ -66,6 +66,9 @@ public class PayOSServiceImpl implements PayOSService {
     private static final String FIELD_EVENT = "event";
     private static final String FIELD_ORDER_ID = "orderId";
     private static final String PAYMENT_METHOD_PAYOS = "PAYOS";
+    private static final String PAYOUT_STATUS_HOLDING = "HOLDING";
+    private static final String PAYOUT_STATUS_READY = "READY_FOR_PAYOUT";
+    private static final String PAYOUT_STATUS_PAID = "PAID_OUT";
     private static final String VIETQR_URL_TEMPLATE = "https://img.vietqr.io/image/%s-%s-compact2.png?amount=%d&addInfo=%s&accountName=%s";
     private static final String DEFAULT_CHECKOUT_URL = "https://pay.payos.vn";
 
@@ -241,54 +244,71 @@ public class PayOSServiceImpl implements PayOSService {
     public PayOSPaymentResponse getPaymentStatus(Long orderId, String username) {
         Order order = getOrderAndVerifyAccess(orderId, username);
 
-        // 1. Kiểm tra trạng thái trong DB
+        PayOSPaymentResponse dbStatus = checkOrderStatusInDb(order);
+        if (dbStatus != null) {
+            return dbStatus;
+        }
+
+        PayOSPaymentResponse gatewayStatus = queryPayOSGatewayStatus(order);
+        if (gatewayStatus != null) {
+            return gatewayStatus;
+        }
+
+        return mapToResponse(order, "PENDING", null, null);
+    }
+
+    private PayOSPaymentResponse checkOrderStatusInDb(Order order) {
         if (order.getPaymentStatus() == PaymentStatus.PAID || order.getStatus() == OrderStatus.CONFIRMED || order.getStatus() == OrderStatus.DELIVERED) {
             return mapToResponse(order, STATUS_PAID, null, null);
         }
 
-        // 2. Kiểm tra hết hạn 5 phút
         if (order.isExpired() || order.getStatus() == OrderStatus.CANCELLED) {
             if (order.getStatus() != OrderStatus.CANCELLED) {
                 cancelExpiredOrder(order);
             }
             return mapToResponse(order, STATUS_EXPIRED, null, null);
         }
+        return null;
+    }
 
-        // 3. Nếu PayOS đã cấu hình, có thể chủ động query PayOS xem khách đã chuyển khoản chưa
-        if (payOSProperties.isConfigured()) {
-            try {
-                String queryUrl = PAYOS_API_URL + "/" + order.getId();
-                HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
-                HttpRequest req = HttpRequest.newBuilder()
-                        .uri(URI.create(queryUrl))
-                        .header("x-client-id", payOSProperties.getClientId())
-                        .header("x-api-key", payOSProperties.getApiKey())
-                        .header("User-Agent", "CyberMall/1.0 (Macintosh; Intel Mac OS X)")
-                        .GET()
-                        .build();
-                HttpResponse<String> res = client.send(req, HttpResponse.BodyHandlers.ofString());
-                if (res.statusCode() == 200) {
-                    JsonNode root = objectMapper.readTree(res.body());
-                    if ("00".equals(root.path("code").asText())) {
-                        String payosStatus = root.path("data").path(FIELD_STATUS).asText("");
-                        if (STATUS_PAID.equalsIgnoreCase(payosStatus)) {
-                            confirmOrderPaid(order, "Xác nhận tự động từ PayOS Gateway");
-                            return mapToResponse(order, STATUS_PAID, null, null);
-                        } else if ("CANCELLED".equalsIgnoreCase(payosStatus) || STATUS_EXPIRED.equalsIgnoreCase(payosStatus)) {
-                            cancelExpiredOrder(order);
-                            return mapToResponse(order, STATUS_EXPIRED, null, null);
-                        }
-                    }
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log.debug("Interrupted while checking PayOS status query: {}", e.getMessage());
-            } catch (Exception e) {
-                log.debug("Check PayOS status query error: {}", e.getMessage());
-            }
+    private PayOSPaymentResponse queryPayOSGatewayStatus(Order order) {
+        if (!payOSProperties.isConfigured()) {
+            return null;
         }
 
-        return mapToResponse(order, "PENDING", null, null);
+        try {
+            String queryUrl = PAYOS_API_URL + "/" + order.getId();
+            HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(queryUrl))
+                    .header("x-client-id", payOSProperties.getClientId())
+                    .header("x-api-key", payOSProperties.getApiKey())
+                    .header("User-Agent", "CyberMall/1.0 (Macintosh; Intel Mac OS X)")
+                    .GET()
+                    .build();
+            HttpResponse<String> res = client.send(req, HttpResponse.BodyHandlers.ofString());
+            if (res.statusCode() == 200) {
+                JsonNode root = objectMapper.readTree(res.body());
+                if ("00".equals(root.path("code").asText())) {
+                    String payosStatus = root.path("data").path(FIELD_STATUS).asText("");
+                    if (STATUS_PAID.equalsIgnoreCase(payosStatus)) {
+                        confirmOrderPaid(order, "Xác nhận tự động từ PayOS Gateway");
+                        return mapToResponse(order, STATUS_PAID, null, null);
+                    }
+                    if ("CANCELLED".equalsIgnoreCase(payosStatus) || STATUS_EXPIRED.equalsIgnoreCase(payosStatus)) {
+                        cancelExpiredOrder(order);
+                        return mapToResponse(order, STATUS_EXPIRED, null, null);
+                    }
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.debug("Interrupted while checking PayOS status query: {}", e.getMessage());
+        } catch (Exception e) {
+            log.debug("Check PayOS status query error: {}", e.getMessage());
+        }
+
+        return null;
     }
 
     @Override
@@ -385,13 +405,19 @@ public class PayOSServiceImpl implements PayOSService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
 
-        if (!"READY_FOR_PAYOUT".equalsIgnoreCase(order.getShopPayoutStatus()) && !"HOLDING".equalsIgnoreCase(order.getShopPayoutStatus())) {
+        if (!PAYOUT_STATUS_READY.equalsIgnoreCase(order.getShopPayoutStatus()) && !PAYOUT_STATUS_HOLDING.equalsIgnoreCase(order.getShopPayoutStatus())) {
             throw new BadRequestException("Đơn hàng này không ở trạng thái chờ chuyển tiền (Trạng thái hiện tại: " + order.getShopPayoutStatus() + ")");
         }
 
-        order.setShopPayoutStatus("PAID_OUT");
+        order.setShopPayoutStatus(PAYOUT_STATUS_PAID);
         order.setShopPayoutAt(LocalDateTime.now());
-        String finalNote = (note != null && !note.isBlank()) ? note : ("Đã chuyển khoản thành công" + (transactionRef != null ? " - Mã GD: " + transactionRef : ""));
+        String finalNote = note;
+        if (finalNote == null || finalNote.isBlank()) {
+            finalNote = "Đã chuyển khoản thành công";
+            if (transactionRef != null && !transactionRef.isBlank()) {
+                finalNote += " - Mã GD: " + transactionRef;
+            }
+        }
         order.setShopPayoutNote(finalNote);
         order.setShopPayoutTransferredBy(adminUser.getId());
         Order saved = orderRepository.save(order);
@@ -463,13 +489,13 @@ public class PayOSServiceImpl implements PayOSService {
             totalShippingFee = totalShippingFee.add(ship);
             totalProductAmount = totalProductAmount.add(productAmount);
 
-            if ("HOLDING".equalsIgnoreCase(st)) {
+            if (PAYOUT_STATUS_HOLDING.equalsIgnoreCase(st)) {
                 totalHolding = totalHolding.add(payoutAmount);
                 holdingCount++;
-            } else if ("READY_FOR_PAYOUT".equalsIgnoreCase(st)) {
+            } else if (PAYOUT_STATUS_READY.equalsIgnoreCase(st)) {
                 totalReady = totalReady.add(payoutAmount);
                 readyCount++;
-            } else if ("PAID_OUT".equalsIgnoreCase(st)) {
+            } else if (PAYOUT_STATUS_PAID.equalsIgnoreCase(st)) {
                 totalPaidOut = totalPaidOut.add(payoutAmount);
                 paidOutCount++;
             }
@@ -590,11 +616,12 @@ public class PayOSServiceImpl implements PayOSService {
      * Xác nhận đơn hàng đã thanh toán thành công, trừ tồn kho vật lý và phát sự kiện Real-time
      */
     private void confirmOrderPaid(Order order, String reason) {
+        log.info("Confirming order #{} paid. Reason: {}", order.getId(), reason);
         order.setPaymentStatus(PaymentStatus.PAID);
         order.setStatus(OrderStatus.CONFIRMED);
         order.setConfirmedAt(LocalDateTime.now());
         // NGHIỆP VỤ ESCROW: Tiền về tài khoản Admin trước, Admin tạm giữ tiền (HOLDING). Khi khách nhận hàng thành công -> READY_FOR_PAYOUT
-        order.setShopPayoutStatus("HOLDING");
+        order.setShopPayoutStatus(PAYOUT_STATUS_HOLDING);
         if (order.getShopPayoutAmount() == null) {
             order.setShopPayoutAmount(order.getTotalAmount());
         }
@@ -602,16 +629,7 @@ public class PayOSServiceImpl implements PayOSService {
         // Chuyển hàng giữ tạm sang bán thật (trừ tồn kho vật lý)
         if (order.getItems() != null) {
             for (OrderItem item : order.getItems()) {
-                if (item.getVariantId() != null) {
-                    inventoryRepository.findById(item.getVariantId()).ifPresent(inv -> {
-                        int qty = item.getQuantity() != null ? item.getQuantity() : 0;
-                        inv.setQuantity(Math.max(0, (inv.getQuantity() != null ? inv.getQuantity() : 0) - qty));
-                        inv.setReservedQuantity(Math.max(0, (inv.getReservedQuantity() != null ? inv.getReservedQuantity() : 0) - qty));
-                        inventoryRepository.save(inv);
-                        log.info("PayOS confirmed sale for variant #{}: deducted {} from physical stock, released {} from reserved. Remaining quantity: {}, reserved: {}",
-                                item.getVariantId(), qty, qty, inv.getQuantity(), inv.getReservedQuantity());
-                    });
-                }
+                deductVariantStock(item);
             }
         }
         order.setInventoryReserved(false);
@@ -620,6 +638,22 @@ public class PayOSServiceImpl implements PayOSService {
 
         // Phát WebSocket STOMP tới tất cả các kênh liên quan (Buyer, Shop, PayOS QR Modal)
         broadcastRealtimePaid(saved);
+    }
+
+    private void deductVariantStock(OrderItem item) {
+        if (item.getVariantId() == null) {
+            return;
+        }
+        inventoryRepository.findById(item.getVariantId()).ifPresent(inv -> {
+            int qty = item.getQuantity() != null ? item.getQuantity() : 0;
+            int currentQty = inv.getQuantity() != null ? inv.getQuantity() : 0;
+            int currentReserved = inv.getReservedQuantity() != null ? inv.getReservedQuantity() : 0;
+            inv.setQuantity(Math.max(0, currentQty - qty));
+            inv.setReservedQuantity(Math.max(0, currentReserved - qty));
+            inventoryRepository.save(inv);
+            log.info("PayOS confirmed sale for variant #{}: deducted {} from physical stock, released {} from reserved. Remaining quantity: {}, reserved: {}",
+                    item.getVariantId(), qty, qty, inv.getQuantity(), inv.getReservedQuantity());
+        });
     }
 
     private void cancelExpiredOrder(Order order) {
