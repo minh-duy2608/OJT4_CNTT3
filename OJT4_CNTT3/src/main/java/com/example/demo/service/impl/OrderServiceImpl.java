@@ -561,59 +561,78 @@ public class OrderServiceImpl implements OrderService {
         if (order.getItems() == null || order.getItems().isEmpty()) {
             return;
         }
-        if (Boolean.TRUE.equals(order.getInventoryReserved()) && !Boolean.TRUE.equals(order.getInventoryDeducted())) {
-            for (OrderItem item : order.getItems()) {
-                if (item.getVariantId() != null) {
-                    inventoryRepository.findById(item.getVariantId()).ifPresent(inv -> {
-                        int qty = item.getQuantity() != null ? item.getQuantity() : 0;
-                        inv.setQuantity(Math.max(0, (inv.getQuantity() != null ? inv.getQuantity() : 0) - qty));
-                        inv.setReservedQuantity(Math.max(0, (inv.getReservedQuantity() != null ? inv.getReservedQuantity() : 0) - qty));
-                        inventoryRepository.save(inv);
-                        log.info("Confirmed sale for variant #{}: deducted {} from physical stock, released {} from reserved. Remaining quantity: {}, reserved: {}",
-                                item.getVariantId(), qty, qty, inv.getQuantity(), inv.getReservedQuantity());
-                    });
-                }
-            }
-            order.setInventoryReserved(false);
-            order.setInventoryDeducted(true);
+        if (!Boolean.TRUE.equals(order.getInventoryReserved()) || Boolean.TRUE.equals(order.getInventoryDeducted())) {
+            return;
         }
+        for (OrderItem item : order.getItems()) {
+            deductVariantInventory(item);
+        }
+        order.setInventoryReserved(false);
+        order.setInventoryDeducted(true);
+    }
+
+    private void deductVariantInventory(OrderItem item) {
+        if (item.getVariantId() == null) {
+            return;
+        }
+        inventoryRepository.findById(item.getVariantId()).ifPresent(inv -> {
+            int qty = item.getQuantity() != null ? item.getQuantity() : 0;
+            int currentQty = inv.getQuantity() != null ? inv.getQuantity() : 0;
+            int currentReserved = inv.getReservedQuantity() != null ? inv.getReservedQuantity() : 0;
+            inv.setQuantity(Math.max(0, currentQty - qty));
+            inv.setReservedQuantity(Math.max(0, currentReserved - qty));
+            inventoryRepository.save(inv);
+            log.info("Confirmed sale for variant #{}: deducted {} from physical stock, released {} from reserved. Remaining quantity: {}, reserved: {}",
+                    item.getVariantId(), qty, qty, inv.getQuantity(), inv.getReservedQuantity());
+        });
+    }
+
+    private boolean isOrderDeductedOrConfirmed(Order order) {
+        if (Boolean.TRUE.equals(order.getInventoryDeducted())) {
+            return true;
+        }
+        OrderStatus status = order.getStatus();
+        return status == OrderStatus.CONFIRMED ||
+                status == OrderStatus.PROCESSING ||
+                status == OrderStatus.SHIPPED ||
+                status == OrderStatus.DELIVERED;
     }
 
     private void releaseOrRestoreInventory(Order order) {
         if (order.getItems() == null || order.getItems().isEmpty()) {
             return;
         }
-        boolean isConfirmedOrSold = Boolean.TRUE.equals(order.getInventoryDeducted()) ||
-                order.getStatus() == OrderStatus.CONFIRMED ||
-                order.getStatus() == OrderStatus.PROCESSING ||
-                order.getStatus() == OrderStatus.SHIPPED ||
-                order.getStatus() == OrderStatus.DELIVERED;
-
+        boolean isConfirmedOrSold = isOrderDeductedOrConfirmed(order);
         for (OrderItem item : order.getItems()) {
-            if (item.getVariantId() != null) {
-                inventoryRepository.findById(item.getVariantId()).ifPresent(inv -> {
-                    int qty = item.getQuantity() != null ? item.getQuantity() : 0;
-                    int currentReserved = inv.getReservedQuantity() != null ? inv.getReservedQuantity() : 0;
-                    int currentQty = inv.getQuantity() != null ? inv.getQuantity() : 0;
-
-                    if (!isConfirmedOrSold && currentReserved >= qty) {
-                        inv.setReservedQuantity(Math.max(0, currentReserved - qty));
-                        log.info("Released reserved inventory for variant #{}: unreserved {}. Reserved remaining: {}, Available: {}",
-                                item.getVariantId(), qty, inv.getReservedQuantity(), inv.getAvailableQuantity());
-                    } else {
-                        inv.setQuantity(currentQty + qty);
-                        if (currentReserved >= qty) {
-                            inv.setReservedQuantity(currentReserved - qty);
-                        }
-                        log.info("Restored physical inventory for variant #{}: added {} back to quantity. Current quantity: {}",
-                                item.getVariantId(), qty, inv.getQuantity());
-                    }
-                    inventoryRepository.save(inv);
-                });
-            }
+            restoreItemInventory(item, isConfirmedOrSold);
         }
         order.setInventoryReserved(false);
         order.setInventoryDeducted(false);
+    }
+
+    private void restoreItemInventory(OrderItem item, boolean isConfirmedOrSold) {
+        if (item.getVariantId() == null) {
+            return;
+        }
+        inventoryRepository.findById(item.getVariantId()).ifPresent(inv -> {
+            int qty = item.getQuantity() != null ? item.getQuantity() : 0;
+            int currentReserved = inv.getReservedQuantity() != null ? inv.getReservedQuantity() : 0;
+            int currentQty = inv.getQuantity() != null ? inv.getQuantity() : 0;
+
+            if (!isConfirmedOrSold && currentReserved >= qty) {
+                inv.setReservedQuantity(Math.max(0, currentReserved - qty));
+                log.info("Released reserved inventory for variant #{}: unreserved {}. Reserved remaining: {}, Available: {}",
+                        item.getVariantId(), qty, inv.getReservedQuantity(), inv.getAvailableQuantity());
+            } else {
+                inv.setQuantity(currentQty + qty);
+                if (currentReserved >= qty) {
+                    inv.setReservedQuantity(currentReserved - qty);
+                }
+                log.info("Restored physical inventory for variant #{}: added {} back to quantity. Current quantity: {}",
+                        item.getVariantId(), qty, inv.getQuantity());
+            }
+            inventoryRepository.save(inv);
+        });
     }
 
     private void restoreInventory(Order order) {
@@ -686,17 +705,7 @@ public class OrderServiceImpl implements OrderService {
             order.setDeliveredAt(now);
         }
         order.setPaymentStatus(PaymentStatus.PAID);
-        // Nghiệp vụ Escrow: Khi khách nhận hàng thành công, số tiền Admin đang giữ chuyển sang trạng thái sẵn sàng để Admin chuyển tiền cho Shop (đã khấu trừ 2.5% phí sàn và cước ship)
-        if ("HOLDING".equalsIgnoreCase(order.getShopPayoutStatus()) || (order.getPaymentMethod() != null && order.getPaymentMethod().toUpperCase().contains("PAYOS"))) {
-            order.setShopPayoutStatus("READY_FOR_PAYOUT");
-            BigDecimal ship = order.getShippingFee() != null ? order.getShippingFee() : BigDecimal.ZERO;
-            BigDecimal prod = (order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO).subtract(ship);
-            if (prod.compareTo(BigDecimal.ZERO) < 0) prod = BigDecimal.ZERO;
-            BigDecimal fee = prod.multiply(new BigDecimal("0.025")).setScale(0, RoundingMode.HALF_UP);
-            BigDecimal net = prod.subtract(fee);
-            order.setPlatformFee(fee);
-            order.setShopPayoutAmount(net);
-        }
+        applyEscrowPayoutOnDelivery(order);
         order.setUpdatedAt(now);
 
         Order saved = orderRepository.save(order);
@@ -719,6 +728,25 @@ public class OrderServiceImpl implements OrderService {
         OrderResponse response = mapToDetailedResponse(saved, user.getId());
         broadcastOrderUpdate(response);
         return response;
+    }
+
+    private void applyEscrowPayoutOnDelivery(Order order) {
+        boolean isHolding = "HOLDING".equalsIgnoreCase(order.getShopPayoutStatus());
+        boolean isPayOS = order.getPaymentMethod() != null && order.getPaymentMethod().toUpperCase().contains("PAYOS");
+        if (!isHolding && !isPayOS) {
+            return;
+        }
+        order.setShopPayoutStatus("READY_FOR_PAYOUT");
+        BigDecimal ship = order.getShippingFee() != null ? order.getShippingFee() : BigDecimal.ZERO;
+        BigDecimal total = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
+        BigDecimal prod = total.subtract(ship);
+        if (prod.compareTo(BigDecimal.ZERO) < 0) {
+            prod = BigDecimal.ZERO;
+        }
+        BigDecimal fee = prod.multiply(new BigDecimal("0.025")).setScale(0, RoundingMode.HALF_UP);
+        BigDecimal net = prod.subtract(fee);
+        order.setPlatformFee(fee);
+        order.setShopPayoutAmount(net);
     }
 
     @Override
@@ -1046,6 +1074,31 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
+    private boolean isConfirmedOrOngoingStatus(OrderStatus status) {
+        return status == OrderStatus.CONFIRMED ||
+                status == OrderStatus.PROCESSING ||
+                status == OrderStatus.SHIPPED ||
+                status == OrderStatus.DELIVERED;
+    }
+
+    private void dispatchStatusAction(Order order, Shop shop, UpdateOrderStatusRequest request, User user, boolean isAdmin, LocalDateTime now, OrderStatus oldStatus, OrderStatus newStatus) {
+        switch (newStatus) {
+            case CONFIRMED -> handleStatusConfirmed(order, shop, user, now);
+            case PROCESSING -> log.info("Đơn hàng #{} ({}) của Shop #{} đang được chuẩn bị hàng (PROCESSING) vào lúc: {}. Người thực hiện: '{}'",
+                    order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), now, user.getUsername());
+            case SHIPPED -> handleStatusShipped(order, shop, user, now);
+            case DELIVERED -> handleStatusDelivered(order, shop, user, now);
+            case CANCELLED -> handleStatusCancelled(order, shop, request, user, isAdmin, now, oldStatus);
+            case RETURNED -> log.info("Đơn hàng #{} ({}) của Shop #{} ghi nhận TRẢ HÀNG (RETURNED) vào lúc: {}. Người thực hiện: '{}'",
+                    order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), now, user.getUsername());
+            default -> { /* PENDING or other unhandled */ }
+        }
+
+        if (isConfirmedOrOngoingStatus(newStatus)) {
+            confirmInventorySale(order);
+        }
+    }
+
     private OrderResponse processStatusUpdate(Order order, Shop shop, UpdateOrderStatusRequest request, User user, boolean isAdmin, boolean isShopManager) {
         OrderStatus oldStatus = order.getStatus();
         OrderStatus newStatus = request.getStatus();
@@ -1053,23 +1106,7 @@ public class OrderServiceImpl implements OrderService {
         if (newStatus != null && newStatus != oldStatus) {
             validateStatusTransition(oldStatus, newStatus);
             order.setStatus(newStatus);
-            LocalDateTime now = LocalDateTime.now();
-
-            switch (newStatus) {
-                case CONFIRMED -> handleStatusConfirmed(order, shop, user, now);
-                case PROCESSING -> log.info("Đơn hàng #{} ({}) của Shop #{} đang được chuẩn bị hàng (PROCESSING) vào lúc: {}. Người thực hiện: '{}'",
-                        order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), now, user.getUsername());
-                case SHIPPED -> handleStatusShipped(order, shop, user, now);
-                case DELIVERED -> handleStatusDelivered(order, shop, user, now);
-                case CANCELLED -> handleStatusCancelled(order, shop, request, user, isAdmin, now, oldStatus);
-                case RETURNED -> log.info("Đơn hàng #{} ({}) của Shop #{} ghi nhận TRẢ HÀNG (RETURNED) vào lúc: {}. Người thực hiện: '{}'",
-                        order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), now, user.getUsername());
-                default -> { /* PENDING or other unhandled */ }
-            }
-
-            if (newStatus == OrderStatus.CONFIRMED || newStatus == OrderStatus.PROCESSING || newStatus == OrderStatus.SHIPPED || newStatus == OrderStatus.DELIVERED) {
-                confirmInventorySale(order);
-            }
+            dispatchStatusAction(order, shop, request, user, isAdmin, LocalDateTime.now(), oldStatus, newStatus);
         }
 
         if (request.getPaymentStatus() != null) {
@@ -1439,7 +1476,10 @@ public class OrderServiceImpl implements OrderService {
                 order.getPaymentMethod().toLowerCase().contains("tiền mặt")
         );
         if (!isCod && order.getStatus() == OrderStatus.PENDING) {
-            LocalDateTime exp = expiresAt != null ? expiresAt : (order.getCreatedAt() != null ? order.getCreatedAt().plusMinutes(RESERVATION_EXPIRATION_MINUTES) : null);
+            LocalDateTime exp = expiresAt;
+            if (exp == null && order.getCreatedAt() != null) {
+                exp = order.getCreatedAt().plusMinutes(RESERVATION_EXPIRATION_MINUTES);
+            }
             if (exp != null) {
                 long diff = Duration.between(LocalDateTime.now(), exp).getSeconds();
                 remainingSeconds = Math.max(0, diff);

@@ -57,143 +57,183 @@ public class PayOSServiceImpl implements PayOSService {
     private SimpMessagingTemplate messagingTemplate;
 
     private static final String PAYOS_API_URL = "https://api-merchant.payos.vn/v2/payment-requests";
+    private static final String STATUS_EXPIRED = "EXPIRED";
+    private static final String STATUS_PAID = "PAID";
+    private static final String CYBER_PREFIX = "CYBER ";
+    private static final String FIELD_ORDER_CODE = "orderCode";
+    private static final String FIELD_AMOUNT = "amount";
+    private static final String FIELD_STATUS = "status";
+    private static final String FIELD_EVENT = "event";
+    private static final String FIELD_ORDER_ID = "orderId";
+    private static final String PAYMENT_METHOD_PAYOS = "PAYOS";
+    private static final String VIETQR_URL_TEMPLATE = "https://img.vietqr.io/image/%s-%s-compact2.png?amount=%d&addInfo=%s&accountName=%s";
+    private static final String DEFAULT_CHECKOUT_URL = "https://pay.payos.vn";
+
+    private record PayOSGatewayResult(String checkoutUrl, String qrCode, String accountNumber, String accountName, String bin) {}
 
     @Override
     @Transactional
     public PayOSPaymentResponse createPaymentLink(Long orderId, String username) {
         Order order = getOrderAndVerifyAccess(orderId, username);
-
-        // Đơn hàng thanh toán bằng tiền mặt (COD) không hỗ trợ chuyển khoản PayOS
-        if (order.getPaymentMethod() != null && (order.getPaymentMethod().toUpperCase().contains("COD") || order.getPaymentMethod().toLowerCase().contains("tiền mặt"))) {
-            throw new BadRequestException("Đơn hàng đã chọn phương thức thanh toán tiền mặt (COD), không thể chuyển sang thanh toán trực tuyến qua PayOS.");
+        PayOSPaymentResponse initialResponse = validateOrderForPayment(order);
+        if (initialResponse != null) {
+            return initialResponse;
         }
 
-        // Đơn hàng đã thanh toán thành công
-        if (order.getPaymentStatus() == PaymentStatus.PAID || order.getStatus() == OrderStatus.DELIVERED) {
-            return mapToResponse(order, "PAID", null, null);
-        }
-
-        // Đơn hàng đã bị hủy hoặc hết hạn
-        if (order.getStatus() == OrderStatus.CANCELLED || order.isExpired()) {
-            return mapToResponse(order, "EXPIRED", null, null);
-        }
-
-        // Đảm bảo đơn hàng có expiresAt chuẩn 5 phút
-        LocalDateTime now = LocalDateTime.now();
-        if (order.getExpiresAt() == null) {
-            order.setExpiresAt(order.getCreatedAt() != null ? order.getCreatedAt().plusMinutes(5) : now.plusMinutes(5));
-        }
-
-        // Cập nhật phương thức thanh toán sang PayOS nếu chưa có
-        order.setPaymentMethod("PAYOS");
-        orderRepository.save(order);
+        prepareOrderForPayOS(order);
 
         long payosOrderCode = order.getId();
         int amount = order.getTotalAmount() != null ? order.getTotalAmount().intValue() : 0;
-        String rawDesc = "CYBER " + order.getOrderCode();
-        String description = sanitizeDescription(rawDesc);
+        String description = sanitizeDescription(CYBER_PREFIX + order.getOrderCode());
 
-        String checkoutUrl = null;
-        String qrCode = null;
+        PayOSGatewayResult gatewayResult = requestPayOSPaymentLink(order, amount, description, payosOrderCode);
+
+        String qrCode = resolvePaymentQrCode(gatewayResult.qrCode(), gatewayResult.bin(), gatewayResult.accountNumber(), amount, description, gatewayResult.accountName());
+        String checkoutUrl = resolveCheckoutUrl(gatewayResult.checkoutUrl());
+
+        return buildPaymentResponse(order, payosOrderCode, description, gatewayResult, qrCode, checkoutUrl);
+    }
+
+    private PayOSPaymentResponse validateOrderForPayment(Order order) {
+        if (order.getPaymentMethod() != null && (order.getPaymentMethod().toUpperCase().contains("COD") || order.getPaymentMethod().toLowerCase().contains("tiền mặt"))) {
+            throw new BadRequestException("Đơn hàng đã chọn phương thức thanh toán tiền mặt (COD), không thể chuyển sang thanh toán trực tuyến qua PayOS.");
+        }
+        if (order.getPaymentStatus() == PaymentStatus.PAID || order.getStatus() == OrderStatus.DELIVERED) {
+            return mapToResponse(order, STATUS_PAID, null, null);
+        }
+        if (order.getStatus() == OrderStatus.CANCELLED || order.isExpired()) {
+            return mapToResponse(order, STATUS_EXPIRED, null, null);
+        }
+        return null;
+    }
+
+    private void prepareOrderForPayOS(Order order) {
+        if (order.getExpiresAt() == null) {
+            LocalDateTime now = LocalDateTime.now();
+            order.setExpiresAt(order.getCreatedAt() != null ? order.getCreatedAt().plusMinutes(5) : now.plusMinutes(5));
+        }
+        order.setPaymentMethod(PAYMENT_METHOD_PAYOS);
+        orderRepository.save(order);
+    }
+
+    private PayOSGatewayResult requestPayOSPaymentLink(Order order, int amount, String description, long payosOrderCode) {
         String accountNumber = payOSProperties.getAccountNumber();
         String accountName = payOSProperties.getAccountName();
         String bin = payOSProperties.getBankBin();
-        String bankName = payOSProperties.getBankName();
+        String checkoutUrl = null;
+        String qrCode = null;
 
-        // 1. Thử gọi API chính thức của PayOS nếu đã cấu hình Client ID, API Key, Checksum Key
-        if (payOSProperties.isConfigured()) {
-            try {
-                long expiredAtUnix = order.getExpiresAt().toEpochSecond(ZoneOffset.ofHours(7));
-                String cancelUrl = payOSProperties.getCancelUrl();
-                String returnUrl = payOSProperties.getReturnUrl();
-
-                // Chuỗi ký tự chuẩn PayOS v2: amount={amount}&cancelUrl={cancelUrl}&description={description}&orderCode={orderCode}&returnUrl={returnUrl}
-                String signData = String.format("amount=%d&cancelUrl=%s&description=%s&orderCode=%d&returnUrl=%s",
-                        amount, cancelUrl, description, payosOrderCode, returnUrl);
-                String signature = createHmacSha256(signData, payOSProperties.getChecksumKey());
-
-                Map<String, Object> reqBody = new HashMap<>();
-                reqBody.put("orderCode", payosOrderCode);
-                reqBody.put("amount", amount);
-                reqBody.put("description", description);
-                reqBody.put("cancelUrl", cancelUrl);
-                reqBody.put("returnUrl", returnUrl);
-                reqBody.put("expiredAt", expiredAtUnix);
-                reqBody.put("signature", signature);
-
-                if (order.getRecipientName() != null) reqBody.put("buyerName", order.getRecipientName());
-                if (order.getRecipientPhone() != null) reqBody.put("buyerPhone", order.getRecipientPhone());
-                if (order.getShippingAddress() != null) reqBody.put("buyerAddress", order.getShippingAddress());
-
-                String jsonBody = objectMapper.writeValueAsString(reqBody);
-
-                HttpClient client = HttpClient.newBuilder()
-                        .connectTimeout(Duration.ofSeconds(10))
-                        .build();
-
-                HttpRequest httpRequest = HttpRequest.newBuilder()
-                        .uri(URI.create(PAYOS_API_URL))
-                        .header("x-client-id", payOSProperties.getClientId())
-                        .header("x-api-key", payOSProperties.getApiKey())
-                        .header("Content-Type", "application/json")
-                        .header("User-Agent", "CyberMall/1.0 (Macintosh; Intel Mac OS X)")
-                        .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
-                        .build();
-
-                HttpResponse<String> httpResponse = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-
-                if (httpResponse.statusCode() == 200 || httpResponse.statusCode() == 201) {
-                    JsonNode root = objectMapper.readTree(httpResponse.body());
-                    if ("00".equals(root.path("code").asText())) {
-                        JsonNode data = root.path("data");
-                        checkoutUrl = data.path("checkoutUrl").asText(null);
-                        qrCode = data.path("qrCode").asText(null);
-                        if (data.hasNonNull("accountNumber")) accountNumber = data.path("accountNumber").asText();
-                        if (data.hasNonNull("accountName")) accountName = data.path("accountName").asText();
-                        if (data.hasNonNull("bin")) bin = data.path("bin").asText();
-                        log.info("Successfully created PayOS payment link for order #{} (Code: {})", order.getId(), order.getOrderCode());
-                    } else {
-                        log.warn("PayOS returned non-zero code: {} - {}", root.path("code").asText(), root.path("desc").asText());
-                    }
-                } else {
-                    log.warn("PayOS HTTP {} response: {}", httpResponse.statusCode(), httpResponse.body());
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log.warn("Interrupted while calling PayOS API for order #{}, fallback to VietQR generation: {}", order.getId(), e.getMessage());
-            } catch (Exception e) {
-                log.warn("Failed to call PayOS API for order #{}, fallback to VietQR generation: {}", order.getId(), e.getMessage());
-            }
+        if (!payOSProperties.isConfigured()) {
+            return new PayOSGatewayResult(checkoutUrl, qrCode, accountNumber, accountName, bin);
         }
 
-        // 2. Nếu PayOS chưa cấu hình hoặc không trả về QR, tự động sinh chuẩn VietQR quốc gia (scannable 100% qua app Ngân hàng)
+        try {
+            long expiredAtUnix = order.getExpiresAt().toEpochSecond(ZoneOffset.ofHours(7));
+            String cancelUrl = payOSProperties.getCancelUrl();
+            String returnUrl = payOSProperties.getReturnUrl();
+
+            String signData = String.format("amount=%d&cancelUrl=%s&description=%s&orderCode=%d&returnUrl=%s",
+                    amount, cancelUrl, description, payosOrderCode, returnUrl);
+            String signature = createHmacSha256(signData, payOSProperties.getChecksumKey());
+
+            Map<String, Object> reqBody = buildPayOSRequestBody(payosOrderCode, amount, description, cancelUrl, returnUrl, expiredAtUnix, signature, order);
+            String jsonBody = objectMapper.writeValueAsString(reqBody);
+
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .build();
+
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(PAYOS_API_URL))
+                    .header("x-client-id", payOSProperties.getClientId())
+                    .header("x-api-key", payOSProperties.getApiKey())
+                    .header("Content-Type", "application/json")
+                    .header("User-Agent", "CyberMall/1.0 (Macintosh; Intel Mac OS X)")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
+                    .build();
+
+            HttpResponse<String> httpResponse = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+
+            if (httpResponse.statusCode() == 200 || httpResponse.statusCode() == 201) {
+                JsonNode root = objectMapper.readTree(httpResponse.body());
+                if ("00".equals(root.path("code").asText())) {
+                    JsonNode data = root.path("data");
+                    checkoutUrl = data.path("checkoutUrl").asText(null);
+                    qrCode = data.path("qrCode").asText(null);
+                    if (data.hasNonNull("accountNumber")) accountNumber = data.path("accountNumber").asText();
+                    if (data.hasNonNull("accountName")) accountName = data.path("accountName").asText();
+                    if (data.hasNonNull("bin")) bin = data.path("bin").asText();
+                    log.info("Successfully created PayOS payment link for order #{} (Code: {})", order.getId(), order.getOrderCode());
+                } else {
+                    log.warn("PayOS returned non-zero code: {} - {}", root.path("code").asText(), root.path("desc").asText());
+                }
+            } else {
+                log.warn("PayOS HTTP {} response: {}", httpResponse.statusCode(), httpResponse.body());
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while calling PayOS API for order #{}, fallback to VietQR generation: {}", order.getId(), e.getMessage());
+        } catch (Exception e) {
+            log.warn("Failed to call PayOS API for order #{}, fallback to VietQR generation: {}", order.getId(), e.getMessage());
+        }
+
+        return new PayOSGatewayResult(checkoutUrl, qrCode, accountNumber, accountName, bin);
+    }
+
+    private Map<String, Object> buildPayOSRequestBody(long payosOrderCode, int amount, String description,
+                                                      String cancelUrl, String returnUrl, long expiredAtUnix,
+                                                      String signature, Order order) {
+        Map<String, Object> reqBody = new HashMap<>();
+        reqBody.put(FIELD_ORDER_CODE, payosOrderCode);
+        reqBody.put(FIELD_AMOUNT, amount);
+        reqBody.put("description", description);
+        reqBody.put("cancelUrl", cancelUrl);
+        reqBody.put("returnUrl", returnUrl);
+        reqBody.put("expiredAt", expiredAtUnix);
+        reqBody.put("signature", signature);
+        if (order.getRecipientName() != null) reqBody.put("buyerName", order.getRecipientName());
+        if (order.getRecipientPhone() != null) reqBody.put("buyerPhone", order.getRecipientPhone());
+        if (order.getShippingAddress() != null) reqBody.put("buyerAddress", order.getShippingAddress());
+        return reqBody;
+    }
+
+    private String resolvePaymentQrCode(String qrCode, String bin, String accountNumber, int amount, String description, String accountName) {
         if (qrCode == null || qrCode.isBlank()) {
-            qrCode = String.format("https://img.vietqr.io/image/%s-%s-compact2.png?amount=%d&addInfo=%s&accountName=%s",
+            return String.format(VIETQR_URL_TEMPLATE,
                     bin, accountNumber, amount,
                     URLEncoder.encode(description, StandardCharsets.UTF_8),
                     URLEncoder.encode(accountName, StandardCharsets.UTF_8));
         }
+        return qrCode;
+    }
 
+    private String resolveCheckoutUrl(String checkoutUrl) {
         if (checkoutUrl == null || checkoutUrl.isBlank()) {
-            checkoutUrl = "https://pay.payos.vn";
+            return DEFAULT_CHECKOUT_URL;
         }
+        return checkoutUrl;
+    }
 
+    private PayOSPaymentResponse buildPaymentResponse(Order order, long payosOrderCode, String description,
+                                                      PayOSGatewayResult gatewayResult, String qrCode, String checkoutUrl) {
+        String status = order.getPaymentStatus() == PaymentStatus.PAID ? STATUS_PAID : "PENDING";
         return PayOSPaymentResponse.builder()
                 .orderId(order.getId())
                 .orderCode(order.getOrderCode())
                 .payosOrderCode(payosOrderCode)
                 .amount(order.getTotalAmount())
                 .description(description)
-                .accountNumber(accountNumber)
-                .accountName(accountName)
-                .bankName(bankName)
-                .bin(bin)
+                .accountNumber(gatewayResult.accountNumber())
+                .accountName(gatewayResult.accountName())
+                .bankName(payOSProperties.getBankName())
+                .bin(gatewayResult.bin())
                 .qrCode(qrCode)
                 .checkoutUrl(checkoutUrl)
-                .status(order.getPaymentStatus() == PaymentStatus.PAID ? "PAID" : "PENDING")
+                .status(status)
                 .expiresAt(order.getExpiresAt())
                 .remainingSeconds(calculateRemainingSeconds(order.getExpiresAt()))
                 .build();
+    }
     }
 
     @Override
@@ -203,7 +243,7 @@ public class PayOSServiceImpl implements PayOSService {
 
         // 1. Kiểm tra trạng thái trong DB
         if (order.getPaymentStatus() == PaymentStatus.PAID || order.getStatus() == OrderStatus.CONFIRMED || order.getStatus() == OrderStatus.DELIVERED) {
-            return mapToResponse(order, "PAID", null, null);
+            return mapToResponse(order, STATUS_PAID, null, null);
         }
 
         // 2. Kiểm tra hết hạn 5 phút
@@ -211,7 +251,7 @@ public class PayOSServiceImpl implements PayOSService {
             if (order.getStatus() != OrderStatus.CANCELLED) {
                 cancelExpiredOrder(order);
             }
-            return mapToResponse(order, "EXPIRED", null, null);
+            return mapToResponse(order, STATUS_EXPIRED, null, null);
         }
 
         // 3. Nếu PayOS đã cấu hình, có thể chủ động query PayOS xem khách đã chuyển khoản chưa
@@ -230,13 +270,13 @@ public class PayOSServiceImpl implements PayOSService {
                 if (res.statusCode() == 200) {
                     JsonNode root = objectMapper.readTree(res.body());
                     if ("00".equals(root.path("code").asText())) {
-                        String payosStatus = root.path("data").path("status").asText("");
-                        if ("PAID".equalsIgnoreCase(payosStatus)) {
+                        String payosStatus = root.path("data").path(FIELD_STATUS).asText("");
+                        if (STATUS_PAID.equalsIgnoreCase(payosStatus)) {
                             confirmOrderPaid(order, "Xác nhận tự động từ PayOS Gateway");
-                            return mapToResponse(order, "PAID", null, null);
-                        } else if ("CANCELLED".equalsIgnoreCase(payosStatus) || "EXPIRED".equalsIgnoreCase(payosStatus)) {
+                            return mapToResponse(order, STATUS_PAID, null, null);
+                        } else if ("CANCELLED".equalsIgnoreCase(payosStatus) || STATUS_EXPIRED.equalsIgnoreCase(payosStatus)) {
                             cancelExpiredOrder(order);
-                            return mapToResponse(order, "EXPIRED", null, null);
+                            return mapToResponse(order, STATUS_EXPIRED, null, null);
                         }
                     }
                 }
@@ -285,8 +325,8 @@ public class PayOSServiceImpl implements PayOSService {
         if (order == null && data.getDescription() != null) {
             String desc = data.getDescription().trim();
             order = orderRepository.findByOrderCode(desc).orElse(null);
-            if (order == null && desc.startsWith("CYBER ")) {
-                order = orderRepository.findByOrderCode(desc.substring(6).trim()).orElse(null);
+            if (order == null && desc.startsWith(CYBER_PREFIX)) {
+                order = orderRepository.findByOrderCode(desc.substring(CYBER_PREFIX.length()).trim()).orElse(null);
             }
         }
 
@@ -311,7 +351,7 @@ public class PayOSServiceImpl implements PayOSService {
         if (order.getStatus() == OrderStatus.PENDING) {
             cancelExpiredOrder(order);
         }
-        return mapToResponse(order, "EXPIRED", null, null);
+        return mapToResponse(order, STATUS_EXPIRED, null, null);
     }
 
     @Override
@@ -319,7 +359,7 @@ public class PayOSServiceImpl implements PayOSService {
     public PayOSPaymentResponse simulatePaymentSuccess(Long orderId, String username) {
         Order order = getOrderAndVerifyAccess(orderId, username);
         confirmOrderPaid(order, "Giả lập thanh toán thành công (Test Demo)");
-        return mapToResponse(order, "PAID", null, null);
+        return mapToResponse(order, STATUS_PAID, null, null);
     }
 
     @Override
@@ -362,11 +402,11 @@ public class PayOSServiceImpl implements PayOSService {
         // Bắn WebSocket thông báo cho Shop
         if (messagingTemplate != null && saved.getShopId() != null) {
             Map<String, Object> event = new HashMap<>();
-            event.put("event", "SHOP_PAYOUT_CONFIRMED");
-            event.put("orderId", saved.getId());
-            event.put("orderCode", saved.getOrderCode());
+            event.put(FIELD_EVENT, "SHOP_PAYOUT_CONFIRMED");
+            event.put(FIELD_ORDER_ID, saved.getId());
+            event.put(FIELD_ORDER_CODE, saved.getOrderCode());
             event.put("shopId", saved.getShopId());
-            event.put("amount", saved.getShopPayoutAmount());
+            event.put(FIELD_AMOUNT, saved.getShopPayoutAmount());
             event.put("message", "Admin đã chuyển tiền đơn hàng #" + saved.getOrderCode() + " về tài khoản ngân hàng của bạn!");
             messagingTemplate.convertAndSend("/topic/shop-orders." + saved.getShopId(), (Object) event);
         }
@@ -489,7 +529,7 @@ public class PayOSServiceImpl implements PayOSService {
         if (!shopBankAcc.isBlank()) {
             String desc = "CYBER QT " + (order.getOrderCode() != null ? order.getOrderCode() : order.getId());
             if (desc.length() > 25) desc = desc.substring(0, 25);
-            vietQrUrl = String.format("https://img.vietqr.io/image/%s-%s-compact2.png?amount=%d&addInfo=%s&accountName=%s",
+            vietQrUrl = String.format(VIETQR_URL_TEMPLATE,
                     shopBankBin, shopBankAcc, payoutAmount.intValue(),
                     URLEncoder.encode(desc, StandardCharsets.UTF_8),
                     URLEncoder.encode(shopAccName, StandardCharsets.UTF_8));
@@ -579,7 +619,7 @@ public class PayOSServiceImpl implements PayOSService {
         Order saved = orderRepository.save(order);
 
         // Phát WebSocket STOMP tới tất cả các kênh liên quan (Buyer, Shop, PayOS QR Modal)
-        broadcastRealtimePaid(saved, reason);
+        broadcastRealtimePaid(saved);
     }
 
     private void cancelExpiredOrder(Order order) {
@@ -607,23 +647,23 @@ public class PayOSServiceImpl implements PayOSService {
 
         if (messagingTemplate != null) {
             Map<String, Object> event = new HashMap<>();
-            event.put("event", "ORDER_EXPIRED");
-            event.put("orderId", order.getId());
-            event.put("orderCode", order.getOrderCode());
-            event.put("status", "EXPIRED");
+            event.put(FIELD_EVENT, "ORDER_EXPIRED");
+            event.put(FIELD_ORDER_ID, order.getId());
+            event.put(FIELD_ORDER_CODE, order.getOrderCode());
+            event.put(FIELD_STATUS, STATUS_EXPIRED);
             messagingTemplate.convertAndSend("/topic/payos." + order.getId(), (Object) event);
         }
     }
 
-    private void broadcastRealtimePaid(Order order, String reason) {
+    private void broadcastRealtimePaid(Order order) {
         if (messagingTemplate == null) return;
         try {
             Map<String, Object> event = new HashMap<>();
-            event.put("event", "PAYMENT_SUCCESS");
-            event.put("orderId", order.getId());
-            event.put("orderCode", order.getOrderCode());
-            event.put("status", "PAID");
-            event.put("amount", order.getTotalAmount());
+            event.put(FIELD_EVENT, "PAYMENT_SUCCESS");
+            event.put(FIELD_ORDER_ID, order.getId());
+            event.put(FIELD_ORDER_CODE, order.getOrderCode());
+            event.put(FIELD_STATUS, STATUS_PAID);
+            event.put(FIELD_AMOUNT, order.getTotalAmount());
             event.put("confirmedAt", order.getConfirmedAt() != null ? order.getConfirmedAt().toString() : LocalDateTime.now().toString());
             event.put("message", "Shop đã nhận được tiền thành công!");
 
@@ -664,13 +704,13 @@ public class PayOSServiceImpl implements PayOSService {
 
     private PayOSPaymentResponse mapToResponse(Order order, String status, String qrCode, String checkoutUrl) {
         int amount = order.getTotalAmount() != null ? order.getTotalAmount().intValue() : 0;
-        String description = sanitizeDescription("CYBER " + order.getOrderCode());
+        String description = sanitizeDescription(CYBER_PREFIX + order.getOrderCode());
         String bin = payOSProperties.getBankBin();
         String accountNumber = payOSProperties.getAccountNumber();
         String accountName = payOSProperties.getAccountName();
 
         if (qrCode == null) {
-            qrCode = String.format("https://img.vietqr.io/image/%s-%s-compact2.png?amount=%d&addInfo=%s&accountName=%s",
+            qrCode = String.format(VIETQR_URL_TEMPLATE,
                     bin, accountNumber, amount,
                     URLEncoder.encode(description, StandardCharsets.UTF_8),
                     URLEncoder.encode(accountName, StandardCharsets.UTF_8));
