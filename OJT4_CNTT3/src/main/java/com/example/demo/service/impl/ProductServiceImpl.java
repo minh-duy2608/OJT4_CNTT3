@@ -63,6 +63,10 @@ public class ProductServiceImpl implements ProductService {
     private static final String SORT_BY_CREATED_AT = "createdAt";
     private static final String STATUS_FIELD = "status";
     private static final String ENTITY_TYPE_PRODUCT = "product";
+    private static final String FIELD_DELETED_AT = "deletedAt";
+    private static final String FIELD_CATEGORY = "category";
+    private static final String FIELD_BRAND_ID = "brandId";
+    private static final String FIELD_SHOP_ID = "shopId";
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final ProductRepository productRepository;
@@ -219,7 +223,7 @@ public class ProductServiceImpl implements ProductService {
 
             // 1. Chỉ lấy sản phẩm ACTIVE và chưa xóa mềm
             predicates.add(cb.equal(root.get(STATUS_FIELD), ProductStatus.ACTIVE));
-            predicates.add(cb.isNull(root.get("deletedAt")));
+            predicates.add(cb.isNull(root.get(FIELD_DELETED_AT)));
 
             // 2. Lọc theo từ khóa (keyword)
             if (criteria.getKeyword() != null && !criteria.getKeyword().isBlank()) {
@@ -232,17 +236,17 @@ public class ProductServiceImpl implements ProductService {
 
             // 3. Lọc theo Danh mục (categoryId)
             if (criteria.getCategoryId() != null) {
-                predicates.add(cb.equal(root.get("category").get("id"), criteria.getCategoryId()));
+                predicates.add(cb.equal(root.get(FIELD_CATEGORY).get("id"), criteria.getCategoryId()));
             }
 
             // 4. Lọc theo Thương hiệu (brandId)
             if (criteria.getBrandId() != null) {
-                predicates.add(cb.equal(root.get("brandId"), criteria.getBrandId()));
+                predicates.add(cb.equal(root.get(FIELD_BRAND_ID), criteria.getBrandId()));
             }
 
             // 5. Lọc theo Cửa hàng (shopId)
             if (criteria.getShopId() != null) {
-                predicates.add(cb.equal(root.get("shopId"), criteria.getShopId()));
+                predicates.add(cb.equal(root.get(FIELD_SHOP_ID), criteria.getShopId()));
             }
 
             addPriceFilter(criteria, root, query, cb, predicates);
@@ -250,6 +254,15 @@ public class ProductServiceImpl implements ProductService {
 
             return cb.and(predicates.toArray(new Predicate[0]));
         };
+    }
+
+    private Pageable createPageable(ProductFilterCriteria criteria) {
+        int page = Math.max(0, criteria.getPage());
+        int size = criteria.getSize() > 0 ? criteria.getSize() : 12;
+        String sortBy = (criteria.getSortBy() != null && ALLOWED_SORT_FIELDS.contains(criteria.getSortBy()))
+                ? criteria.getSortBy() : SORT_BY_CREATED_AT;
+        Sort.Direction direction = "asc".equalsIgnoreCase(criteria.getSortDir()) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        return PageRequest.of(page, size, Sort.by(direction, sortBy));
     }
 
     private void addPriceFilter(ProductFilterCriteria criteria, Root<Product> root, jakarta.persistence.criteria.CriteriaQuery<?> query, jakarta.persistence.criteria.CriteriaBuilder cb, List<Predicate> predicates) {
@@ -293,10 +306,9 @@ public class ProductServiceImpl implements ProductService {
         }
     }
 
-    private ProductSummaryResponse toSummaryResponse(Product product) {
-        // Lấy tất cả biến thể của sản phẩm để đồng bộ chính xác giá bán và tồn kho
-        List<ProductVariant> variants = productVariantRepository.findByProductIdOrderByPriceAsc(product.getId());
+    private record VariantPriceStats(BigDecimal minPrice, BigDecimal maxPrice, BigDecimal salePrice) {}
 
+    private VariantPriceStats calculateVariantPriceStats(List<ProductVariant> variants) {
         BigDecimal minPrice = null;
         BigDecimal maxPrice = null;
         BigDecimal salePrice = null;
@@ -310,30 +322,45 @@ public class ProductServiceImpl implements ProductService {
                 salePrice = v.getSalePrice();
             }
         }
+        return new VariantPriceStats(minPrice, maxPrice, salePrice);
+    }
 
-        List<ProductImage> images = productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(product.getId());
-        String primaryImage = images.stream()
+    private String resolvePrimaryImageUrl(Long productId) {
+        List<ProductImage> images = productImageRepository.findByProductIdOrderBySortOrderAscIdAsc(productId);
+        return images.stream()
                 .filter(ProductImage::isPrimary)
                 .map(ProductImage::getImageUrl)
                 .findFirst()
-                .orElse(images.isEmpty() ? null : images.get(0).getImageUrl());
+                .orElseGet(() -> images.isEmpty() ? null : images.get(0).getImageUrl());
+    }
 
-        List<Long> varIds = variants.stream().map(ProductVariant::getId).collect(Collectors.toList());
-        Map<Long, Inventory> invMap = varIds.isEmpty() ? Collections.emptyMap() :
-                inventoryRepository.findByVariantIdIn(varIds).stream()
-                        .collect(Collectors.toMap(Inventory::getVariantId, i -> i, (a, b) -> a));
+    private int calculateTotalStock(List<ProductVariant> variants) {
+        List<Long> varIds = variants.stream().map(ProductVariant::getId).toList();
+        if (varIds.isEmpty()) {
+            return 0;
+        }
+        Map<Long, Inventory> invMap = inventoryRepository.findByVariantIdIn(varIds).stream()
+                .collect(Collectors.toMap(Inventory::getVariantId, i -> i, (a, b) -> a));
 
-        int totalStock = variants.stream()
+        return variants.stream()
                 .mapToInt(v -> {
                     Inventory inv = invMap.get(v.getId());
-                    return inv != null && inv.getQuantity() != null ? inv.getQuantity() : 0;
+                    return (inv != null && inv.getQuantity() != null) ? inv.getQuantity() : 0;
                 }).sum();
+    }
+
+    private ProductSummaryResponse toSummaryResponse(Product product) {
+        List<ProductVariant> variants = productVariantRepository.findByProductIdOrderByPriceAsc(product.getId());
+        VariantPriceStats priceStats = calculateVariantPriceStats(variants);
+        String primaryImage = resolvePrimaryImageUrl(product.getId());
+        int totalStock = calculateTotalStock(variants);
 
         boolean inStock = product.getStatus() == ProductStatus.ACTIVE && totalStock > 0;
 
-        ProductSummaryResponse resp = ProductSummaryResponse.fromEntity(product, minPrice, maxPrice, primaryImage, inStock, totalStock);
-        resp.setPrice(minPrice);
-        resp.setSalePrice(salePrice);
+        ProductSummaryResponse resp = ProductSummaryResponse.fromEntity(
+                product, priceStats.minPrice(), priceStats.maxPrice(), primaryImage, inStock, totalStock);
+        resp.setPrice(priceStats.minPrice());
+        resp.setSalePrice(priceStats.salePrice());
         resp.setVariantCount(variants.size());
         return resp;
     }
@@ -859,49 +886,13 @@ public class ProductServiceImpl implements ProductService {
         final ProductFilterCriteria finalCriteria = criteria != null ? criteria : ProductFilterCriteria.builder().build();
         finalCriteria.setShopId(shopId);
 
-        int page = Math.max(0, finalCriteria.getPage());
-        int size = finalCriteria.getSize() > 0 ? finalCriteria.getSize() : 12;
-
-        String sortBy = SORT_BY_CREATED_AT;
-        if (finalCriteria.getSortBy() != null && ALLOWED_SORT_FIELDS.contains(finalCriteria.getSortBy())) {
-            sortBy = finalCriteria.getSortBy();
-        }
-
-        Sort.Direction direction = "asc".equalsIgnoreCase(finalCriteria.getSortDir()) ? Sort.Direction.ASC : Sort.Direction.DESC;
-        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
-
-        Specification<Product> spec = (root, query, cb) -> {
-            List<Predicate> predicates = new ArrayList<>();
-            predicates.add(cb.equal(root.get("shopId"), shopId));
-
-            if (finalCriteria.getStatus() != null) {
-                predicates.add(cb.equal(root.get(STATUS_FIELD), finalCriteria.getStatus()));
-            } else {
-                // Hiển thị tất cả sản phẩm chưa bị xóa (ACTIVE, INACTIVE, PENDING, REJECTED)
-                // deletedAt IS NULL đảm bảo không hiện sản phẩm đã xóa thật sự
-                predicates.add(cb.isNull(root.get("deletedAt")));
-            }
-
-            if (finalCriteria.getKeyword() != null && !finalCriteria.getKeyword().isBlank()) {
-                String pattern = "%" + finalCriteria.getKeyword().trim().toLowerCase() + "%";
-                predicates.add(cb.like(cb.lower(root.get("name")), pattern));
-            }
-
-            if (finalCriteria.getCategoryId() != null) {
-                predicates.add(cb.equal(root.get("category").get("id"), finalCriteria.getCategoryId()));
-            }
-
-            if (finalCriteria.getBrandId() != null) {
-                predicates.add(cb.equal(root.get("brandId"), finalCriteria.getBrandId()));
-            }
-
-            return cb.and(predicates.toArray(new Predicate[0]));
-        };
+        Pageable pageable = createPageable(finalCriteria);
+        Specification<Product> spec = buildShopProductSpecification(shopId, finalCriteria);
 
         Page<Product> productPage = productRepository.findAll(spec, pageable);
         List<ProductSummaryResponse> content = productPage.getContent().stream()
                 .map(this::toSummaryResponse)
-                .collect(Collectors.toList());
+                .toList();
 
         return PageResponse.<ProductSummaryResponse>builder()
                 .content(content)
@@ -912,6 +903,36 @@ public class ProductServiceImpl implements ProductService {
                 .first(productPage.isFirst())
                 .last(productPage.isLast())
                 .build();
+    }
+
+    private Specification<Product> buildShopProductSpecification(Long shopId, ProductFilterCriteria finalCriteria) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get(FIELD_SHOP_ID), shopId));
+
+            if (finalCriteria.getStatus() != null) {
+                predicates.add(cb.equal(root.get(STATUS_FIELD), finalCriteria.getStatus()));
+            } else {
+                // Hiển thị tất cả sản phẩm chưa bị xóa (ACTIVE, INACTIVE, PENDING, REJECTED)
+                // deletedAt IS NULL đảm bảo không hiện sản phẩm đã xóa thật sự
+                predicates.add(cb.isNull(root.get(FIELD_DELETED_AT)));
+            }
+
+            if (finalCriteria.getKeyword() != null && !finalCriteria.getKeyword().isBlank()) {
+                String pattern = "%" + finalCriteria.getKeyword().trim().toLowerCase() + "%";
+                predicates.add(cb.like(cb.lower(root.get("name")), pattern));
+            }
+
+            if (finalCriteria.getCategoryId() != null) {
+                predicates.add(cb.equal(root.get(FIELD_CATEGORY).get("id"), finalCriteria.getCategoryId()));
+            }
+
+            if (finalCriteria.getBrandId() != null) {
+                predicates.add(cb.equal(root.get(FIELD_BRAND_ID), finalCriteria.getBrandId()));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     @Override
@@ -1242,51 +1263,13 @@ public class ProductServiceImpl implements ProductService {
     public PageResponse<ProductSummaryResponse> getAdminProducts(ProductFilterCriteria criteria) {
         ProductFilterCriteria finalCriteria = criteria != null ? criteria : ProductFilterCriteria.builder().build();
 
-        int page = Math.max(0, finalCriteria.getPage());
-        int size = finalCriteria.getSize() > 0 ? finalCriteria.getSize() : 12;
-
-        String sortBy = SORT_BY_CREATED_AT;
-        if (finalCriteria.getSortBy() != null && ALLOWED_SORT_FIELDS.contains(finalCriteria.getSortBy())) {
-            sortBy = finalCriteria.getSortBy();
-        }
-
-        Sort.Direction direction = "asc".equalsIgnoreCase(finalCriteria.getSortDir()) ? Sort.Direction.ASC : Sort.Direction.DESC;
-        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
-
-        Specification<Product> spec = (root, query, cb) -> {
-            List<Predicate> predicates = new ArrayList<>();
-            predicates.add(cb.isNull(root.get("deletedAt")));
-
-            if (finalCriteria.getShopId() != null) {
-                predicates.add(cb.equal(root.get("shopId"), finalCriteria.getShopId()));
-            }
-
-            if (finalCriteria.getStatus() != null) {
-                predicates.add(cb.equal(root.get(STATUS_FIELD), finalCriteria.getStatus()));
-            }
-
-            if (finalCriteria.getKeyword() != null && !finalCriteria.getKeyword().isBlank()) {
-                String pattern = "%" + finalCriteria.getKeyword().trim().toLowerCase() + "%";
-                Predicate namePred = cb.like(cb.lower(root.get("name")), pattern);
-                Predicate slugPred = cb.like(cb.lower(root.get("slug")), pattern);
-                predicates.add(cb.or(namePred, slugPred));
-            }
-
-            if (finalCriteria.getCategoryId() != null) {
-                predicates.add(cb.equal(root.get("category").get("id"), finalCriteria.getCategoryId()));
-            }
-
-            if (finalCriteria.getBrandId() != null) {
-                predicates.add(cb.equal(root.get("brandId"), finalCriteria.getBrandId()));
-            }
-
-            return cb.and(predicates.toArray(new Predicate[0]));
-        };
+        Pageable pageable = createPageable(finalCriteria);
+        Specification<Product> spec = buildAdminProductSpecification(finalCriteria);
 
         Page<Product> productPage = productRepository.findAll(spec, pageable);
         List<ProductSummaryResponse> content = productPage.getContent().stream()
                 .map(this::toSummaryResponse)
-                .collect(Collectors.toList());
+                .toList();
 
         return PageResponse.<ProductSummaryResponse>builder()
                 .content(content)
@@ -1297,6 +1280,42 @@ public class ProductServiceImpl implements ProductService {
                 .first(productPage.isFirst())
                 .last(productPage.isLast())
                 .build();
+    }
+
+    private Specification<Product> buildAdminProductSpecification(ProductFilterCriteria finalCriteria) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.isNull(root.get(FIELD_DELETED_AT)));
+
+            if (finalCriteria.getShopId() != null) {
+                predicates.add(cb.equal(root.get(FIELD_SHOP_ID), finalCriteria.getShopId()));
+            }
+
+            if (finalCriteria.getStatus() != null) {
+                predicates.add(cb.equal(root.get(STATUS_FIELD), finalCriteria.getStatus()));
+            }
+
+            addAdminKeywordFilter(finalCriteria.getKeyword(), root, cb, predicates);
+
+            if (finalCriteria.getCategoryId() != null) {
+                predicates.add(cb.equal(root.get(FIELD_CATEGORY).get("id"), finalCriteria.getCategoryId()));
+            }
+
+            if (finalCriteria.getBrandId() != null) {
+                predicates.add(cb.equal(root.get(FIELD_BRAND_ID), finalCriteria.getBrandId()));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+    }
+
+    private void addAdminKeywordFilter(String keyword, Root<Product> root, jakarta.persistence.criteria.CriteriaBuilder cb, List<Predicate> predicates) {
+        if (keyword != null && !keyword.isBlank()) {
+            String pattern = "%" + keyword.trim().toLowerCase() + "%";
+            Predicate namePred = cb.like(cb.lower(root.get("name")), pattern);
+            Predicate slugPred = cb.like(cb.lower(root.get("slug")), pattern);
+            predicates.add(cb.or(namePred, slugPred));
+        }
     }
 
     @Override
