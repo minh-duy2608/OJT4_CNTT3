@@ -2722,8 +2722,6 @@ export const AdminPage = () => {
         fetchAdminOrders(orderPage);
       } else if (activeTab === 'coupons') {
         fetchCoupons(couponPage);
-      } else if (activeTab === 'permissions') {
-        fetchMyPermissions();
       }
     }
   }, [activeTab, isAdminUser, isShopManager, fetchPlatformRevenue, fetchUsers, fetchRolesAndPermissions, fetchCategories, fetchBrands, fetchAdminShops, fetchModerationProducts, fetchShopProducts, fetchInventory, fetchAdminOrders, fetchCoupons, fetchMyPermissions, userPage, adminShopsPage, moderationPage, shopProdPage, inventoryPage, orderPage, couponPage, roles.length]);
@@ -2731,7 +2729,7 @@ export const AdminPage = () => {
   // Strict Role Separation for Portal Tabs
   useEffect(() => {
     if (isShopManager && !isAdminUser) {
-      const allowedShopTabs = ['shops', 'inventory', 'orders', 'coupons', 'permissions', 'shipments', 'returns', 'reviews', 'messages', 'audit-logs', 'shop-revenue'];
+      const allowedShopTabs = ['shops', 'inventory', 'orders', 'coupons', 'shipments', 'returns', 'reviews', 'messages', 'audit-logs', 'shop-revenue'];
       if (!allowedShopTabs.includes(activeTab)) {
         setActiveTab('shops');
       }
@@ -3500,7 +3498,6 @@ export const AdminPage = () => {
                   if (activeTab === 'inventory') fetchInventory(inventoryPage);
                   if (activeTab === 'orders') fetchAdminOrders(orderPage);
                   if (activeTab === 'coupons') fetchCoupons(couponPage);
-                  if (activeTab === 'permissions') fetchMyPermissions();
                 }
                 triggerAlert('Đã làm mới dữ liệu từ máy chủ.', 'info');
               }}
@@ -3631,16 +3628,6 @@ export const AdminPage = () => {
               <div className="admin-metric-info">
                 <div className="admin-metric-label">Tồn kho Kho hàng</div>
                 <div className="admin-metric-val">{inventoryTotalElements || inventoryList.length} mặt hàng</div>
-              </div>
-            </div>
-
-            <div className="admin-metric-card" onClick={() => setActiveTab('permissions')} style={{ cursor: 'pointer' }}>
-              <div className="admin-metric-icon-wrap brands" style={{ background: '#faf5ff', color: '#7c3aed' }}>
-                <Key size={22} />
-              </div>
-              <div className="admin-metric-info">
-                <div className="admin-metric-label">Quyền hạn Shop</div>
-                <div className="admin-metric-val">{myPermissions.length || 15} quyền được cấp</div>
               </div>
             </div>
 
@@ -3876,15 +3863,6 @@ export const AdminPage = () => {
               >
                 <Shield size={17} />
                 Nhật ký Shop
-              </button>
-
-              <button
-                type="button"
-                className={`admin-tab-btn ${activeTab === 'permissions' ? 'active' : ''}`}
-                onClick={() => setActiveTab('permissions')}
-              >
-                <Key size={17} />
-                Quyền hạn của tôi
               </button>
             </>
           )}
@@ -4989,44 +4967,6 @@ export const AdminPage = () => {
                 itemName="thương hiệu"
                 onPageChange={(p) => setBrandPage(p)}
               />
-            )}
-          </div>
-        )}
-
-        {/* =================================================================== */}
-        {/* TAB: QUYỀN HẠN CỦA TÔI (MY PERMISSIONS - STT 26) */}
-        {/* =================================================================== */}
-        {activeTab === 'permissions' && !isAdminUser && isShopManager && (
-          <div className="admin-card-container">
-            <div className="admin-toolbar">
-              <div className="admin-toolbar-left">
-                <h2 style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0 }}>
-                  Danh sách quyền của người dùng hiện tại (API 26: GET /auth/me/permissions)
-                </h2>
-                <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
-                  Tài khoản <strong>@{user.username}</strong> ({user.email}) đang sở hữu <strong>{myPermissions.length}</strong> quyền hạn.
-                </span>
-              </div>
-            </div>
-
-            {myPermsLoading ? (
-              <div style={{ textAlign: 'center', padding: '3rem' }}>
-                <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto', color: '#64748b' }} />
-                <div style={{ marginTop: '0.5rem', color: '#64748b' }}>Đang tải quyền của bạn...</div>
-              </div>
-            ) : myPermissions.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
-                Tài khoản này chưa có quyền hạn nào được gán trực tiếp.
-              </div>
-            ) : (
-              <div className="admin-my-perms-grid">
-                {myPermissions.map((code) => (
-                  <div key={code} className="admin-my-perm-card">
-                    <CheckCircle2 size={16} color="#16a34a" />
-                    <span className="perm-code">{code}</span>
-                  </div>
-                ))}
-              </div>
             )}
           </div>
         )}
