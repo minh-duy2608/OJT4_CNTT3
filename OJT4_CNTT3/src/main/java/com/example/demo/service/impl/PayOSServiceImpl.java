@@ -59,6 +59,7 @@ public class PayOSServiceImpl implements PayOSService {
     private static final String PAYOS_API_URL = "https://api-merchant.payos.vn/v2/payment-requests";
     private static final String STATUS_EXPIRED = "EXPIRED";
     private static final String STATUS_PAID = "PAID";
+    private static final String ROLE_ADMIN = "ADMIN";
     private static final String CYBER_PREFIX = "CYBER ";
     private static final String FIELD_ORDER_CODE = "orderCode";
     private static final String FIELD_AMOUNT = "amount";
@@ -71,8 +72,41 @@ public class PayOSServiceImpl implements PayOSService {
     private static final String PAYOUT_STATUS_PAID = "PAID_OUT";
     private static final String VIETQR_URL_TEMPLATE = "https://img.vietqr.io/image/%s-%s-compact2.png?amount=%d&addInfo=%s&accountName=%s";
     private static final String DEFAULT_CHECKOUT_URL = "https://pay.payos.vn";
+    private static final String DEFAULT_SETTLEMENT_CYCLE = "Định kỳ ngày 19 hàng tháng (Hạn quyết toán: 2 ngày, đến hết ngày 21)";
+    private static final BigDecimal PLATFORM_FEE_RATE = new BigDecimal("0.025");
 
     private record PayOSGatewayResult(String checkoutUrl, String qrCode, String accountNumber, String accountName, String bin) {}
+    private record OrderFinancials(BigDecimal total, BigDecimal shippingFee, BigDecimal productAmount, BigDecimal platformFee, BigDecimal payoutAmount) {}
+    private record ShopBankInfo(String name, String bankName, String bankBin, String bankAccountNumber, String bankAccountName) {}
+
+    private static class PayoutAccumulator {
+        BigDecimal totalHolding = BigDecimal.ZERO;
+        long holdingCount = 0;
+        BigDecimal totalReady = BigDecimal.ZERO;
+        long readyCount = 0;
+        BigDecimal totalPaidOut = BigDecimal.ZERO;
+        long paidOutCount = 0;
+        BigDecimal totalPlatformFee = BigDecimal.ZERO;
+        BigDecimal totalShippingFee = BigDecimal.ZERO;
+        BigDecimal totalProductAmount = BigDecimal.ZERO;
+
+        void accumulate(OrderFinancials financials, String status) {
+            totalPlatformFee = totalPlatformFee.add(financials.platformFee());
+            totalShippingFee = totalShippingFee.add(financials.shippingFee());
+            totalProductAmount = totalProductAmount.add(financials.productAmount());
+
+            if (PAYOUT_STATUS_HOLDING.equalsIgnoreCase(status)) {
+                totalHolding = totalHolding.add(financials.payoutAmount());
+                holdingCount++;
+            } else if (PAYOUT_STATUS_READY.equalsIgnoreCase(status)) {
+                totalReady = totalReady.add(financials.payoutAmount());
+                readyCount++;
+            } else if (PAYOUT_STATUS_PAID.equalsIgnoreCase(status)) {
+                totalPaidOut = totalPaidOut.add(financials.payoutAmount());
+                paidOutCount++;
+            }
+        }
+    }
 
     @Override
     @Transactional
@@ -236,7 +270,6 @@ public class PayOSServiceImpl implements PayOSService {
                 .expiresAt(order.getExpiresAt())
                 .remainingSeconds(calculateRemainingSeconds(order.getExpiresAt()))
                 .build();
-    }
     }
 
     @Override
@@ -460,139 +493,125 @@ public class PayOSServiceImpl implements PayOSService {
     }
 
     private ShopPayoutSummaryResponse buildPayoutSummary(List<Order> orders, String statusFilter) {
-        BigDecimal totalHolding = BigDecimal.ZERO;
-        long holdingCount = 0;
-        BigDecimal totalReady = BigDecimal.ZERO;
-        long readyCount = 0;
-        BigDecimal totalPaidOut = BigDecimal.ZERO;
-        long paidOutCount = 0;
-        BigDecimal totalPlatformFee = BigDecimal.ZERO;
-        BigDecimal totalShippingFee = BigDecimal.ZERO;
-        BigDecimal totalProductAmount = BigDecimal.ZERO;
-
+        PayoutAccumulator acc = new PayoutAccumulator();
         List<ShopPayoutItemResponse> items = new ArrayList<>();
 
         for (Order ord : orders) {
-            BigDecimal total = ord.getTotalAmount() != null ? ord.getTotalAmount() : BigDecimal.ZERO;
-            BigDecimal ship = ord.getShippingFee() != null ? ord.getShippingFee() : BigDecimal.ZERO;
-            BigDecimal productAmount = total.subtract(ship);
-            if (productAmount.compareTo(BigDecimal.ZERO) < 0) productAmount = BigDecimal.ZERO;
-            BigDecimal platformFee = ord.getPlatformFee() != null && ord.getPlatformFee().compareTo(BigDecimal.ZERO) > 0
-                    ? ord.getPlatformFee()
-                    : productAmount.multiply(new BigDecimal("0.025")).setScale(0, RoundingMode.HALF_UP);
-            BigDecimal payoutAmount = productAmount.subtract(platformFee);
-            if (payoutAmount.compareTo(BigDecimal.ZERO) < 0) payoutAmount = BigDecimal.ZERO;
-
+            OrderFinancials financials = calculateOrderFinancials(ord);
             String st = ord.getShopPayoutStatus() != null ? ord.getShopPayoutStatus() : "NONE";
+            acc.accumulate(financials, st);
 
-            totalPlatformFee = totalPlatformFee.add(platformFee);
-            totalShippingFee = totalShippingFee.add(ship);
-            totalProductAmount = totalProductAmount.add(productAmount);
-
-            if (PAYOUT_STATUS_HOLDING.equalsIgnoreCase(st)) {
-                totalHolding = totalHolding.add(payoutAmount);
-                holdingCount++;
-            } else if (PAYOUT_STATUS_READY.equalsIgnoreCase(st)) {
-                totalReady = totalReady.add(payoutAmount);
-                readyCount++;
-            } else if (PAYOUT_STATUS_PAID.equalsIgnoreCase(st)) {
-                totalPaidOut = totalPaidOut.add(payoutAmount);
-                paidOutCount++;
-            }
-
-            if (statusFilter == null || statusFilter.isBlank() || "ALL".equalsIgnoreCase(statusFilter) || statusFilter.equalsIgnoreCase(st)) {
+            if (matchesStatusFilter(statusFilter, st)) {
                 items.add(mapToPayoutItem(ord));
             }
         }
 
         return ShopPayoutSummaryResponse.builder()
-                .totalHoldingAmount(totalHolding)
-                .totalHoldingCount(holdingCount)
-                .totalReadyAmount(totalReady)
-                .totalReadyCount(readyCount)
-                .totalPaidOutAmount(totalPaidOut)
-                .totalPaidOutCount(paidOutCount)
-                .totalPlatformFee(totalPlatformFee)
-                .totalShippingFee(totalShippingFee)
-                .totalProductAmount(totalProductAmount)
+                .totalHoldingAmount(acc.totalHolding)
+                .totalHoldingCount(acc.holdingCount)
+                .totalReadyAmount(acc.totalReady)
+                .totalReadyCount(acc.readyCount)
+                .totalPaidOutAmount(acc.totalPaidOut)
+                .totalPaidOutCount(acc.paidOutCount)
+                .totalPlatformFee(acc.totalPlatformFee)
+                .totalShippingFee(acc.totalShippingFee)
+                .totalProductAmount(acc.totalProductAmount)
                 .settlementDay(19)
                 .settlementDeadlineDays(2)
-                .settlementCycleDescription("Định kỳ ngày 19 hàng tháng (Hạn quyết toán: 2 ngày, đến hết ngày 21)")
+                .settlementCycleDescription(DEFAULT_SETTLEMENT_CYCLE)
                 .items(items)
                 .build();
     }
 
+    private boolean matchesStatusFilter(String statusFilter, String status) {
+        return statusFilter == null || statusFilter.isBlank() || "ALL".equalsIgnoreCase(statusFilter) || statusFilter.equalsIgnoreCase(status);
+    }
+
+    private OrderFinancials calculateOrderFinancials(Order ord) {
+        BigDecimal total = ord.getTotalAmount() != null ? ord.getTotalAmount() : BigDecimal.ZERO;
+        BigDecimal ship = ord.getShippingFee() != null ? ord.getShippingFee() : BigDecimal.ZERO;
+        BigDecimal productAmount = total.subtract(ship).max(BigDecimal.ZERO);
+        BigDecimal platformFee = ord.getPlatformFee() != null && ord.getPlatformFee().compareTo(BigDecimal.ZERO) > 0
+                ? ord.getPlatformFee()
+                : productAmount.multiply(PLATFORM_FEE_RATE).setScale(0, RoundingMode.HALF_UP);
+        BigDecimal payoutAmount = productAmount.subtract(platformFee).max(BigDecimal.ZERO);
+        return new OrderFinancials(total, ship, productAmount, platformFee, payoutAmount);
+    }
+
     private ShopPayoutItemResponse mapToPayoutItem(Order order) {
-        Shop shop = order.getShop();
-        if (shop == null && order.getShopId() != null) {
-            shop = shopRepository.findById(order.getShopId()).orElse(null);
-        }
+        ShopBankInfo bankInfo = resolveShopBankInfo(order);
+        OrderFinancials financials = calculateOrderFinancials(order);
+        syncOrderPayoutInfo(order, financials);
 
-        // Mặc định tài khoản shop mẫu: BIDV 8814310515 HOANG THIEN SON
-        String shopBankBin = shop != null && shop.getBankBin() != null && !shop.getBankBin().isBlank() ? shop.getBankBin() : "970418";
-        String shopBankAcc = shop != null && shop.getBankAccountNumber() != null && !shop.getBankAccountNumber().isBlank() ? shop.getBankAccountNumber() : "8814310515";
-        String shopBankName = shop != null && shop.getBankName() != null && !shop.getBankName().isBlank() ? shop.getBankName() : "BIDV (Ngân hàng TMCP Đầu tư và Phát triển Việt Nam)";
-        String shopAccName = shop != null && shop.getBankAccountName() != null && !shop.getBankAccountName().isBlank() ? shop.getBankAccountName() : "HOANG THIEN SON";
-
-        BigDecimal total = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
-        BigDecimal ship = order.getShippingFee() != null ? order.getShippingFee() : BigDecimal.ZERO;
-        BigDecimal productAmount = total.subtract(ship);
-        if (productAmount.compareTo(BigDecimal.ZERO) < 0) productAmount = BigDecimal.ZERO;
-
-        BigDecimal platformFee = order.getPlatformFee() != null && order.getPlatformFee().compareTo(BigDecimal.ZERO) > 0
-                ? order.getPlatformFee()
-                : productAmount.multiply(new BigDecimal("0.025")).setScale(0, RoundingMode.HALF_UP);
-        BigDecimal payoutAmount = productAmount.subtract(platformFee);
-        if (payoutAmount.compareTo(BigDecimal.ZERO) < 0) payoutAmount = BigDecimal.ZERO;
-
-        if (order.getShopPayoutAmount() == null || !payoutAmount.equals(order.getShopPayoutAmount()) || order.getPlatformFee() == null) {
-            order.setPlatformFee(platformFee);
-            order.setShopPayoutAmount(payoutAmount);
-            orderRepository.save(order);
-        }
-
-        String vietQrUrl = null;
-        if (!shopBankAcc.isBlank()) {
-            String desc = "CYBER QT " + (order.getOrderCode() != null ? order.getOrderCode() : order.getId());
-            if (desc.length() > 25) desc = desc.substring(0, 25);
-            vietQrUrl = String.format(VIETQR_URL_TEMPLATE,
-                    shopBankBin, shopBankAcc, payoutAmount.intValue(),
-                    URLEncoder.encode(desc, StandardCharsets.UTF_8),
-                    URLEncoder.encode(shopAccName, StandardCharsets.UTF_8));
-        }
+        String vietQrUrl = generatePayoutVietQrUrl(order, bankInfo, financials.payoutAmount());
 
         return ShopPayoutItemResponse.builder()
                 .orderId(order.getId())
                 .orderCode(order.getOrderCode())
                 .shopId(order.getShopId())
-                .shopName(shop != null ? shop.getName() : "Shop #" + order.getShopId())
-                .totalAmount(total)
-                .shippingFee(ship)
-                .productAmount(productAmount)
-                .platformFee(platformFee)
-                .shopPayoutAmount(payoutAmount)
-                .settlementCycle("Định kỳ ngày 19 hàng tháng (Hạn quyết toán: 2 ngày, đến hết ngày 21)")
+                .shopName(bankInfo.name())
+                .totalAmount(financials.total())
+                .shippingFee(financials.shippingFee())
+                .productAmount(financials.productAmount())
+                .platformFee(financials.platformFee())
+                .shopPayoutAmount(financials.payoutAmount())
+                .settlementCycle(DEFAULT_SETTLEMENT_CYCLE)
                 .settlementDeadline("Ngày 21 hàng tháng")
                 .shopPayoutStatus(order.getShopPayoutStatus() != null ? order.getShopPayoutStatus() : "NONE")
                 .shopPayoutAt(order.getShopPayoutAt())
                 .shopPayoutNote(order.getShopPayoutNote())
                 .deliveredAt(order.getDeliveredAt())
                 .buyerConfirmedDelivery(order.getBuyerConfirmedDelivery())
-                .shopBankName(shopBankName)
-                .shopBankBin(shopBankBin)
-                .shopBankAccountNumber(shopBankAcc)
-                .shopBankAccountName(shopAccName)
+                .shopBankName(bankInfo.bankName())
+                .shopBankBin(bankInfo.bankBin())
+                .shopBankAccountNumber(bankInfo.bankAccountNumber())
+                .shopBankAccountName(bankInfo.bankAccountName())
                 .vietQrUrl(vietQrUrl)
                 .recipientName(order.getRecipientName())
                 .createdAt(order.getCreatedAt())
                 .build();
     }
 
+    private void syncOrderPayoutInfo(Order order, OrderFinancials financials) {
+        if (order.getShopPayoutAmount() == null || !financials.payoutAmount().equals(order.getShopPayoutAmount()) || order.getPlatformFee() == null) {
+            order.setPlatformFee(financials.platformFee());
+            order.setShopPayoutAmount(financials.payoutAmount());
+            orderRepository.save(order);
+        }
+    }
+
+    private ShopBankInfo resolveShopBankInfo(Order order) {
+        Shop shop = order.getShop();
+        if (shop == null && order.getShopId() != null) {
+            shop = shopRepository.findById(order.getShopId()).orElse(null);
+        }
+        String shopName = shop != null ? shop.getName() : "Shop #" + order.getShopId();
+        String bankBin = (shop != null && shop.getBankBin() != null && !shop.getBankBin().isBlank()) ? shop.getBankBin() : "970418";
+        String bankAcc = (shop != null && shop.getBankAccountNumber() != null && !shop.getBankAccountNumber().isBlank()) ? shop.getBankAccountNumber() : "8814310515";
+        String bankName = (shop != null && shop.getBankName() != null && !shop.getBankName().isBlank()) ? shop.getBankName() : "BIDV (Ngân hàng TMCP Đầu tư và Phát triển Việt Nam)";
+        String accName = (shop != null && shop.getBankAccountName() != null && !shop.getBankAccountName().isBlank()) ? shop.getBankAccountName() : "HOANG THIEN SON";
+        return new ShopBankInfo(shopName, bankName, bankBin, bankAcc, accName);
+    }
+
+    private String generatePayoutVietQrUrl(Order order, ShopBankInfo bankInfo, BigDecimal payoutAmount) {
+        if (bankInfo.bankAccountNumber().isBlank()) {
+            return null;
+        }
+        String desc = "CYBER QT " + (order.getOrderCode() != null ? order.getOrderCode() : order.getId());
+        if (desc.length() > 25) {
+            desc = desc.substring(0, 25);
+        }
+        return String.format(VIETQR_URL_TEMPLATE,
+                bankInfo.bankBin(), bankInfo.bankAccountNumber(), payoutAmount.intValue(),
+                URLEncoder.encode(desc, StandardCharsets.UTF_8),
+                URLEncoder.encode(bankInfo.bankAccountName(), StandardCharsets.UTF_8));
+    }
+
     private User verifyAdminAccess(String username) {
         if (username == null || username.isBlank()) throw new UnauthorizedException("Vui lòng đăng nhập");
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản: " + username));
-        boolean isAdmin = user.getRoles().stream().anyMatch(r -> "ADMIN".equals(r.getCode()));
+        boolean isAdmin = user.getRoles().stream().anyMatch(r -> ROLE_ADMIN.equals(r.getCode()));
         if (!isAdmin) {
             throw new ForbiddenException("Chỉ Quản trị viên hệ thống (Admin) mới có quyền đối soát và quyết toán tiền!");
         }
@@ -603,7 +622,7 @@ public class PayOSServiceImpl implements PayOSService {
         if (username == null || username.isBlank()) throw new UnauthorizedException("Vui lòng đăng nhập");
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản: " + username));
-        boolean isAdmin = user.getRoles().stream().anyMatch(r -> "ADMIN".equals(r.getCode()));
+        boolean isAdmin = user.getRoles().stream().anyMatch(r -> ROLE_ADMIN.equals(r.getCode()));
         Shop shop = shopRepository.findById(shopId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
         boolean isOwner = Objects.equals(shop.getOwnerId(), user.getId());
@@ -661,32 +680,44 @@ public class PayOSServiceImpl implements PayOSService {
         order.setCancelledAt(LocalDateTime.now());
         order.setCancellationReason("Hết thời gian thanh toán (5 phút). Tự động hủy và giải phóng tồn kho.");
 
-        // Hoàn lại số lượng đã giữ tạm trong kho
-        if (order.getItems() != null && Boolean.TRUE.equals(order.getInventoryReserved())) {
-            for (OrderItem item : order.getItems()) {
-                if (item.getVariantId() != null) {
-                    inventoryRepository.findById(item.getVariantId()).ifPresent(inv -> {
-                        int qty = item.getQuantity() != null ? item.getQuantity() : 0;
-                        int currentReserved = inv.getReservedQuantity() != null ? inv.getReservedQuantity() : 0;
-                        inv.setReservedQuantity(Math.max(0, currentReserved - qty));
-                        inventoryRepository.save(inv);
-                        log.info("PayOS release reserved inventory for variant #{}: released {}. Remaining reserved: {}",
-                                item.getVariantId(), qty, inv.getReservedQuantity());
-                    });
-                }
-            }
-        }
+        releaseOrderReservedInventory(order);
         order.setInventoryReserved(false);
         orderRepository.save(order);
 
-        if (messagingTemplate != null) {
-            Map<String, Object> event = new HashMap<>();
-            event.put(FIELD_EVENT, "ORDER_EXPIRED");
-            event.put(FIELD_ORDER_ID, order.getId());
-            event.put(FIELD_ORDER_CODE, order.getOrderCode());
-            event.put(FIELD_STATUS, STATUS_EXPIRED);
-            messagingTemplate.convertAndSend("/topic/payos." + order.getId(), (Object) event);
+        broadcastOrderExpired(order);
+    }
+
+    private void releaseOrderReservedInventory(Order order) {
+        if (order.getItems() == null || !Boolean.TRUE.equals(order.getInventoryReserved())) {
+            return;
         }
+        for (OrderItem item : order.getItems()) {
+            releaseVariantReservedStock(item);
+        }
+    }
+
+    private void releaseVariantReservedStock(OrderItem item) {
+        if (item.getVariantId() == null) {
+            return;
+        }
+        inventoryRepository.findById(item.getVariantId()).ifPresent(inv -> {
+            int qty = item.getQuantity() != null ? item.getQuantity() : 0;
+            int currentReserved = inv.getReservedQuantity() != null ? inv.getReservedQuantity() : 0;
+            inv.setReservedQuantity(Math.max(0, currentReserved - qty));
+            inventoryRepository.save(inv);
+            log.info("PayOS release reserved inventory for variant #{}: released {}. Remaining reserved: {}",
+                    item.getVariantId(), qty, inv.getReservedQuantity());
+        });
+    }
+
+    private void broadcastOrderExpired(Order order) {
+        if (messagingTemplate == null) return;
+        Map<String, Object> event = new HashMap<>();
+        event.put(FIELD_EVENT, "ORDER_EXPIRED");
+        event.put(FIELD_ORDER_ID, order.getId());
+        event.put(FIELD_ORDER_CODE, order.getOrderCode());
+        event.put(FIELD_STATUS, STATUS_EXPIRED);
+        messagingTemplate.convertAndSend("/topic/payos." + order.getId(), (Object) event);
     }
 
     private void broadcastRealtimePaid(Order order) {
@@ -725,7 +756,7 @@ public class PayOSServiceImpl implements PayOSService {
         if (username != null && !username.isBlank()) {
             User user = userRepository.findByUsername(username).orElse(null);
             if (user != null) {
-                boolean isAdmin = user.getRoles().stream().anyMatch(r -> "ADMIN".equals(r.getCode()));
+                boolean isAdmin = user.getRoles().stream().anyMatch(r -> ROLE_ADMIN.equals(r.getCode()));
                 boolean isOwner = order.getUserId() != null && order.getUserId().equals(user.getId());
                 boolean isShopOwner = order.getShop() != null && Objects.equals(order.getShop().getOwnerId(), user.getId());
                 if (!isAdmin && !isOwner && !isShopOwner) {
@@ -792,7 +823,7 @@ public class PayOSServiceImpl implements PayOSService {
             }
             return sb.toString();
         } catch (Exception e) {
-            throw new RuntimeException("Lỗi tạo chữ ký HMAC-SHA256: " + e.getMessage(), e);
+            throw new IllegalStateException("Lỗi tạo chữ ký HMAC-SHA256: " + e.getMessage(), e);
         }
     }
 }
