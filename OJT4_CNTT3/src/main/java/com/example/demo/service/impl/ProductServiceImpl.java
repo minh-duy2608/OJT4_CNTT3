@@ -312,17 +312,34 @@ public class ProductServiceImpl implements ProductService {
         BigDecimal minPrice = null;
         BigDecimal maxPrice = null;
         BigDecimal salePrice = null;
+
         for (ProductVariant v : variants) {
-            BigDecimal effective = v.getSalePrice() != null ? v.getSalePrice() : v.getPrice();
-            if (effective != null) {
-                if (minPrice == null || effective.compareTo(minPrice) < 0) minPrice = effective;
-                if (maxPrice == null || effective.compareTo(maxPrice) > 0) maxPrice = effective;
-            }
-            if (salePrice == null && v.getSalePrice() != null) {
+            BigDecimal effective = resolveEffectivePrice(v);
+            minPrice = computeMinPrice(minPrice, effective);
+            maxPrice = computeMaxPrice(maxPrice, effective);
+            if (salePrice == null) {
                 salePrice = v.getSalePrice();
             }
         }
         return new VariantPriceStats(minPrice, maxPrice, salePrice);
+    }
+
+    private BigDecimal resolveEffectivePrice(ProductVariant v) {
+        return v.getSalePrice() != null ? v.getSalePrice() : v.getPrice();
+    }
+
+    private BigDecimal computeMinPrice(BigDecimal currentMin, BigDecimal effective) {
+        if (effective == null) {
+            return currentMin;
+        }
+        return (currentMin == null || effective.compareTo(currentMin) < 0) ? effective : currentMin;
+    }
+
+    private BigDecimal computeMaxPrice(BigDecimal currentMax, BigDecimal effective) {
+        if (effective == null) {
+            return currentMax;
+        }
+        return (currentMax == null || effective.compareTo(currentMax) > 0) ? effective : currentMax;
     }
 
     private String resolvePrimaryImageUrl(Long productId) {
