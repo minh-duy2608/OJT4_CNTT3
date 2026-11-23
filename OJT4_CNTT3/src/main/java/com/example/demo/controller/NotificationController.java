@@ -15,7 +15,6 @@ import java.util.List;
 @Tag(name = "18. Notification API - Thông báo người dùng", description = "Xem danh sách thông báo, đánh dấu đã đọc và quản lý thông báo")
 @RestController
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class NotificationController {
 
     private final NotificationService notificationService;
