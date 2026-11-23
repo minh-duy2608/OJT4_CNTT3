@@ -158,6 +158,9 @@ public class PayOSServiceImpl implements PayOSService {
                 } else {
                     log.warn("PayOS HTTP {} response: {}", httpResponse.statusCode(), httpResponse.body());
                 }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("Interrupted while calling PayOS API for order #{}, fallback to VietQR generation: {}", order.getId(), e.getMessage());
             } catch (Exception e) {
                 log.warn("Failed to call PayOS API for order #{}, fallback to VietQR generation: {}", order.getId(), e.getMessage());
             }
@@ -237,6 +240,9 @@ public class PayOSServiceImpl implements PayOSService {
                         }
                     }
                 }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.debug("Interrupted while checking PayOS status query: {}", e.getMessage());
             } catch (Exception e) {
                 log.debug("Check PayOS status query error: {}", e.getMessage());
             }
