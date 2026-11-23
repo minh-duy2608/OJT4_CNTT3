@@ -36,6 +36,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -54,6 +55,8 @@ public class OrderServiceImpl implements OrderService {
     private static final String ROLE_ROLE_ADMIN_STR = "ROLE_ADMIN";
     private static final String ENTITY_ORDER = "ORDER";
     private static final String REQ_LOGIN = "Yêu cầu đăng nhập";
+    private static final String ORDER_PREFIX = "Đơn hàng #";
+    private static final String ORDER_NOT_FOUND_PREFIX = "Không tìm thấy đơn hàng #";
 
     private static final String DEFAULT_RETURN_INSTRUCTIONS = """
             1. Quý khách có thể gửi yêu cầu Trả hàng / Hoàn tiền trong vòng 3 ngày kể từ khi nhận hàng thành công.
@@ -123,27 +126,27 @@ public class OrderServiceImpl implements OrderService {
         switch (newStatus) {
             case CONFIRMED -> {
                 title = "Đơn hàng đã được xác nhận";
-                message = "Đơn hàng #" + orderCode + " của bạn đã được cửa hàng xác nhận.";
+                message = ORDER_PREFIX + orderCode + " của bạn đã được cửa hàng xác nhận.";
                 statusStr = "CONFIRMED";
             }
             case PROCESSING -> {
                 title = "Chờ shipper lấy hàng";
-                message = "Đơn hàng #" + orderCode + " đã đóng gói xong và đang chờ đơn vị vận chuyển đến lấy.";
+                message = ORDER_PREFIX + orderCode + " đã đóng gói xong và đang chờ đơn vị vận chuyển đến lấy.";
                 statusStr = "WAITING_PICKUP";
             }
             case SHIPPED -> {
                 title = "Đơn hàng đang được giao";
-                message = "Đơn hàng #" + orderCode + " đang trên đường giao đến bạn.";
+                message = ORDER_PREFIX + orderCode + " đang trên đường giao đến bạn.";
                 statusStr = "SHIPPING";
             }
             case DELIVERED -> {
                 title = "Giao hàng thành công";
-                message = "Đơn hàng #" + orderCode + " đã giao thành công. Cảm ơn bạn đã mua sắm tại Cyber!";
+                message = ORDER_PREFIX + orderCode + " đã giao thành công. Cảm ơn bạn đã mua sắm tại Cyber!";
                 statusStr = "DELIVERED";
             }
             case CANCELLED -> {
                 title = "Đơn hàng đã bị hủy";
-                message = "Đơn hàng #" + orderCode + " đã bị hủy.";
+                message = ORDER_PREFIX + orderCode + " đã bị hủy.";
                 statusStr = "CANCELLED";
             }
             default -> {
@@ -160,7 +163,7 @@ public class OrderServiceImpl implements OrderService {
                     .message(message)
                     .status(statusStr)
                     .type("ORDER_" + statusStr)
-                    .referenceType("ORDER")
+                    .referenceType(ENTITY_ORDER)
                     .referenceId(order.getId())
                     .isRead(false)
                     .createdAt(LocalDateTime.now())
@@ -415,7 +418,7 @@ public class OrderServiceImpl implements OrderService {
         if (amount == null) {
             return "0₫";
         }
-        return java.text.NumberFormat.getCurrencyInstance(new java.util.Locale("vi", "VN"))
+        return java.text.NumberFormat.getCurrencyInstance(Locale.forLanguageTag("vi-VN"))
                 .format(amount)
                 .replace("₫", "")
                 .trim() + "₫";
@@ -627,7 +630,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin tài khoản: " + currentUsername));
 
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
+                .orElseThrow(() -> new ResourceNotFoundException(ORDER_NOT_FOUND_PREFIX + orderId));
 
         if (order.isExpired()) {
             cancelSingleExpiredOrder(order, LocalDateTime.now());
@@ -654,7 +657,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin tài khoản: " + currentUsername));
 
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
+                .orElseThrow(() -> new ResourceNotFoundException(ORDER_NOT_FOUND_PREFIX + orderId));
 
         // 1. Chỉ khách hàng sở hữu đơn mới được xác nhận nhận hàng
         if (!Objects.equals(order.getUserId(), user.getId())) {
@@ -706,7 +709,7 @@ public class OrderServiceImpl implements OrderService {
         auditLogService.log(
                 user.getId(),
                 "CUSTOMER_CONFIRMED_DELIVERY",
-                "ORDER",
+                ENTITY_ORDER,
                 String.valueOf(saved.getId()),
                 saved.getShopId(),
                 String.format("Khách hàng '%s' (ID #%d) đã xác nhận nhận hàng thành công cho đơn #%s",
@@ -722,7 +725,7 @@ public class OrderServiceImpl implements OrderService {
     @Transactional(readOnly = true)
     public OrderTrackingResponse getOrderTracking(Long orderId, String currentUsername) {
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
+                .orElseThrow(() -> new ResourceNotFoundException(ORDER_NOT_FOUND_PREFIX + orderId));
 
         if (currentUsername != null && !currentUsername.isBlank()) {
             User user = userRepository.findByUsername(currentUsername).orElse(null);
@@ -788,7 +791,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản: " + currentUsername));
 
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
+                .orElseThrow(() -> new ResourceNotFoundException(ORDER_NOT_FOUND_PREFIX + orderId));
 
         boolean isOwner = Objects.equals(order.getUserId(), user.getId());
         boolean isAdmin = isUserAdmin(user);
@@ -890,11 +893,11 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin tài khoản: " + currentUsername));
 
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
+                .orElseThrow(() -> new ResourceNotFoundException(ORDER_NOT_FOUND_PREFIX + orderId));
 
         Long orderShopId = order.getShopId();
         if (orderShopId == null) {
-            throw new BadRequestException("Đơn hàng #" + orderId + " chưa được liên kết với cửa hàng nào");
+            throw new BadRequestException(ORDER_PREFIX + orderId + " chưa được liên kết với cửa hàng nào");
         }
 
         Shop shop = shopRepository.findById(orderShopId)
@@ -956,10 +959,10 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng #" + shopId));
 
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng #" + orderId));
+                .orElseThrow(() -> new ResourceNotFoundException(ORDER_NOT_FOUND_PREFIX + orderId));
 
         if (!Objects.equals(order.getShopId(), shopId)) {
-            throw new ResourceNotFoundException("Đơn hàng #" + orderId + " không thuộc về cửa hàng #" + shopId);
+            throw new ResourceNotFoundException(ORDER_PREFIX + orderId + " không thuộc về cửa hàng #" + shopId);
         }
 
         if (shop.getStatus() == ShopStatus.SUSPENDED) {
@@ -1217,7 +1220,7 @@ public class OrderServiceImpl implements OrderService {
         timeline.add(OrderTrackingResponse.TrackingTimelineEvent.builder()
                 .step("PENDING")
                 .title("Đặt hàng thành công")
-                .description("Đơn hàng #" + order.getOrderCode() + " đã được tạo" + (shopName != null ? " và chuyển đến cửa hàng " + shopName : ""))
+                .description(ORDER_PREFIX + order.getOrderCode() + " đã được tạo" + (shopName != null ? " và chuyển đến cửa hàng " + shopName : ""))
                 .timestamp(order.getCreatedAt())
                 .completed(true)
                 .current(currentStatus == OrderStatus.PENDING)
