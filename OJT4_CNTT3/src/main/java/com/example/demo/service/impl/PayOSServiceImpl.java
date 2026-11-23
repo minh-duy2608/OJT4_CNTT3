@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URI;
@@ -153,81 +154,100 @@ public class PayOSServiceImpl implements PayOSService {
         orderRepository.save(order);
     }
 
+    private record PayOSLinkParams(long orderCode, int amount, String description, String cancelUrl, String returnUrl, long expiredAtUnix, String signature) {}
+
     private PayOSGatewayResult requestPayOSPaymentLink(Order order, int amount, String description, long payosOrderCode) {
-        String accountNumber = payOSProperties.getAccountNumber();
-        String accountName = payOSProperties.getAccountName();
-        String bin = payOSProperties.getBankBin();
-        String checkoutUrl = null;
-        String qrCode = null;
+        PayOSGatewayResult defaultResult = new PayOSGatewayResult(
+                null, null,
+                payOSProperties.getAccountNumber(),
+                payOSProperties.getAccountName(),
+                payOSProperties.getBankBin()
+        );
 
         if (!payOSProperties.isConfigured()) {
-            return new PayOSGatewayResult(checkoutUrl, qrCode, accountNumber, accountName, bin);
+            return defaultResult;
         }
 
         try {
-            long expiredAtUnix = order.getExpiresAt().toEpochSecond(ZoneOffset.ofHours(7));
-            String cancelUrl = payOSProperties.getCancelUrl();
-            String returnUrl = payOSProperties.getReturnUrl();
-
-            String signData = String.format("amount=%d&cancelUrl=%s&description=%s&orderCode=%d&returnUrl=%s",
-                    amount, cancelUrl, description, payosOrderCode, returnUrl);
-            String signature = createHmacSha256(signData, payOSProperties.getChecksumKey());
-
-            Map<String, Object> reqBody = buildPayOSRequestBody(payosOrderCode, amount, description, cancelUrl, returnUrl, expiredAtUnix, signature, order);
+            PayOSLinkParams params = createPayOSLinkParams(order, amount, description, payosOrderCode);
+            Map<String, Object> reqBody = buildPayOSRequestBody(params, order);
             String jsonBody = objectMapper.writeValueAsString(reqBody);
 
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(10))
-                    .build();
-
-            HttpRequest httpRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(PAYOS_API_URL))
-                    .header("x-client-id", payOSProperties.getClientId())
-                    .header("x-api-key", payOSProperties.getApiKey())
-                    .header("Content-Type", "application/json")
-                    .header("User-Agent", "CyberMall/1.0 (Macintosh; Intel Mac OS X)")
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
-                    .build();
-
-            HttpResponse<String> httpResponse = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-
-            if (httpResponse.statusCode() == 200 || httpResponse.statusCode() == 201) {
-                JsonNode root = objectMapper.readTree(httpResponse.body());
-                if ("00".equals(root.path("code").asText())) {
-                    JsonNode data = root.path("data");
-                    checkoutUrl = data.path("checkoutUrl").asText(null);
-                    qrCode = data.path("qrCode").asText(null);
-                    if (data.hasNonNull("accountNumber")) accountNumber = data.path("accountNumber").asText();
-                    if (data.hasNonNull("accountName")) accountName = data.path("accountName").asText();
-                    if (data.hasNonNull("bin")) bin = data.path("bin").asText();
-                    log.info("Successfully created PayOS payment link for order #{} (Code: {})", order.getId(), order.getOrderCode());
-                } else {
-                    log.warn("PayOS returned non-zero code: {} - {}", root.path("code").asText(), root.path("desc").asText());
-                }
-            } else {
-                log.warn("PayOS HTTP {} response: {}", httpResponse.statusCode(), httpResponse.body());
-            }
+            HttpResponse<String> httpResponse = sendPayOSCreateRequest(jsonBody);
+            return parsePayOSResponse(httpResponse, order, defaultResult);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.warn("Interrupted while calling PayOS API for order #{}, fallback to VietQR generation: {}", order.getId(), e.getMessage());
+            return defaultResult;
         } catch (Exception e) {
             log.warn("Failed to call PayOS API for order #{}, fallback to VietQR generation: {}", order.getId(), e.getMessage());
+            return defaultResult;
         }
-
-        return new PayOSGatewayResult(checkoutUrl, qrCode, accountNumber, accountName, bin);
     }
 
-    private Map<String, Object> buildPayOSRequestBody(long payosOrderCode, int amount, String description,
-                                                      String cancelUrl, String returnUrl, long expiredAtUnix,
-                                                      String signature, Order order) {
+    private PayOSLinkParams createPayOSLinkParams(Order order, int amount, String description, long payosOrderCode) {
+        long expiredAtUnix = order.getExpiresAt().toEpochSecond(ZoneOffset.ofHours(7));
+        String cancelUrl = payOSProperties.getCancelUrl();
+        String returnUrl = payOSProperties.getReturnUrl();
+
+        String signData = String.format("amount=%d&cancelUrl=%s&description=%s&orderCode=%d&returnUrl=%s",
+                amount, cancelUrl, description, payosOrderCode, returnUrl);
+        String signature = createHmacSha256(signData, payOSProperties.getChecksumKey());
+
+        return new PayOSLinkParams(payosOrderCode, amount, description, cancelUrl, returnUrl, expiredAtUnix, signature);
+    }
+
+    private HttpResponse<String> sendPayOSCreateRequest(String jsonBody) throws IOException, InterruptedException {
+        HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+
+        HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(PAYOS_API_URL))
+                .header("x-client-id", payOSProperties.getClientId())
+                .header("x-api-key", payOSProperties.getApiKey())
+                .header("Content-Type", "application/json")
+                .header("User-Agent", "CyberMall/1.0 (Macintosh; Intel Mac OS X)")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
+                .build();
+
+        return client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private PayOSGatewayResult parsePayOSResponse(HttpResponse<String> httpResponse, Order order, PayOSGatewayResult defaultResult) {
+        if (httpResponse.statusCode() != 200 && httpResponse.statusCode() != 201) {
+            log.warn("PayOS HTTP {} response: {}", httpResponse.statusCode(), httpResponse.body());
+            return defaultResult;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(httpResponse.body());
+            if (!"00".equals(root.path("code").asText())) {
+                log.warn("PayOS returned non-zero code: {} - {}", root.path("code").asText(), root.path("desc").asText());
+                return defaultResult;
+            }
+            JsonNode data = root.path("data");
+            String checkoutUrl = data.path("checkoutUrl").asText(null);
+            String qrCode = data.path("qrCode").asText(null);
+            String accountNumber = data.hasNonNull("accountNumber") ? data.path("accountNumber").asText() : defaultResult.accountNumber();
+            String accountName = data.hasNonNull("accountName") ? data.path("accountName").asText() : defaultResult.accountName();
+            String bin = data.hasNonNull("bin") ? data.path("bin").asText() : defaultResult.bin();
+            log.info("Successfully created PayOS payment link for order #{} (Code: {})", order.getId(), order.getOrderCode());
+            return new PayOSGatewayResult(checkoutUrl, qrCode, accountNumber, accountName, bin);
+        } catch (Exception e) {
+            log.warn("Failed to parse PayOS response for order #{}: {}", order.getId(), e.getMessage());
+            return defaultResult;
+        }
+    }
+
+    private Map<String, Object> buildPayOSRequestBody(PayOSLinkParams params, Order order) {
         Map<String, Object> reqBody = new HashMap<>();
-        reqBody.put(FIELD_ORDER_CODE, payosOrderCode);
-        reqBody.put(FIELD_AMOUNT, amount);
-        reqBody.put("description", description);
-        reqBody.put("cancelUrl", cancelUrl);
-        reqBody.put("returnUrl", returnUrl);
-        reqBody.put("expiredAt", expiredAtUnix);
-        reqBody.put("signature", signature);
+        reqBody.put(FIELD_ORDER_CODE, params.orderCode());
+        reqBody.put(FIELD_AMOUNT, params.amount());
+        reqBody.put("description", params.description());
+        reqBody.put("cancelUrl", params.cancelUrl());
+        reqBody.put("returnUrl", params.returnUrl());
+        reqBody.put("expiredAt", params.expiredAtUnix());
+        reqBody.put("signature", params.signature());
         if (order.getRecipientName() != null) reqBody.put("buyerName", order.getRecipientName());
         if (order.getRecipientPhone() != null) reqBody.put("buyerPhone", order.getRecipientPhone());
         if (order.getShippingAddress() != null) reqBody.put("buyerAddress", order.getShippingAddress());
@@ -792,7 +812,7 @@ public class PayOSServiceImpl implements PayOSService {
                 .bankName(payOSProperties.getBankName())
                 .bin(bin)
                 .qrCode(qrCode)
-                .checkoutUrl(checkoutUrl != null ? checkoutUrl : "https://pay.payos.vn")
+                .checkoutUrl(checkoutUrl != null ? checkoutUrl : DEFAULT_CHECKOUT_URL)
                 .status(status)
                 .expiresAt(order.getExpiresAt())
                 .remainingSeconds(calculateRemainingSeconds(order.getExpiresAt()))
