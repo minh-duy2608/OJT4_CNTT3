@@ -156,6 +156,11 @@ export const OrderReviewModal = ({
       return;
     }
 
+    if (order?.canReview === false) {
+      setErrorMsg('Đã quá thời hạn 2 ngày đánh giá sản phẩm kể từ khi nhận hàng thành công.');
+      return;
+    }
+
     if (!currentProductId) {
       setErrorMsg('Không xác định được mã sản phẩm trong đơn hàng.');
       return;

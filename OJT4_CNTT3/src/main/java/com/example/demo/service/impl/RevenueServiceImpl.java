@@ -97,8 +97,10 @@ public class RevenueServiceImpl implements RevenueService {
 
         void processOrder(Order order, BigDecimal fee) {
             OrderStatus status = order.getStatus();
-            if (status == OrderStatus.CANCELLED) {
-                cancelledOrders++;
+            if (status == OrderStatus.CANCELLED || status == OrderStatus.RETURNED || order.getPaymentStatus() == PaymentStatus.REFUNDED) {
+                if (status == OrderStatus.CANCELLED) {
+                    cancelledOrders++;
+                }
                 return;
             }
 
@@ -165,7 +167,7 @@ public class RevenueServiceImpl implements RevenueService {
         BigDecimal pending = BigDecimal.ZERO;
         for (Order o : shopOrders) {
             BigDecimal a = o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO;
-            if (o.getStatus() != OrderStatus.CANCELLED) {
+            if (o.getStatus() != OrderStatus.CANCELLED && o.getStatus() != OrderStatus.RETURNED && o.getPaymentStatus() != PaymentStatus.REFUNDED) {
                 if (o.getStatus() == OrderStatus.DELIVERED || o.getPaymentStatus() == PaymentStatus.PAID) {
                     revenue = revenue.add(a);
                 } else {
@@ -223,7 +225,7 @@ public class RevenueServiceImpl implements RevenueService {
         }
 
         for (Order o : orders) {
-            if (o.getCreatedAt() != null && o.getStatus() != OrderStatus.CANCELLED) {
+            if (o.getCreatedAt() != null && o.getStatus() != OrderStatus.CANCELLED && o.getStatus() != OrderStatus.RETURNED && o.getPaymentStatus() != PaymentStatus.REFUNDED) {
                 LocalDate orderDate = o.getCreatedAt().toLocalDate();
                 if (dailyMap.containsKey(orderDate)) {
                     BigDecimal a = o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO;

@@ -101,6 +101,11 @@ export const OrderReturnModal = ({
     e.preventDefault();
     setErrorMsg('');
 
+    if (order.paymentStatus !== 'PAID') {
+      setErrorMsg('Chỉ có thể yêu cầu hoàn tiền khi đơn hàng đã được thanh toán thành công (PAID).');
+      return;
+    }
+
     const finalReason = selectedReason === 'Lý do khác' ? customReason.trim() : selectedReason;
     if (!finalReason) {
       setErrorMsg('Vui lòng chọn hoặc nhập lý do yêu cầu trả hàng / hoàn tiền.');

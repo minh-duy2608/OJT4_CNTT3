@@ -115,6 +115,11 @@ public class ShopReviewServiceImpl implements ShopReviewService {
             throw new BadRequestException("Chỉ có thể đánh giá cửa hàng khi đơn hàng đã được giao thành công (DELIVERED)");
         }
 
+        // Thời gian có thể đánh giá của người dùng là 2 ngày kể từ khi nhận hàng thành công
+        if (order.getDeliveredAt() != null && order.getDeliveredAt().isBefore(LocalDateTime.now().minusDays(2))) {
+            throw new BadRequestException("Đã quá thời hạn 2 ngày đánh giá cửa hàng kể từ khi nhận hàng thành công");
+        }
+
         // 3. Đơn hàng chưa từng được đánh giá
         if (shopReviewRepository.existsByOrderId(orderId)) {
             throw new BadRequestException("Đơn hàng này đã được đánh giá trước đó");

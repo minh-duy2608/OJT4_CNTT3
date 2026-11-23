@@ -58,6 +58,10 @@ public class ReturnServiceImpl implements ReturnService {
             throw new BadRequestException("Chỉ có thể yêu cầu trả hàng khi đơn hàng đã được giao thành công (DELIVERED)");
         }
 
+        if (order.getPaymentStatus() != PaymentStatus.PAID) {
+            throw new BadRequestException("Chỉ có thể yêu cầu hoàn tiền khi đơn hàng đã được thanh toán thành công (PAID). Đơn hàng chưa thanh toán không thể yêu cầu hoàn tiền.");
+        }
+
         if (order.getDeliveredAt() != null && order.getDeliveredAt().isBefore(LocalDateTime.now().minusDays(3))) {
             throw new BadRequestException("Đã quá thời hạn 3 ngày yêu cầu trả hàng / hoàn tiền kể từ khi nhận hàng");
         }
@@ -244,6 +248,10 @@ public class ReturnServiceImpl implements ReturnService {
         if (request.getStatus() == ReturnStatus.RECEIVED || request.getStatus() == ReturnStatus.REFUNDED) {
             order.setStatus(OrderStatus.RETURNED);
             order.setPaymentStatus(PaymentStatus.REFUNDED);
+            // Nghiệp vụ Escrow: Tiền đang do Admin giữ, khi hoàn tiền thành công -> tự động trừ khỏi doanh thu cửa hàng
+            order.setShopPayoutStatus("CANCELLED");
+            order.setShopPayoutAmount(java.math.BigDecimal.ZERO);
+            order.setShopPayoutNote("Đơn hàng đã hoàn tiền thành công cho khách hàng. Doanh thu đơn hàng đã tự động khấu trừ khỏi cửa hàng.");
             orderRepository.save(order);
         }
 

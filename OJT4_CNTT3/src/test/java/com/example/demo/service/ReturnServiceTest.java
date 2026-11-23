@@ -93,6 +93,7 @@ class ReturnServiceTest extends BaseUnitTest {
                 .userId(10L)
                 .shopId(100L)
                 .status(OrderStatus.DELIVERED)
+                .paymentStatus(PaymentStatus.PAID)
                 .totalAmount(BigDecimal.valueOf(1500000))
                 .deliveredAt(LocalDateTime.now().minusDays(1)) // Mới nhận hàng 1 ngày trước
                 .build();
@@ -166,6 +167,25 @@ class ReturnServiceTest extends BaseUnitTest {
                 returnService.createReturnRequest(500L, request, "customer"));
 
         assertTrue(ex.getMessage().contains("Chỉ có thể yêu cầu trả hàng khi đơn hàng đã được giao thành công"));
+        verify(orderReturnRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Tạo yêu cầu trả hàng thất bại khi đơn hàng CHƯA THANH TOÁN (chưa PAID) -> 400 BadRequestException")
+    void testCreateReturnRequest_BadRequest_WhenNotPaid() {
+        order.setPaymentStatus(PaymentStatus.UNPAID);
+
+        when(userRepository.findByUsername("customer")).thenReturn(Optional.of(customer));
+        when(orderRepository.findById(500L)).thenReturn(Optional.of(order));
+
+        CreateReturnRequest request = CreateReturnRequest.builder()
+                .reason("Muốn hoàn tiền")
+                .build();
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                returnService.createReturnRequest(500L, request, "customer"));
+
+        assertTrue(ex.getMessage().contains("đã được thanh toán thành công (PAID)"));
         verify(orderReturnRepository, never()).save(any());
     }
 

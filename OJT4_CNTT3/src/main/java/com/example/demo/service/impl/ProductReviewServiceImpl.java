@@ -21,7 +21,6 @@ import com.example.demo.repository.ShopRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.service.ProductReviewService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -37,7 +36,6 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ProductReviewServiceImpl implements ProductReviewService {
 
     private static final String NOT_FOUND_REVIEW_PREFIX = "Không tìm thấy đánh giá với id: ";
@@ -48,6 +46,19 @@ public class ProductReviewServiceImpl implements ProductReviewService {
     private final UserRepository userRepository;
     private final ShopRepository shopRepository;
     private final ObjectMapper objectMapper;
+
+    public ProductReviewServiceImpl(
+            ProductReviewRepository productReviewRepository,
+            ProductRepository productRepository,
+            UserRepository userRepository,
+            ShopRepository shopRepository,
+            ObjectMapper objectMapper) {
+        this.productReviewRepository = productReviewRepository;
+        this.productRepository = productRepository;
+        this.userRepository = userRepository;
+        this.shopRepository = shopRepository;
+        this.objectMapper = objectMapper;
+    }
 
     private String serializeImageUrls(List<String> imageUrls) {
         if (imageUrls == null || imageUrls.isEmpty()) {
@@ -84,14 +95,20 @@ public class ProductReviewServiceImpl implements ProductReviewService {
             return new ReviewPermission(false, false, false);
         }
         boolean hasPurchased = false;
+        boolean withinReviewWindow = false;
         try {
             hasPurchased = productReviewRepository.hasUserPurchasedProduct(currentUser.getId(), productId);
+            if (hasPurchased) {
+                withinReviewWindow = productReviewRepository.hasUserPurchasedProductWithinTime(
+                        currentUser.getId(), productId, LocalDateTime.now().minusDays(2)
+                );
+            }
         } catch (Exception e) {
             log.warn("Lỗi kiểm tra lịch sử mua hàng: {}", e.getMessage());
         }
 
         boolean hasReviewed = productReviewRepository.existsByProductIdAndUserId(productId, currentUser.getId());
-        boolean canReview = hasPurchased && !hasReviewed;
+        boolean canReview = hasPurchased && withinReviewWindow && !hasReviewed;
         boolean isShopOwnerOfProduct = isUserShopOwner(currentUser, shopId);
         return new ReviewPermission(hasPurchased, canReview, isShopOwnerOfProduct);
     }
@@ -187,6 +204,20 @@ public class ProductReviewServiceImpl implements ProductReviewService {
 
         if (!isBuyer) {
             throw new BadRequestException("Bạn chỉ có thể đánh giá sản phẩm này sau khi đã mua hàng và đơn hàng được hoàn tất thành công.");
+        }
+
+        // Ràng buộc 3: Thời gian có thể đánh giá của người dùng là 2 ngày kể từ khi nhận hàng thành công
+        boolean withinReviewWindow = false;
+        try {
+            withinReviewWindow = productReviewRepository.hasUserPurchasedProductWithinTime(
+                    user.getId(), productId, LocalDateTime.now().minusDays(2)
+            );
+        } catch (Exception e) {
+            log.warn("Lỗi kiểm tra thời hạn đánh giá: {}", e.getMessage());
+        }
+
+        if (!withinReviewWindow) {
+            throw new BadRequestException("Đã quá thời hạn 2 ngày đánh giá sản phẩm kể từ khi nhận hàng thành công.");
         }
 
         ProductReview review = ProductReview.builder()
