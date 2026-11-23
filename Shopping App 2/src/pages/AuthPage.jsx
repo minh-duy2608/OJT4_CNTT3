@@ -196,11 +196,18 @@ export const AuthPage = () => {
           phone: phone.trim() || null
         });
 
+        // Tự động kích hoạt gửi mã OTP ngay lập tức để người dùng nhận được mã ngay trong hộp thư
+        try {
+          await resendVerification(email.trim());
+        } catch (resendErr) {
+          console.warn('Auto dispatch verification code on register:', resendErr);
+        }
+
         // Open 6-digit OTP Verification Modal
         setRegisteredEmail(email.trim());
         setOtpCode('');
         setShowOtpModal(true);
-        setResendCountdown(60);
+        setResendCountdown(30);
         setApiSuccess(`Mã xác minh 6 số đã được gửi từ son666727@gmail.com đến ${email.trim()}`);
       } else {
         const loggedUser = await login({

@@ -90,6 +90,9 @@ class AuthServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private com.example.demo.service.EmailService emailService;
+
     @InjectMocks
     private AuthServiceImpl authService;
 

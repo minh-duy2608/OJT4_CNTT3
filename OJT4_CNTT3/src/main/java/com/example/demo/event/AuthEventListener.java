@@ -30,8 +30,5 @@ public class AuthEventListener {
     @EventListener
     public void handleEmailVerificationRequested(EmailVerificationRequestedEvent event) {
         log.info("[MICROSERVICE EVENT: EMAIL_VERIFICATION_REQUESTED] User ID: {}, Email: {}", event.getUserId(), event.getEmail());
-        if (event.getVerificationToken() != null && event.getEmail() != null) {
-            emailService.sendVerificationOtp(event.getEmail(), event.getFullName(), event.getVerificationToken());
-        }
     }
 }
