@@ -1064,13 +1064,25 @@ public class OrderServiceImpl implements OrderService {
         return isAdmin ? "Hủy bởi Quản trị viên" : "Hủy bởi cửa hàng";
     }
 
-    private void handleStatusCancelled(Order order, Shop shop, UpdateOrderStatusRequest request, User user, boolean isAdmin, LocalDateTime now, OrderStatus oldStatus) {
-        order.setCancelledAt(now);
-        order.setCancellationReason(resolveCancellationReason(request, isAdmin));
+    private record StatusUpdateContext(
+            Order order,
+            Shop shop,
+            UpdateOrderStatusRequest request,
+            User user,
+            boolean isAdmin,
+            LocalDateTime now,
+            OrderStatus oldStatus,
+            OrderStatus newStatus
+    ) {}
+
+    private void handleStatusCancelled(StatusUpdateContext ctx) {
+        ctx.order().setCancelledAt(ctx.now());
+        ctx.order().setCancellationReason(resolveCancellationReason(ctx.request(), ctx.isAdmin()));
         log.info("Đơn hàng #{} ({}) của Shop #{} bị HỦY (CANCELLED) vào lúc: {}. Lý do: '{}'. Người thực hiện: '{}'",
-                order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), order.getCancelledAt(), order.getCancellationReason(), user.getUsername());
-        if (oldStatus == OrderStatus.PENDING || oldStatus == OrderStatus.CONFIRMED || oldStatus == OrderStatus.PROCESSING) {
-            restoreInventory(order);
+                ctx.order().getId(), ctx.order().getOrderCode(), ctx.shop().getId(), ctx.shop().getName(),
+                ctx.order().getCancelledAt(), ctx.order().getCancellationReason(), ctx.user().getUsername());
+        if (ctx.oldStatus() == OrderStatus.PENDING || ctx.oldStatus() == OrderStatus.CONFIRMED || ctx.oldStatus() == OrderStatus.PROCESSING) {
+            restoreInventory(ctx.order());
         }
     }
 
@@ -1081,21 +1093,21 @@ public class OrderServiceImpl implements OrderService {
                 status == OrderStatus.DELIVERED;
     }
 
-    private void dispatchStatusAction(Order order, Shop shop, UpdateOrderStatusRequest request, User user, boolean isAdmin, LocalDateTime now, OrderStatus oldStatus, OrderStatus newStatus) {
-        switch (newStatus) {
-            case CONFIRMED -> handleStatusConfirmed(order, shop, user, now);
+    private void dispatchStatusAction(StatusUpdateContext ctx) {
+        switch (ctx.newStatus()) {
+            case CONFIRMED -> handleStatusConfirmed(ctx.order(), ctx.shop(), ctx.user(), ctx.now());
             case PROCESSING -> log.info("Đơn hàng #{} ({}) của Shop #{} đang được chuẩn bị hàng (PROCESSING) vào lúc: {}. Người thực hiện: '{}'",
-                    order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), now, user.getUsername());
-            case SHIPPED -> handleStatusShipped(order, shop, user, now);
-            case DELIVERED -> handleStatusDelivered(order, shop, user, now);
-            case CANCELLED -> handleStatusCancelled(order, shop, request, user, isAdmin, now, oldStatus);
+                    ctx.order().getId(), ctx.order().getOrderCode(), ctx.shop().getId(), ctx.shop().getName(), ctx.now(), ctx.user().getUsername());
+            case SHIPPED -> handleStatusShipped(ctx.order(), ctx.shop(), ctx.user(), ctx.now());
+            case DELIVERED -> handleStatusDelivered(ctx.order(), ctx.shop(), ctx.user(), ctx.now());
+            case CANCELLED -> handleStatusCancelled(ctx);
             case RETURNED -> log.info("Đơn hàng #{} ({}) của Shop #{} ghi nhận TRẢ HÀNG (RETURNED) vào lúc: {}. Người thực hiện: '{}'",
-                    order.getId(), order.getOrderCode(), shop.getId(), shop.getName(), now, user.getUsername());
+                    ctx.order().getId(), ctx.order().getOrderCode(), ctx.shop().getId(), ctx.shop().getName(), ctx.now(), ctx.user().getUsername());
             default -> { /* PENDING or other unhandled */ }
         }
 
-        if (isConfirmedOrOngoingStatus(newStatus)) {
-            confirmInventorySale(order);
+        if (isConfirmedOrOngoingStatus(ctx.newStatus())) {
+            confirmInventorySale(ctx.order());
         }
     }
 
@@ -1106,7 +1118,8 @@ public class OrderServiceImpl implements OrderService {
         if (newStatus != null && newStatus != oldStatus) {
             validateStatusTransition(oldStatus, newStatus);
             order.setStatus(newStatus);
-            dispatchStatusAction(order, shop, request, user, isAdmin, LocalDateTime.now(), oldStatus, newStatus);
+            StatusUpdateContext ctx = new StatusUpdateContext(order, shop, request, user, isAdmin, LocalDateTime.now(), oldStatus, newStatus);
+            dispatchStatusAction(ctx);
         }
 
         if (request.getPaymentStatus() != null) {
