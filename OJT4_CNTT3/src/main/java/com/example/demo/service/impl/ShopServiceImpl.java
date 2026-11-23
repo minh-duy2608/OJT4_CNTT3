@@ -46,6 +46,11 @@ import java.util.stream.Collectors;
 public class ShopServiceImpl implements ShopService {
 
     private static final String NOT_FOUND_SHOP_PREFIX = "Không tìm thấy cửa hàng #";
+    private static final String DEFAULT_BANK_NAME = "BIDV (Ngân hàng TMCP Đầu tư và Phát triển Việt Nam)";
+    private static final String DEFAULT_BANK_BIN = "970418";
+    private static final String DEFAULT_BANK_ACCOUNT = "8814310515";
+    private static final String DEFAULT_BANK_HOLDER = "HOANG THIEN SON";
+    private static final java.math.BigDecimal DEFAULT_PLATFORM_FEE_RATE = new java.math.BigDecimal("0.025");
 
     private final ShopRepository shopRepository;
     private final UserRepository userRepository;
@@ -59,74 +64,94 @@ public class ShopServiceImpl implements ShopService {
     private final BrandRepository brandRepository;
     private final ProductService productService;
 
+    private record ShopBankDetails(String bankName, String bankBin, String accountNumber, String accountName) {}
+
     @Override
     @Transactional
     public ShopDetailResponse registerShop(RegisterShopRequest request, String currentUsername) {
         User user = getCurrentUser(currentUsername);
 
-        // Kiểm tra xem người dùng đã sở hữu cửa hàng nào chưa
+        Optional<ShopDetailResponse> existingResponse = checkExistingShop(user, currentUsername);
+        if (existingResponse.isPresent()) {
+            return existingResponse.get();
+        }
+
+        String finalSlug = generateUniqueShopSlug(request.getName(), user.getId());
+        ShopBankDetails bank = resolveRegistrationBankDetails(request);
+        Shop shop = buildNewShop(request, user, finalSlug, bank);
+
+        Shop savedShop = shopRepository.save(shop);
+        ensureShopManagerRole(user, savedShop);
+
+        log.info("User {} (id: {}) successfully registered shop: {} (id: {})",
+                user.getUsername(), user.getId(), savedShop.getName(), savedShop.getId());
+        return ShopDetailResponse.fromEntity(savedShop, true, isUserAdmin(user));
+    }
+
+    private Optional<ShopDetailResponse> checkExistingShop(User user, String currentUsername) {
         Optional<Shop> existingOpt = shopRepository.findFirstByOwnerIdOrderByIdDesc(user.getId());
         if (existingOpt.isPresent() && (existingOpt.get().getStatus() == ShopStatus.ACTIVE || existingOpt.get().getStatus() == ShopStatus.PENDING)) {
             Shop existing = existingOpt.get();
-            // Khôi phục hoặc đảm bảo người dùng luôn có quyền SHOP_MANAGER & CLIENT để truy cập cửa hàng
             ensureShopManagerRole(user, existing);
             log.info("Tài khoản @{} đã có cửa hàng '{}' (#{}). Tự động đồng bộ quyền SHOP_MANAGER thành công.",
                     currentUsername, existing.getName(), existing.getId());
-            return ShopDetailResponse.fromEntity(existing, true, isUserAdmin(user));
+            return Optional.of(ShopDetailResponse.fromEntity(existing, true, isUserAdmin(user)));
         }
+        return Optional.empty();
+    }
 
-        // Tạo mã slug thân thiện URL
-        String baseSlug = toSlug(request.getName());
+    private String generateUniqueShopSlug(String name, Long userId) {
+        String baseSlug = toSlug(name);
         String finalSlug = baseSlug;
         if (shopRepository.existsBySlug(finalSlug)) {
-            finalSlug = baseSlug + "-" + user.getId();
+            finalSlug = baseSlug + "-" + userId;
         }
         if (shopRepository.existsBySlug(finalSlug)) {
             finalSlug = baseSlug + "-" + (System.currentTimeMillis() % 10000);
         }
+        return finalSlug;
+    }
 
-        // Gán thông tin tài khoản ngân hàng và điều khoản hợp đồng (mặc định BIDV HOANG THIEN SON nếu để trống)
-        String bankName = request.getBankName() != null && !request.getBankName().isBlank()
-                ? request.getBankName().trim() : "BIDV (Ngân hàng TMCP Đầu tư và Phát triển Việt Nam)";
-        String bankBin = request.getBankBin() != null && !request.getBankBin().isBlank()
-                ? request.getBankBin().trim() : "970418";
-        String bankAcc = request.getBankAccountNumber() != null && !request.getBankAccountNumber().isBlank()
-                ? request.getBankAccountNumber().trim() : "8814310515";
-        String bankHolder = request.getBankAccountName() != null && !request.getBankAccountName().isBlank()
-                ? request.getBankAccountName().trim() : "HOANG THIEN SON";
+    private ShopBankDetails resolveRegistrationBankDetails(RegisterShopRequest request) {
+        String bankName = (request.getBankName() != null && !request.getBankName().isBlank())
+                ? request.getBankName().trim() : DEFAULT_BANK_NAME;
+        String bankBin = (request.getBankBin() != null && !request.getBankBin().isBlank())
+                ? request.getBankBin().trim() : DEFAULT_BANK_BIN;
+        String bankAcc = (request.getBankAccountNumber() != null && !request.getBankAccountNumber().isBlank())
+                ? request.getBankAccountNumber().trim() : DEFAULT_BANK_ACCOUNT;
+        String bankHolder = (request.getBankAccountName() != null && !request.getBankAccountName().isBlank())
+                ? request.getBankAccountName().trim() : DEFAULT_BANK_HOLDER;
+        return new ShopBankDetails(bankName, bankBin, bankAcc, bankHolder);
+    }
 
-        // Tạo Shop mới với trạng thái ACTIVE để khách hàng và admin có thể trải nghiệm test ngay
-        Shop shop = Shop.builder()
+    private Shop buildNewShop(RegisterShopRequest request, User user, String slug, ShopBankDetails bank) {
+        String phone = (request.getPhone() != null && !request.getPhone().isBlank()) ? request.getPhone().trim() : user.getPhone();
+        String email = (request.getEmail() != null && !request.getEmail().isBlank()) ? request.getEmail().trim() : user.getEmail();
+        boolean contractAgreed = !Boolean.FALSE.equals(request.getContractAgreed());
+
+        return Shop.builder()
                 .ownerId(user.getId())
                 .name(request.getName().trim())
-                .slug(finalSlug)
+                .slug(slug)
                 .description(request.getDescription())
-                .phone(request.getPhone() != null && !request.getPhone().isBlank() ? request.getPhone().trim() : user.getPhone())
-                .email(request.getEmail() != null && !request.getEmail().isBlank() ? request.getEmail().trim() : user.getEmail())
+                .phone(phone)
+                .email(email)
                 .province(request.getProvince())
                 .district(request.getDistrict())
                 .ward(request.getWard())
                 .addressDetail(request.getAddressDetail())
                 .logoUrl(request.getLogoUrl())
                 .bannerUrl(request.getBannerUrl())
-                .bankName(bankName)
-                .bankBin(bankBin)
-                .bankAccountNumber(bankAcc)
-                .bankAccountName(bankHolder)
-                .contractAgreed(request.getContractAgreed() != null ? request.getContractAgreed() : true)
+                .bankName(bank.bankName())
+                .bankBin(bank.bankBin())
+                .bankAccountNumber(bank.accountNumber())
+                .bankAccountName(bank.accountName())
+                .contractAgreed(contractAgreed)
                 .contractAgreedAt(LocalDateTime.now())
-                .platformFeeRate(new java.math.BigDecimal("0.025"))
+                .platformFeeRate(DEFAULT_PLATFORM_FEE_RATE)
                 .settlementDay(19)
                 .status(ShopStatus.ACTIVE)
                 .build();
-
-        Shop savedShop = shopRepository.save(shop);
-
-        // Nâng cấp vai trò người dùng thành SHOP_MANAGER nhưng vẫn giữ vai trò CLIENT để dùng cả 2 luồng
-        ensureShopManagerRole(user, savedShop);
-
-        log.info("User {} (id: {}) successfully registered shop: {} (id: {})", user.getUsername(), user.getId(), savedShop.getName(), savedShop.getId());
-        return ShopDetailResponse.fromEntity(savedShop, true, isUserAdmin(user));
     }
 
     @Override
@@ -287,11 +312,23 @@ public class ShopServiceImpl implements ShopService {
 
         boolean isAdmin = isUserAdmin(user);
         boolean isOwner = Objects.equals(shop.getOwnerId(), user.getId());
+        verifyShopModifyPermission(isAdmin, isOwner);
 
+        updateShopBasicInfo(shop, request);
+        updateShopAddress(shop, request);
+        updateShopBankInfo(shop, request);
+
+        Shop updated = shopRepository.save(shop);
+        return ShopDetailResponse.fromEntity(updated, isOwner, isAdmin);
+    }
+
+    private void verifyShopModifyPermission(boolean isAdmin, boolean isOwner) {
         if (!isAdmin && !isOwner) {
             throw new ForbiddenException("Bạn không có quyền chỉnh sửa thông tin cửa hàng này");
         }
+    }
 
+    private void updateShopBasicInfo(Shop shop, RegisterShopRequest request) {
         if (request.getName() != null && !request.getName().isBlank()) {
             shop.setName(request.getName().trim());
         }
@@ -304,6 +341,15 @@ public class ShopServiceImpl implements ShopService {
         if (request.getEmail() != null) {
             shop.setEmail(request.getEmail().trim());
         }
+        if (request.getLogoUrl() != null) {
+            shop.setLogoUrl(request.getLogoUrl());
+        }
+        if (request.getBannerUrl() != null) {
+            shop.setBannerUrl(request.getBannerUrl());
+        }
+    }
+
+    private void updateShopAddress(Shop shop, RegisterShopRequest request) {
         if (request.getProvince() != null) {
             shop.setProvince(request.getProvince());
         }
@@ -316,12 +362,9 @@ public class ShopServiceImpl implements ShopService {
         if (request.getAddressDetail() != null) {
             shop.setAddressDetail(request.getAddressDetail());
         }
-        if (request.getLogoUrl() != null) {
-            shop.setLogoUrl(request.getLogoUrl());
-        }
-        if (request.getBannerUrl() != null) {
-            shop.setBannerUrl(request.getBannerUrl());
-        }
+    }
+
+    private void updateShopBankInfo(Shop shop, RegisterShopRequest request) {
         if (request.getBankName() != null && !request.getBankName().isBlank()) {
             shop.setBankName(request.getBankName().trim());
         }
@@ -334,9 +377,6 @@ public class ShopServiceImpl implements ShopService {
         if (request.getBankAccountName() != null && !request.getBankAccountName().isBlank()) {
             shop.setBankAccountName(request.getBankAccountName().trim());
         }
-
-        Shop updated = shopRepository.save(shop);
-        return ShopDetailResponse.fromEntity(updated, isOwner, isAdmin);
     }
 
     @Override
