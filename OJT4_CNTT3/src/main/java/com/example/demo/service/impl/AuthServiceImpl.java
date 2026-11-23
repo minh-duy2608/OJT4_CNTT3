@@ -64,6 +64,7 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
     private final ApplicationEventPublisher eventPublisher;
+    private final com.example.demo.service.EmailService emailService;
 
     /**
      * 1. POST /auth/register - Đăng ký tài khoản khách hàng (Public)
@@ -112,6 +113,16 @@ public class AuthServiceImpl implements AuthService {
                 .used(false)
                 .build();
         emailVerificationTokenRepository.save(verificationToken);
+
+        // Gửi email OTP xác thực tài khoản trực tiếp ngay lập tức
+        if (emailService != null) {
+            try {
+                emailService.sendVerificationOtp(savedUser.getEmail(), savedUser.getFullName(), verificationTokenString);
+                log.info("Directly sent verification OTP to {}", savedUser.getEmail());
+            } catch (Exception e) {
+                log.error("Failed to send verification OTP email directly: {}", e.getMessage(), e);
+            }
+        }
 
         // Publish microservice domain event
         eventPublisher.publishEvent(new UserRegisteredEvent(
@@ -470,6 +481,16 @@ public class AuthServiceImpl implements AuthService {
                 .used(false)
                 .build();
         emailVerificationTokenRepository.save(verificationToken);
+
+        // Gửi lại mã OTP xác thực email trực tiếp ngay lập tức
+        if (emailService != null) {
+            try {
+                emailService.sendVerificationOtp(user.getEmail(), user.getFullName(), tokenString);
+                log.info("Directly sent resend verification OTP to {}", user.getEmail());
+            } catch (Exception e) {
+                log.error("Failed to resend verification OTP email directly: {}", e.getMessage(), e);
+            }
+        }
 
         // Publish event for email microservice
         eventPublisher.publishEvent(new EmailVerificationRequestedEvent(
