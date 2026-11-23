@@ -30,6 +30,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class RevenueServiceImpl implements RevenueService {
 
+    private static final BigDecimal DEFAULT_PLATFORM_FEE_RATE = new BigDecimal("0.025");
+    private static final String ROLE_ADMIN_STR = "ADMIN";
+    private static final String ROLE_ROLE_ADMIN_STR = "ROLE_ADMIN";
+
     private final OrderRepository orderRepository;
     private final ShopRepository shopRepository;
     private final UserRepository userRepository;
@@ -83,49 +87,75 @@ public class RevenueServiceImpl implements RevenueService {
             BigDecimal averageOrderValue
     ) {}
 
-    private PlatformMetrics calculatePlatformTotals(List<Order> orders) {
+    private static class PlatformMetricsAccumulator {
         BigDecimal totalRevenue = BigDecimal.ZERO;
         BigDecimal grossMerchandiseValue = BigDecimal.ZERO;
         BigDecimal totalPlatformFee = BigDecimal.ZERO;
-        long totalOrders = orders.size();
         long completedOrders = 0;
         long processingOrders = 0;
         long cancelledOrders = 0;
 
-        for (Order order : orders) {
-            BigDecimal amount = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
-            BigDecimal ship = order.getShippingFee() != null ? order.getShippingFee() : BigDecimal.ZERO;
-            BigDecimal prod = amount.subtract(ship);
-            if (prod.compareTo(BigDecimal.ZERO) < 0) prod = BigDecimal.ZERO;
-            BigDecimal fee = order.getPlatformFee() != null && order.getPlatformFee().compareTo(BigDecimal.ZERO) > 0
-                    ? order.getPlatformFee()
-                    : prod.multiply(new BigDecimal("0.025")).setScale(0, RoundingMode.HALF_UP);
-
+        void processOrder(Order order, BigDecimal fee) {
             OrderStatus status = order.getStatus();
-            PaymentStatus paymentStatus = order.getPaymentStatus();
-
             if (status == OrderStatus.CANCELLED) {
                 cancelledOrders++;
+                return;
+            }
+
+            BigDecimal amount = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
+            grossMerchandiseValue = grossMerchandiseValue.add(amount);
+
+            if (status == OrderStatus.DELIVERED || order.getPaymentStatus() == PaymentStatus.PAID) {
+                totalRevenue = totalRevenue.add(amount);
+                totalPlatformFee = totalPlatformFee.add(fee);
+            }
+
+            if (status == OrderStatus.DELIVERED) {
+                completedOrders++;
             } else {
-                grossMerchandiseValue = grossMerchandiseValue.add(amount);
-                if (status == OrderStatus.DELIVERED || paymentStatus == PaymentStatus.PAID) {
-                    totalRevenue = totalRevenue.add(amount);
-                    totalPlatformFee = totalPlatformFee.add(fee);
-                }
-                if (status == OrderStatus.DELIVERED) {
-                    completedOrders++;
-                } else {
-                    processingOrders++;
-                }
+                processingOrders++;
             }
         }
+    }
 
-        BigDecimal averageOrderValue = BigDecimal.ZERO;
-        if (totalOrders > 0) {
-            averageOrderValue = grossMerchandiseValue.divide(BigDecimal.valueOf(totalOrders), 0, RoundingMode.HALF_UP);
+    private BigDecimal calculateOrderPlatformFee(Order order) {
+        if (order.getPlatformFee() != null && order.getPlatformFee().compareTo(BigDecimal.ZERO) > 0) {
+            return order.getPlatformFee();
+        }
+        BigDecimal amount = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
+        BigDecimal ship = order.getShippingFee() != null ? order.getShippingFee() : BigDecimal.ZERO;
+        BigDecimal prod = amount.subtract(ship).max(BigDecimal.ZERO);
+        return prod.multiply(DEFAULT_PLATFORM_FEE_RATE).setScale(0, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal calculateAverageOrderValue(BigDecimal gmv, long totalOrders) {
+        if (totalOrders <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return gmv.divide(BigDecimal.valueOf(totalOrders), 0, RoundingMode.HALF_UP);
+    }
+
+    private PlatformMetrics calculatePlatformTotals(List<Order> orders) {
+        PlatformMetricsAccumulator acc = new PlatformMetricsAccumulator();
+
+        for (Order order : orders) {
+            BigDecimal fee = calculateOrderPlatformFee(order);
+            acc.processOrder(order, fee);
         }
 
-        return new PlatformMetrics(totalRevenue, grossMerchandiseValue, totalPlatformFee, totalOrders, completedOrders, processingOrders, cancelledOrders, averageOrderValue);
+        long totalOrders = orders.size();
+        BigDecimal averageOrderValue = calculateAverageOrderValue(acc.grossMerchandiseValue, totalOrders);
+
+        return new PlatformMetrics(
+                acc.totalRevenue,
+                acc.grossMerchandiseValue,
+                acc.totalPlatformFee,
+                totalOrders,
+                acc.completedOrders,
+                acc.processingOrders,
+                acc.cancelledOrders,
+                averageOrderValue
+        );
     }
 
     private record ShopOrderAmounts(BigDecimal revenue, BigDecimal pendingRevenue) {}
@@ -244,7 +274,7 @@ public class RevenueServiceImpl implements RevenueService {
 
         boolean isAdmin = user.getRole() == Role.ADMIN || user.getRole() == Role.ROLE_ADMIN ||
                 (user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
-                        "ADMIN".equalsIgnoreCase(r.getCode()) || "ROLE_ADMIN".equalsIgnoreCase(r.getCode())));
+                        ROLE_ADMIN_STR.equalsIgnoreCase(r.getCode()) || ROLE_ROLE_ADMIN_STR.equalsIgnoreCase(r.getCode())));
 
         if (!isAdmin) {
             throw new ForbiddenException("Chỉ Quản trị viên hệ thống (Admin) mới có quyền truy cập báo cáo doanh thu");
