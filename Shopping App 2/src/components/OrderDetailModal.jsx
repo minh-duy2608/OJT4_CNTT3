@@ -474,16 +474,22 @@ export const OrderDetailModal = ({
                   </span>
                 </div>
                 {order.buyerConfirmedDelivery && (
-                  <button
-                    type="button"
-                    style={{ background: '#fef3c7', border: '1px solid #fde68a', color: '#d97706', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', padding: '4px 10px', borderRadius: '6px' }}
-                    onClick={() => {
-                      onClose();
-                      if (onOpenReviewModal) onOpenReviewModal(order);
-                    }}
-                  >
-                    {existingReview ? 'Chỉnh sửa đánh giá' : 'Viết đánh giá'}
-                  </button>
+                  order.canReview !== false ? (
+                    <button
+                      type="button"
+                      style={{ background: '#fef3c7', border: '1px solid #fde68a', color: '#d97706', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', padding: '4px 10px', borderRadius: '6px' }}
+                      onClick={() => {
+                        onClose();
+                        if (onOpenReviewModal) onOpenReviewModal(order);
+                      }}
+                    >
+                      {existingReview ? 'Chỉnh sửa đánh giá' : 'Viết đánh giá'}
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                      Đã hết hạn đánh giá (2 ngày)
+                    </span>
+                  )
                 )}
               </div>
 
@@ -557,31 +563,37 @@ export const OrderDetailModal = ({
                   )}
                 </div>
               ) : order.buyerConfirmedDelivery ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    if (onOpenReturnModal) onOpenReturnModal(order);
-                  }}
-                  style={{
-                    background: '#fee2e2',
-                    color: '#dc2626',
-                    border: '1px solid #fecaca',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '6px',
-                    fontSize: '0.825rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                >
-                  <RotateCcw size={15} /> Gửi yêu cầu Hoàn hàng & Trả tiền
-                </button>
+                order.paymentStatus === 'PAID' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      if (onOpenReturnModal) onOpenReturnModal(order);
+                    }}
+                    style={{
+                      background: '#fee2e2',
+                      color: '#dc2626',
+                      border: '1px solid #fecaca',
+                      padding: '0.5rem 1rem',
+                      borderRadius: '6px',
+                      fontSize: '0.825rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <RotateCcw size={15} /> Gửi yêu cầu Hoàn hàng & Trả tiền
+                  </button>
+                ) : (
+                  <div style={{ fontSize: '0.825rem', color: '#dc2626' }}>
+                    Chỉ có thể yêu cầu hoàn tiền khi đơn hàng đã thanh toán thành công (PAID).
+                  </div>
+                )
               ) : (
                 <div style={{ fontSize: '0.825rem', color: '#64748b' }}>
-                  Sau khi xác nhận đã nhận được hàng, nếu sản phẩm có lỗi bạn có thể yêu cầu hoàn hàng trả tiền.
+                  Sau khi xác nhận đã nhận được hàng và đơn đã thanh toán, nếu sản phẩm có lỗi bạn có thể yêu cầu hoàn hàng trả tiền.
                 </div>
               )}
             </div>

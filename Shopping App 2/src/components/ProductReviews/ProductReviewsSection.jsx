@@ -242,7 +242,7 @@ export const ProductReviewsSection = ({ product, onSummaryLoaded }) => {
               Đánh giá từ người mua thực tế
             </div>
             <div style={{ fontSize: '0.8rem', color: '#64748b', lineHeight: 1.5 }}>
-              Để đảm bảo 100% đánh giá là khách quan, quý khách vui lòng truy cập mục <strong>Đơn hàng của tôi</strong> sau khi đã nhận kiện hàng thành công để gửi đánh giá & nhận xét sản phẩm.
+              Để đảm bảo 100% đánh giá là khách quan, quý khách vui lòng truy cập mục <strong>Đơn hàng của tôi</strong> trong vòng <strong>2 ngày</strong> kể từ khi nhận kiện hàng thành công để gửi đánh giá & nhận xét sản phẩm.
             </div>
           </div>
         </div>

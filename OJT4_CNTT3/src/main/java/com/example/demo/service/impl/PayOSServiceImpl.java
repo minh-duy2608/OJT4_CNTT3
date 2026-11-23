@@ -519,7 +519,10 @@ public class PayOSServiceImpl implements PayOSService {
         for (Order ord : orders) {
             OrderFinancials financials = calculateOrderFinancials(ord);
             String st = ord.getShopPayoutStatus() != null ? ord.getShopPayoutStatus() : "NONE";
-            acc.accumulate(financials, st);
+            boolean isRefundedOrCancelled = ord.getStatus() == OrderStatus.RETURNED || ord.getPaymentStatus() == PaymentStatus.REFUNDED || ord.getStatus() == OrderStatus.CANCELLED;
+            if (!isRefundedOrCancelled) {
+                acc.accumulate(financials, st);
+            }
 
             if (matchesStatusFilter(statusFilter, st)) {
                 items.add(mapToPayoutItem(ord));
@@ -551,6 +554,9 @@ public class PayOSServiceImpl implements PayOSService {
         BigDecimal total = ord.getTotalAmount() != null ? ord.getTotalAmount() : BigDecimal.ZERO;
         BigDecimal ship = ord.getShippingFee() != null ? ord.getShippingFee() : BigDecimal.ZERO;
         BigDecimal productAmount = total.subtract(ship).max(BigDecimal.ZERO);
+        if (ord.getStatus() == OrderStatus.RETURNED || ord.getPaymentStatus() == PaymentStatus.REFUNDED || ord.getStatus() == OrderStatus.CANCELLED) {
+            return new OrderFinancials(total, ship, productAmount, BigDecimal.ZERO, BigDecimal.ZERO);
+        }
         BigDecimal platformFee = ord.getPlatformFee() != null && ord.getPlatformFee().compareTo(BigDecimal.ZERO) > 0
                 ? ord.getPlatformFee()
                 : productAmount.multiply(PLATFORM_FEE_RATE).setScale(0, RoundingMode.HALF_UP);

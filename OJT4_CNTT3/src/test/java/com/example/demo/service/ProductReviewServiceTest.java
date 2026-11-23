@@ -85,6 +85,7 @@ class ProductReviewServiceTest extends BaseUnitTest {
         when(productRepository.findById(100L)).thenReturn(Optional.of(product));
         when(productReviewRepository.existsByProductIdAndUserId(100L, 1L)).thenReturn(false);
         when(productReviewRepository.hasUserPurchasedProduct(1L, 100L)).thenReturn(true);
+        when(productReviewRepository.hasUserPurchasedProductWithinTime(eq(1L), eq(100L), any())).thenReturn(true);
         when(productReviewRepository.save(any(ProductReview.class))).thenAnswer(inv -> {
             ProductReview r = inv.getArgument(0);
             r.setId(10L);
@@ -124,6 +125,28 @@ class ProductReviewServiceTest extends BaseUnitTest {
                 productReviewService.createReview(100L, request, "nonbuyer"));
 
         assertTrue(ex.getMessage().contains("chỉ có thể đánh giá sản phẩm này sau khi đã mua hàng"));
+        verify(productReviewRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Người dùng đã mua hàng nhưng ĐÃ QUÁ 2 NGÀY kể từ lúc nhận hàng -> 400 BadRequestException")
+    void testCreateReview_BadRequest_WhenExpiredAfter2Days() {
+        when(userRepository.findByUsernameOrEmail("buyeruser", "buyeruser")).thenReturn(Optional.of(buyer));
+        when(productRepository.findById(100L)).thenReturn(Optional.of(product));
+        when(productReviewRepository.existsByProductIdAndUserId(100L, 1L)).thenReturn(false);
+        when(productReviewRepository.hasUserPurchasedProduct(1L, 100L)).thenReturn(true);
+        when(productReviewRepository.hasUserPurchasedProductWithinTime(eq(1L), eq(100L), any())).thenReturn(false);
+
+        CreateProductReviewRequest request = CreateProductReviewRequest.builder()
+                .rating(5)
+                .title("Đánh giá muộn")
+                .content("Sản phẩm xài tốt sau nhiều ngày")
+                .build();
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                productReviewService.createReview(100L, request, "buyeruser"));
+
+        assertTrue(ex.getMessage().contains("quá thời hạn 2 ngày đánh giá"));
         verify(productReviewRepository, never()).save(any());
     }
 

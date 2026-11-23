@@ -442,26 +442,40 @@ export const OrdersPage = () => {
                     ) : (order.buyerConfirmedDelivery || order.status === 'delivered' || order.rawStatus === 'DELIVERED') ? (
                       /* 2. SAU KHI ĐÃ BẤM XÁC NHẬN NHẬN HÀNG: CHUYỂN THÀNH ĐÁNH GIÁ SẢN PHẨM & HOÀN HÀNG TRẢ TIỀN */
                       <>
-                        <button
-                          type="button"
-                          style={{
-                            background: '#f59e0b',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: '8px',
-                            padding: '0.48rem 0.95rem',
-                            fontSize: '0.85rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
+                        {order.canReview !== false ? (
+                          <button
+                            type="button"
+                            style={{
+                              background: '#f59e0b',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: '8px',
+                              padding: '0.48rem 0.95rem',
+                              fontSize: '0.85rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}
+                            onClick={() => setOrderToReview(order)}
+                            title="Đánh giá chất lượng sản phẩm và dịch vụ của shop (trong vòng 2 ngày kể từ khi nhận hàng)"
+                          >
+                            <Star size={15} fill="#fff" /> Đánh giá sản phẩm
+                          </button>
+                        ) : (
+                          <span style={{
+                            fontSize: '0.8rem',
+                            color: '#94a3b8',
+                            fontStyle: 'italic',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '6px'
-                          }}
-                          onClick={() => setOrderToReview(order)}
-                          title="Đánh giá chất lượng sản phẩm và dịch vụ của shop"
-                        >
-                          <Star size={15} fill="#fff" /> Đánh giá sản phẩm
-                        </button>
+                            gap: '4px',
+                            padding: '0.45rem 0.6rem'
+                          }}>
+                            <Star size={14} color="#94a3b8" /> Hết hạn đánh giá (2 ngày)
+                          </span>
+                        )}
 
                         {/* Nút Hoàn hàng trả tiền hoặc hiển thị trạng thái hoàn tiền */}
                         {order.returnRequest ? (
@@ -479,7 +493,7 @@ export const OrdersPage = () => {
                           }}>
                             <RotateCcw size={14} /> Hoàn tiền: {order.returnRequest.status}
                           </div>
-                        ) : (
+                        ) : order.paymentStatus === 'PAID' ? (
                           <button
                             type="button"
                             style={{
@@ -500,6 +514,17 @@ export const OrdersPage = () => {
                           >
                             <RotateCcw size={15} /> Hoàn hàng trả tiền
                           </button>
+                        ) : (
+                          <span style={{
+                            fontSize: '0.78rem',
+                            color: '#94a3b8',
+                            fontStyle: 'italic',
+                            padding: '0.45rem 0.5rem',
+                            display: 'inline-flex',
+                            alignItems: 'center'
+                          }}>
+                            (Chỉ hoàn tiền khi đã thanh toán)
+                          </span>
                         )}
                       </>
                     ) : null}

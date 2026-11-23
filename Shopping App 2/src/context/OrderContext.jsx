@@ -53,8 +53,8 @@ export const mapBackendOrder = (o) => ({
   buyerConfirmedDelivery: Boolean(o.buyerConfirmedDelivery),
   canConfirmDelivery: o.canConfirmDelivery !== undefined ? o.canConfirmDelivery : (!Boolean(o.buyerConfirmedDelivery) && (o.status === 'SHIPPED' || o.status === 'DELIVERED')),
   canCancel: o.canCancel !== undefined ? o.canCancel : (o.status === 'PENDING' || o.status === 'CONFIRMED'),
-  canReturn: o.canReturn !== undefined ? o.canReturn : (Boolean(o.buyerConfirmedDelivery) && (o.status === 'DELIVERED' || o.status === 'delivered')),
-  canReview: o.canReview !== undefined ? o.canReview : (Boolean(o.buyerConfirmedDelivery) && (o.status === 'DELIVERED' || o.status === 'delivered')),
+  canReturn: o.canReturn !== undefined ? o.canReturn : (Boolean(o.buyerConfirmedDelivery) && (o.status === 'DELIVERED' || o.status === 'delivered') && (o.paymentStatus === 'PAID')),
+  canReview: o.canReview !== undefined ? o.canReview : (Boolean(o.buyerConfirmedDelivery) && (o.status === 'DELIVERED' || o.status === 'delivered') && (!o.deliveredAt || new Date(o.deliveredAt).getTime() >= Date.now() - 2 * 24 * 60 * 60 * 1000)),
   reviewConditionMessage: o.reviewConditionMessage,
   returnRequest: o.returnRequest,
   returnInstructions: o.returnInstructions
