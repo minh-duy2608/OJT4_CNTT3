@@ -23,9 +23,9 @@ export const AVAILABLE_VOUCHERS = [
   {
     code: 'FREESHIP',
     title: 'Miễn phí vận chuyển',
-    description: 'Giảm 50.000₫ phí giao hàng toàn quốc',
+    description: 'Giảm 30.000₫ phí giao hàng toàn quốc',
     type: 'shipping',
-    value: 50000,
+    value: 30000,
     minOrder: 0
   },
   {
@@ -38,7 +38,7 @@ export const AVAILABLE_VOUCHERS = [
   }
 ];
 
-export const calculateVoucherDiscount = (voucherCode, subtotal, shippingFee = 50000) => {
+export const calculateVoucherDiscount = (voucherCode, subtotal, shippingFee = 30000) => {
   if (!voucherCode) return { valid: false, discount: 0, message: '' };
 
   const voucher = AVAILABLE_VOUCHERS.find(

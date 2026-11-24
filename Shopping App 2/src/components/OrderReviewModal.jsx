@@ -157,7 +157,7 @@ export const OrderReviewModal = ({
     }
 
     if (order?.canReview === false) {
-      setErrorMsg('Đã quá thời hạn 2 ngày đánh giá sản phẩm kể từ khi nhận hàng thành công.');
+      setErrorMsg('Đã quá thời hạn 30 ngày đánh giá sản phẩm kể từ khi nhận hàng thành công.');
       return;
     }
 

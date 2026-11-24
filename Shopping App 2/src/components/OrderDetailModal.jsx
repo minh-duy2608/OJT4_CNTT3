@@ -487,7 +487,7 @@ export const OrderDetailModal = ({
                     </button>
                   ) : (
                     <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>
-                      Đã hết hạn đánh giá (2 ngày)
+                      Đã hết hạn đánh giá (30 ngày)
                     </span>
                   )
                 )}

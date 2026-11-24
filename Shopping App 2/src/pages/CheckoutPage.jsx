@@ -237,8 +237,8 @@ export const CheckoutPage = () => {
   // Đang xử lý đặt hàng
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Phí giao hàng tiêu chuẩn (50.000₫, miễn phí nếu đơn > 10.000.000₫)
-  const baseShippingFee = subtotalToCheckout >= 10000000 ? 0 : 50000;
+  // Phí giao hàng tiêu chuẩn (30.000₫ cho đồ công nghệ, miễn phí nếu đơn >= 10.000.000₫)
+  const baseShippingFee = subtotalToCheckout >= 10000000 ? 0 : 30000;
 
   // Tính giảm giá khi áp dụng Voucher
   let discountAmount = 0;

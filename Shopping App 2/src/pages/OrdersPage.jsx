@@ -459,7 +459,7 @@ export const OrdersPage = () => {
                               gap: '6px'
                             }}
                             onClick={() => setOrderToReview(order)}
-                            title="Đánh giá chất lượng sản phẩm và dịch vụ của shop (trong vòng 2 ngày kể từ khi nhận hàng)"
+                            title="Đánh giá chất lượng sản phẩm và dịch vụ của shop (trong vòng 30 ngày kể từ khi nhận hàng)"
                           >
                             <Star size={15} fill="#fff" /> Đánh giá sản phẩm
                           </button>
@@ -473,7 +473,7 @@ export const OrdersPage = () => {
                             gap: '4px',
                             padding: '0.45rem 0.6rem'
                           }}>
-                            <Star size={14} color="#94a3b8" /> Hết hạn đánh giá (2 ngày)
+                            <Star size={14} color="#94a3b8" /> Hết hạn đánh giá (30 ngày)
                           </span>
                         )}
 

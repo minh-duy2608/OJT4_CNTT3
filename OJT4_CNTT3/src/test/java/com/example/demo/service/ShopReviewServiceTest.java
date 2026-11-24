@@ -148,15 +148,15 @@ class ShopReviewServiceTest extends BaseUnitTest {
     }
 
     @Test
-    @DisplayName("createOrderReview: delivered over 2 days ago throws BadRequestException")
-    void createOrderReview_expiredAfter2Days() {
-        order.setDeliveredAt(LocalDateTime.now().minusDays(3));
+    @DisplayName("createOrderReview: delivered over 30 days ago throws BadRequestException")
+    void createOrderReview_expiredAfter30Days() {
+        order.setDeliveredAt(LocalDateTime.now().minusDays(31));
         when(userRepository.findByUsername("buyer")).thenReturn(Optional.of(buyer));
         when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
 
         CreateShopReviewRequest req = CreateShopReviewRequest.builder().rating(5).comment("Good").build();
         BadRequestException ex = assertThrows(BadRequestException.class, () -> shopReviewService.createOrderReview(100L, req, "buyer"));
-        assertTrue(ex.getMessage().contains("quá thời hạn 2 ngày"));
+        assertTrue(ex.getMessage().contains("quá thời hạn 30 ngày"));
     }
 
     @Test

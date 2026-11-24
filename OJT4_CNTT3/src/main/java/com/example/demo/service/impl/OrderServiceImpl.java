@@ -1478,15 +1478,15 @@ public class OrderServiceImpl implements OrderService {
         // Chỉ khi khách đã bấm xác nhận nhận hàng (buyerConfirmed) VÀ ĐÃ THANH TOÁN (isPaid) mới được phép Yêu cầu hoàn hàng
         boolean canReturn = buyerConfirmed && isDelivered && isPaid && isWithinReturnWindow && noActiveReturn;
 
-        // Thời gian có thể đánh giá của người dùng là 2 ngày kể từ khi nhận hàng thành công
-        boolean isWithinReviewWindow = order.getDeliveredAt() != null &&
-                order.getDeliveredAt().isAfter(LocalDateTime.now().minusDays(2));
+        // Thời gian có thể đánh giá của người dùng là 30 ngày kể từ khi nhận hàng thành công
+        boolean isWithinReviewWindow = order.getDeliveredAt() == null ||
+                order.getDeliveredAt().isAfter(LocalDateTime.now().minusDays(30));
         boolean canReview = buyerConfirmed && isDelivered && isWithinReviewWindow;
         String reviewConditionMessage = canReview
-                ? "Đơn hàng đã được giao và xác nhận thành công (trong hạn 2 ngày). Quý khách có thể viết đánh giá & nhận xét chất lượng sản phẩm."
+                ? "Đơn hàng đã được giao và xác nhận thành công (trong hạn 30 ngày). Quý khách có thể viết đánh giá & nhận xét chất lượng sản phẩm."
                 : (isDelivered && !isWithinReviewWindow && order.getDeliveredAt() != null
-                    ? "Đã quá thời hạn 2 ngày đánh giá sản phẩm/cửa hàng kể từ khi nhận hàng thành công."
-                    : "Chỉ đơn hàng đã giao và được khách hàng xác nhận nhận hàng mới đủ điều kiện đánh giá (trong vòng 2 ngày kể từ khi nhận hàng).");
+                    ? "Đã quá thời hạn 30 ngày đánh giá sản phẩm/cửa hàng kể từ khi nhận hàng thành công."
+                    : "Chỉ đơn hàng đã giao và được khách hàng xác nhận nhận hàng mới đủ điều kiện đánh giá (trong vòng 30 ngày kể từ khi nhận hàng).");
 
         LocalDateTime expiresAt = order.getExpiresAt();
         Long remainingSeconds = null;
