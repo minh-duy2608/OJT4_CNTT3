@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
-  Heart, 
   ShoppingCart, 
   Lock, 
   Truck, 
@@ -30,7 +29,6 @@ import { formatVND } from '../data/products';
 import { ProductCard } from '../components/ProductCard';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { productApi } from '../services/productApi';
-import { wishlistApi } from '../services/wishlistApi';
 import { couponApi } from '../services/couponApi';
 import { productReviewApi } from '../services/productReviewApi';
 import { parseProductSpecs } from '../utils/productSpecs';
@@ -51,7 +49,6 @@ export const ProductDetailPage = () => {
   const [product, setProduct] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLiked, setIsLiked] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [relatedProducts, setRelatedProducts] = useState([]);
@@ -253,18 +250,6 @@ export const ProductDetailPage = () => {
     isMouseDownRef.current = false;
   };
 
-  // Kiểm tra sản phẩm đã nằm trong Wishlist chưa
-  useEffect(() => {
-    if (isAuthenticated && id) {
-      wishlistApi.getWishlist()
-        .then((res) => {
-          const items = res?.items || [];
-          setIsLiked(items.some((it) => String(it.productId) === String(id)));
-        })
-        .catch(() => {});
-    }
-  }, [id, isAuthenticated]);
-
   // Fetch product detail from API (STT 40)
   useEffect(() => {
     let isMounted = true;
@@ -463,27 +448,6 @@ export const ProductDetailPage = () => {
       variantsMap: map
     };
   }, [parsedVariantsList]);
-
-  // Xử lý Thêm/Xóa sản phẩm vào Danh sách yêu thích (Wishlist - STT 80, 81)
-  const handleToggleWishlist = async () => {
-    if (!isAuthenticated) {
-      setShowAuthRequiredModal(true);
-      return;
-    }
-    try {
-      if (isLiked) {
-        await wishlistApi.removeFromWishlist(id);
-        setIsLiked(false);
-        showToast('Đã xóa khỏi danh sách yêu thích');
-      } else {
-        await wishlistApi.addToWishlist(id);
-        setIsLiked(true);
-        showToast('Đã thêm sản phẩm vào danh sách yêu thích');
-      }
-    } catch (err) {
-      showToast(err.message || 'Lỗi thao tác yêu thích', 'error');
-    }
-  };
 
   // State chọn phiên bản & màu sắc - Khởi tạo rỗng để người dùng BẮT BUỘC phải bấm chọn trước khi mua
   const [selectedStorage, setSelectedStorage] = useState('');
@@ -872,16 +836,6 @@ export const ProductDetailPage = () => {
             onMouseLeave={handleMouseLeave}
             style={{ cursor: galleryImages.length > 1 ? 'grab' : 'default' }}
           >
-            {/* Wishlist Button */}
-            <button 
-              type="button" 
-              className={`detail-wishlist-float ${isLiked ? 'is-active' : ''}`}
-              onClick={handleToggleWishlist}
-              aria-label={isLiked ? "Bỏ yêu thích" : "Yêu thích"}
-            >
-              <Heart size={22} fill={isLiked ? '#ef4444' : 'none'} color={isLiked ? '#ef4444' : '#a1a1aa'} />
-            </button>
-
             {/* Previous Image Arrow */}
             {galleryImages.length > 1 && (
               <button
