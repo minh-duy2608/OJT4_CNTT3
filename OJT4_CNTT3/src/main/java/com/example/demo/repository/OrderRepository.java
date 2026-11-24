@@ -42,10 +42,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             @Param("fallbackTime") java.time.LocalDateTime fallbackTime
     );
 
-    @Query("SELECT o FROM Order o WHERE o.shopPayoutStatus != 'NONE' OR (o.paymentMethod IS NOT NULL AND UPPER(o.paymentMethod) LIKE '%PAYOS%') ORDER BY o.createdAt DESC")
+    @Query("SELECT o FROM Order o WHERE o.status != com.example.demo.entity.OrderStatus.CANCELLED ORDER BY o.createdAt DESC")
     java.util.List<Order> findAllEscrowOrders();
 
-    @Query("SELECT o FROM Order o WHERE o.shopId = :shopId AND (o.shopPayoutStatus != 'NONE' OR (o.paymentMethod IS NOT NULL AND UPPER(o.paymentMethod) LIKE '%PAYOS%')) ORDER BY o.createdAt DESC")
+    @Query("SELECT o FROM Order o WHERE o.shopId = :shopId AND o.status != com.example.demo.entity.OrderStatus.CANCELLED ORDER BY o.createdAt DESC")
     java.util.List<Order> findEscrowOrdersByShopId(@Param("shopId") Long shopId);
 }
 

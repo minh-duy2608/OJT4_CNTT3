@@ -568,7 +568,7 @@ public class PayOSServiceImpl implements PayOSService {
 
         for (Order ord : orders) {
             OrderFinancials financials = calculateOrderFinancials(ord);
-            String st = ord.getShopPayoutStatus() != null ? ord.getShopPayoutStatus() : "NONE";
+            String st = resolveOrderPayoutStatus(ord);
             boolean isRefundedOrCancelled = ord.getStatus() == OrderStatus.RETURNED || ord.getPaymentStatus() == PaymentStatus.REFUNDED || ord.getStatus() == OrderStatus.CANCELLED;
             if (!isRefundedOrCancelled) {
                 acc.accumulate(financials, st);
@@ -614,12 +614,27 @@ public class PayOSServiceImpl implements PayOSService {
         return new OrderFinancials(total, ship, productAmount, platformFee, payoutAmount);
     }
 
+    private String resolveOrderPayoutStatus(Order order) {
+        String st = order.getShopPayoutStatus();
+        if (st == null || "NONE".equalsIgnoreCase(st)) {
+            if (order.getStatus() == OrderStatus.DELIVERED) {
+                return PAYOUT_STATUS_READY;
+            } else if (order.getStatus() == OrderStatus.CONFIRMED || order.getStatus() == OrderStatus.SHIPPED) {
+                return PAYOUT_STATUS_HOLDING;
+            } else {
+                return PAYOUT_STATUS_HOLDING;
+            }
+        }
+        return st;
+    }
+
     private ShopPayoutItemResponse mapToPayoutItem(Order order) {
         ShopBankInfo bankInfo = resolveShopBankInfo(order);
         OrderFinancials financials = calculateOrderFinancials(order);
         syncOrderPayoutInfo(order, financials);
 
         String vietQrUrl = generatePayoutVietQrUrl(order, bankInfo, financials.payoutAmount());
+        String payoutStatus = resolveOrderPayoutStatus(order);
 
         return ShopPayoutItemResponse.builder()
                 .orderId(order.getId())
@@ -633,7 +648,7 @@ public class PayOSServiceImpl implements PayOSService {
                 .shopPayoutAmount(financials.payoutAmount())
                 .settlementCycle(DEFAULT_SETTLEMENT_CYCLE)
                 .settlementDeadline("Ngày 21 hàng tháng")
-                .shopPayoutStatus(order.getShopPayoutStatus() != null ? order.getShopPayoutStatus() : "NONE")
+                .shopPayoutStatus(payoutStatus)
                 .shopPayoutAt(order.getShopPayoutAt())
                 .shopPayoutNote(order.getShopPayoutNote())
                 .deliveredAt(order.getDeliveredAt())

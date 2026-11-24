@@ -26,6 +26,7 @@ import {
   ArrowUpRight
 } from 'lucide-react';
 import { paymentApi } from '../../services/paymentApi';
+import { shopApi } from '../../services/shopApi';
 import { formatVND } from '../../data/products';
 import { useCart } from '../../context/CartContext';
 import './AdminPayoutsTab.css';
@@ -35,6 +36,7 @@ export const AdminPayoutsTab = ({ showToast: propShowToast }) => {
   const showToast = propShowToast || cartContext?.showToast || ((msg) => console.log(msg));
 
   const [loading, setLoading] = useState(false);
+  const [allShops, setAllShops] = useState([]);
   const [summaryData, setSummaryData] = useState({
     totalHoldingAmount: 0,
     totalHoldingCount: 0,
@@ -71,9 +73,18 @@ export const AdminPayoutsTab = ({ showToast: propShowToast }) => {
   const fetchPayouts = async () => {
     setLoading(true);
     try {
-      const res = await paymentApi.getPayoutSummary(statusFilter);
-      if (res) {
-        setSummaryData(res);
+      const [payoutRes, shopsRes] = await Promise.allSettled([
+        paymentApi.getPayoutSummary(statusFilter),
+        shopApi.getAllShops()
+      ]);
+
+      if (payoutRes.status === 'fulfilled' && payoutRes.value) {
+        setSummaryData(payoutRes.value);
+      }
+      if (shopsRes.status === 'fulfilled' && shopsRes.value) {
+        const raw = shopsRes.value;
+        const shopsArr = Array.isArray(raw) ? raw : (raw?.content || raw?.data || []);
+        setAllShops(shopsArr);
       }
     } catch (err) {
       console.error('Fetch payouts error:', err);
@@ -98,6 +109,32 @@ export const AdminPayoutsTab = ({ showToast: propShowToast }) => {
   const shopList = useMemo(() => {
     const map = new Map();
 
+    // 1. Khởi tạo toàn bộ các Cửa hàng đã đăng ký trên sàn
+    (allShops || []).forEach(s => {
+      const sId = s.id || s.shopId;
+      if (!sId) return;
+      map.set(sId, {
+        shopId: sId,
+        shopName: s.name || s.shopName || `Cửa hàng #${sId}`,
+        shopBankName: s.bankName || 'BIDV',
+        shopBankBin: s.bankBin || '970418',
+        shopBankAccountNumber: s.bankAccountNumber || '8814310515',
+        shopBankAccountName: s.bankAccountName || s.ownerName || 'CHỦ CỬA HÀNG',
+        orders: [],
+        totalGrossRevenue: 0,      // Doanh thu trước phí (tiền hàng)
+        totalShippingFee: 0,       // Tiền ship
+        totalPlatformFee: 0,       // Phí sàn (2.5%)
+        totalNetRevenue: 0,        // Doanh thu sau khi trừ phí (97.5%)
+        readyToPayAmount: 0,       // Số tiền thực Admin phải trả ngay (các đơn READY_FOR_PAYOUT)
+        holdingAmount: 0,          // Tiền sàn đang tạm giữ (HOLDING)
+        paidOutAmount: 0,          // Tiền đã thanh toán xong (PAID_OUT)
+        readyOrdersCount: 0,
+        holdingOrdersCount: 0,
+        paidOutOrdersCount: 0,
+      });
+    });
+
+    // 2. Cập nhật chi tiết đơn hàng và tính toán doanh thu từng Shop
     (summaryData.items || []).forEach(item => {
       const sId = item.shopId || 0;
       if (!map.has(sId)) {
@@ -109,13 +146,13 @@ export const AdminPayoutsTab = ({ showToast: propShowToast }) => {
           shopBankAccountNumber: item.shopBankAccountNumber || '8814310515',
           shopBankAccountName: item.shopBankAccountName || 'CHỦ CỬA HÀNG',
           orders: [],
-          totalGrossRevenue: 0,      // Doanh thu trước phí (tiền hàng)
-          totalShippingFee: 0,       // Tiền ship
-          totalPlatformFee: 0,       // Phí sàn (2.5%)
-          totalNetRevenue: 0,        // Doanh thu sau khi trừ phí (97.5%)
-          readyToPayAmount: 0,       // Số tiền thực Admin phải trả ngay (các đơn READY_FOR_PAYOUT)
-          holdingAmount: 0,          // Tiền sàn đang tạm giữ (HOLDING)
-          paidOutAmount: 0,          // Tiền đã thanh toán xong (PAID_OUT)
+          totalGrossRevenue: 0,
+          totalShippingFee: 0,
+          totalPlatformFee: 0,
+          totalNetRevenue: 0,
+          readyToPayAmount: 0,
+          holdingAmount: 0,
+          paidOutAmount: 0,
           readyOrdersCount: 0,
           holdingOrdersCount: 0,
           paidOutOrdersCount: 0,
@@ -155,7 +192,7 @@ export const AdminPayoutsTab = ({ showToast: propShowToast }) => {
     });
 
     return Array.from(map.values());
-  }, [summaryData.items]);
+  }, [allShops, summaryData.items]);
 
   // Lọc danh sách Shop theo tìm kiếm và trạng thái
   const filteredShops = useMemo(() => {

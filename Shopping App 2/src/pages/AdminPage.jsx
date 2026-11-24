@@ -3772,6 +3772,16 @@ export const AdminPage = () => {
 
               <button
                 type="button"
+                className={`admin-tab-btn ${activeTab === 'payouts' ? 'active' : ''}`}
+                onClick={() => setActiveTab('payouts')}
+              >
+                <Landmark size={17} />
+                Đối soát & Quyết toán Shop
+                <span className="admin-tab-badge" style={{ backgroundColor: '#ecfdf5', color: '#065f46' }}>Escrow</span>
+              </button>
+
+              <button
+                type="button"
                 className={`admin-tab-btn ${activeTab === 'shops' ? 'active' : ''}`}
                 onClick={() => setActiveTab('shops')}
               >
@@ -4090,77 +4100,140 @@ export const AdminPage = () => {
               </div>
             </div>
 
-            {/* BẢNG 1: DOANH THU THEO TỪNG CỬA HÀNG */}
+            {/* BẢNG 1: DOANH THU THEO TỪNG CỬA HÀNG & ĐỐI SOÁT QUYẾT TOÁN */}
             <div style={{ padding: '0 1.25rem 1.25rem 1.25rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Store size={18} color="#059669" />
-                  Bảng Phân Bổ Doanh Thu Theo Từng Cửa Hàng
-                </h3>
-                <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
-                  Tổng cộng: <strong>{revenueData?.shopRevenues?.length || 0}</strong> cửa hàng
-                </span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Store size={18} color="#059669" />
+                    Bảng Phân Bổ Doanh Thu & Đối Soát Quyết Toán Từng Cửa Hàng
+                  </h3>
+                  <div style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+                    Tổng cộng: <strong>{revenueData?.shopRevenues?.length || 0}</strong> cửa hàng &bull; Tỷ lệ khấu trừ phí sàn: <strong>2.5%</strong>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 16px',
+                    backgroundColor: '#059669',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(5, 150, 105, 0.2)'
+                  }}
+                  onClick={() => setActiveTab('payouts')}
+                >
+                  <Landmark size={16} />
+                  Mở Bảng Đối soát & Thanh toán cho Shop Chi tiết &rarr;
+                </button>
               </div>
 
               <div className="admin-table-wrapper">
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '80px' }}>Mã Shop</th>
-                      <th>Tên Cửa Hàng</th>
-                      <th>Chủ Sở Hữu</th>
-                      <th>Liên Hệ</th>
-                      <th>Trạng Thái</th>
-                      <th style={{ textAlign: 'center' }}>Số Đơn Hàng</th>
-                      <th style={{ textAlign: 'right' }}>Doanh Thu Thực Nhận</th>
-                      <th style={{ textAlign: 'right' }}>Doanh Thu Đang Chờ</th>
+                      <th style={{ width: '70px' }}>Mã Shop</th>
+                      <th>Cửa Hàng / Chủ Shop</th>
+                      <th>Thông Tin Ngân Hàng</th>
+                      <th style={{ textAlign: 'center' }}>Số Đơn</th>
+                      <th style={{ textAlign: 'right' }}>Doanh Thu Trước Phí</th>
+                      <th style={{ textAlign: 'right' }}>Phí Sàn (2.5%)</th>
+                      <th style={{ textAlign: 'right' }}>Doanh Thu Sau Phí</th>
+                      <th style={{ textAlign: 'right' }}>Thực Trả Shop</th>
                       <th style={{ textAlign: 'center' }}>Thao Tác</th>
                     </tr>
                   </thead>
                   <tbody>
                     {revenueData?.shopRevenues && revenueData.shopRevenues.length > 0 ? (
-                      revenueData.shopRevenues.map((s) => (
-                        <tr key={s.shopId}>
-                          <td><strong>#{s.shopId}</strong></td>
-                          <td>
-                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{s.shopName}</div>
-                          </td>
-                          <td>
-                            <div style={{ fontWeight: 600 }}>{s.ownerName || '—'}</div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{s.ownerEmail || ''}</div>
-                          </td>
-                          <td>
-                            <div style={{ fontSize: '0.8125rem', color: '#334155' }}>{s.shopPhone || '—'}</div>
-                          </td>
-                          <td>
-                            <span className={`admin-status-badge ${s.shopStatus === 'ACTIVE' ? 'active' : 'inactive'}`}>
-                              {s.shopStatus === 'ACTIVE' ? 'Đang hoạt động' : s.shopStatus}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: 'center', fontWeight: 600 }}>
-                            {s.totalOrders}
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#059669' }}>
-                            {formatVND(s.totalRevenue || 0)}
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: 600, color: '#d97706' }}>
-                            {formatVND(s.pendingRevenue || 0)}
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            <button
-                              type="button"
-                              className="admin-btn-action-secondary"
-                              style={{ padding: '4px 10px', fontSize: '0.8rem' }}
-                              onClick={() => {
-                                handleViewAdminShopDetail(s.shopId);
-                                setActiveTab('admin-shops');
-                              }}
-                            >
-                              <Eye size={13} /> Xem Shop
-                            </button>
-                          </td>
-                        </tr>
-                      ))
+                      revenueData.shopRevenues.map((s) => {
+                        const grossRev = Number(s.totalRevenue || 0);
+                        const platformFee = Math.round(grossRev * 0.025);
+                        const netRev = Math.max(0, grossRev - platformFee);
+                        const pendingRev = Number(s.pendingRevenue || 0);
+
+                        return (
+                          <tr key={s.shopId}>
+                            <td><strong>#{s.shopId}</strong></td>
+                            <td>
+                              <div style={{ fontWeight: 700, color: '#0f172a' }}>{s.shopName}</div>
+                              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Chủ shop: {s.ownerName || '—'} &bull; {s.shopPhone || ''}</div>
+                            </td>
+                            <td>
+                              <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#1e293b' }}>
+                                {s.bankName || 'BIDV'}
+                              </div>
+                              <div style={{ fontSize: '0.75rem', color: '#64748b', fontFamily: 'monospace' }}>
+                                STK: {s.bankAccountNumber || '8814310515'}
+                              </div>
+                            </td>
+                            <td style={{ textAlign: 'center', fontWeight: 600 }}>
+                              {s.totalOrders}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 600, color: '#1e293b' }}>
+                              {formatVND(grossRev)}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 600, color: '#dc2626' }}>
+                              -{formatVND(platformFee)}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 700, color: '#059669' }}>
+                              {formatVND(netRev)}
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ fontWeight: 800, color: '#2563eb', fontSize: '0.95rem' }}>
+                                {formatVND(netRev)}
+                              </div>
+                              {pendingRev > 0 && (
+                                <div style={{ fontSize: '0.72rem', color: '#d97706' }}>
+                                  Đang giữ: {formatVND(pendingRev)}
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <div style={{ display: 'inline-flex', gap: '6px' }}>
+                                <button
+                                  type="button"
+                                  className="admin-btn-action-primary"
+                                  style={{
+                                    padding: '5px 10px',
+                                    fontSize: '0.8rem',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    backgroundColor: '#0284c7',
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer'
+                                  }}
+                                  onClick={() => setActiveTab('payouts')}
+                                  title="Thanh toán chuyển khoản cho shop này"
+                                >
+                                  <CreditCard size={13} /> Thanh toán
+                                </button>
+                                <button
+                                  type="button"
+                                  className="admin-btn-action-secondary"
+                                  style={{ padding: '5px 10px', fontSize: '0.8rem' }}
+                                  onClick={() => {
+                                    handleViewAdminShopDetail(s.shopId);
+                                    setActiveTab('admin-shops');
+                                  }}
+                                  title="Xem chi tiết cửa hàng"
+                                >
+                                  <Eye size={13} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
                     ) : (
                       <tr>
                         <td colSpan="9" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
@@ -5341,9 +5414,9 @@ export const AdminPage = () => {
         )}
 
         {/* =================================================================== */}
-        {/* TAB: ĐỐI SOÁT & QUYẾT TOÁN CỬA HÀNG (ESCROW PAYOUTS - ADMIN) */}
+        {/* TAB: ĐỐI SOÁT & QUYẾT TOÁN CỬA HÀNG (ESCROW PAYOUTS - ADMIN & SHOP) */}
         {/* =================================================================== */}
-        {activeTab === 'payouts' && isAdminUser && (
+        {activeTab === 'payouts' && hasPortalAccess && (
           <div className="admin-card-container">
             <AdminPayoutsTab />
           </div>
