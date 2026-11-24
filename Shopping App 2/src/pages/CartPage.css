@@ -2,13 +2,17 @@
    CartPage.css — Responsive Desktop & Mobile/Tablet Layout
    ========================================================================== */
 
+.cart-page,
 .cart-page-wrapper {
-  padding: 3rem 0 5rem;
+  padding-top: 3rem;
+  padding-bottom: 72px;
 }
 
 @media (max-width: 768px) {
+  .cart-page,
   .cart-page-wrapper {
-    padding: 1.5rem 0 5rem;
+    padding-top: 1.5rem;
+    padding-bottom: 72px;
   }
 }
 
