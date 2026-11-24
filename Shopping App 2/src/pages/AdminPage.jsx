@@ -3917,18 +3917,19 @@ export const AdminPage = () => {
                 padding: '1.25rem',
                 boxShadow: '0 4px 14px rgba(5, 150, 105, 0.25)',
                 position: 'relative',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                minWidth: 0
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontSize: '0.85rem', fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       Lợi nhuận Phí sàn (2.5%)
                     </div>
-                    <div style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.35rem', letterSpacing: '-0.02em' }}>
+                    <div style={{ fontSize: 'clamp(1.25rem, 1.8vw, 1.75rem)', fontWeight: 800, marginTop: '0.35rem', letterSpacing: '-0.02em', overflowWrap: 'anywhere' }}>
                       {formatVND(revenueData?.totalPlatformFee || Math.round((revenueData?.totalRevenue || 0) * 0.025))}
                     </div>
                   </div>
-                  <div style={{ background: 'rgba(255,255,255,0.2)', padding: '0.6rem', borderRadius: '10px' }}>
+                  <div style={{ background: 'rgba(255,255,255,0.2)', padding: '0.6rem', borderRadius: '10px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <TrendingUp size={24} />
                   </div>
                 </div>
@@ -3945,18 +3946,19 @@ export const AdminPage = () => {
                 padding: '1.25rem',
                 boxShadow: '0 4px 14px rgba(37, 99, 235, 0.25)',
                 position: 'relative',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                minWidth: 0
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontSize: '0.85rem', fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       Tổng giá trị sàn (GMV)
                     </div>
-                    <div style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.35rem', letterSpacing: '-0.02em' }}>
+                    <div style={{ fontSize: 'clamp(1.25rem, 1.8vw, 1.75rem)', fontWeight: 800, marginTop: '0.35rem', letterSpacing: '-0.02em', overflowWrap: 'anywhere' }}>
                       {formatVND(revenueData?.grossMerchandiseValue || 0)}
                     </div>
                   </div>
-                  <div style={{ background: 'rgba(255,255,255,0.2)', padding: '0.6rem', borderRadius: '10px' }}>
+                  <div style={{ background: 'rgba(255,255,255,0.2)', padding: '0.6rem', borderRadius: '10px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <DollarSign size={24} />
                   </div>
                 </div>
@@ -3973,18 +3975,19 @@ export const AdminPage = () => {
                 padding: '1.25rem',
                 boxShadow: '0 4px 14px rgba(217, 119, 6, 0.25)',
                 position: 'relative',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                minWidth: 0
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontSize: '0.85rem', fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       Tổng đơn hàng sàn
                     </div>
-                    <div style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.35rem', letterSpacing: '-0.02em' }}>
+                    <div style={{ fontSize: 'clamp(1.25rem, 1.8vw, 1.75rem)', fontWeight: 800, marginTop: '0.35rem', letterSpacing: '-0.02em', overflowWrap: 'anywhere' }}>
                       {revenueData?.totalOrders || 0} <span style={{ fontSize: '1rem', fontWeight: 500 }}>đơn</span>
                     </div>
                   </div>
-                  <div style={{ background: 'rgba(255,255,255,0.2)', padding: '0.6rem', borderRadius: '10px' }}>
+                  <div style={{ background: 'rgba(255,255,255,0.2)', padding: '0.6rem', borderRadius: '10px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <ShoppingBag size={24} />
                   </div>
                 </div>
@@ -4001,18 +4004,19 @@ export const AdminPage = () => {
                 padding: '1.25rem',
                 boxShadow: '0 4px 14px rgba(124, 58, 237, 0.25)',
                 position: 'relative',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                minWidth: 0
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontSize: '0.85rem', fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       Giá trị TB / đơn (AOV)
                     </div>
-                    <div style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.35rem', letterSpacing: '-0.02em' }}>
+                    <div style={{ fontSize: 'clamp(1.25rem, 1.8vw, 1.75rem)', fontWeight: 800, marginTop: '0.35rem', letterSpacing: '-0.02em', overflowWrap: 'anywhere' }}>
                       {formatVND(revenueData?.averageOrderValue || 0)}
                     </div>
                   </div>
-                  <div style={{ background: 'rgba(255,255,255,0.2)', padding: '0.6rem', borderRadius: '10px' }}>
+                  <div style={{ background: 'rgba(255,255,255,0.2)', padding: '0.6rem', borderRadius: '10px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <CreditCard size={24} />
                   </div>
                 </div>
