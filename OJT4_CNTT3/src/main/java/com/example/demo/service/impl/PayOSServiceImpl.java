@@ -488,6 +488,63 @@ public class PayOSServiceImpl implements PayOSService {
 
     @Override
     @Transactional
+    public Map<String, Object> confirmShopAllPayout(Long shopId, String note, String transactionRef, String username) {
+        User adminUser = verifyAdminAccess(username);
+        List<Order> orders = orderRepository.findEscrowOrdersByShopId(shopId);
+
+        List<Order> eligibleOrders = orders.stream()
+                .filter(o -> PAYOUT_STATUS_READY.equalsIgnoreCase(o.getShopPayoutStatus()) || PAYOUT_STATUS_HOLDING.equalsIgnoreCase(o.getShopPayoutStatus()))
+                .filter(o -> o.getStatus() != OrderStatus.RETURNED && o.getPaymentStatus() != PaymentStatus.REFUNDED && o.getStatus() != OrderStatus.CANCELLED)
+                .toList();
+
+        if (eligibleOrders.isEmpty()) {
+            throw new BadRequestException("Cửa hàng #" + shopId + " không có đơn hàng nào ở trạng thái chờ thanh toán");
+        }
+
+        String finalNote = (note != null && !note.isBlank()) ? note : "Đã thanh toán quyết toán cho Cửa hàng";
+        if (transactionRef != null && !transactionRef.isBlank()) {
+            finalNote += " - Mã GD: " + transactionRef;
+        }
+
+        BigDecimal totalPaid = BigDecimal.ZERO;
+        LocalDateTime now = LocalDateTime.now();
+
+        for (Order o : eligibleOrders) {
+            OrderFinancials fin = calculateOrderFinancials(o);
+            o.setPlatformFee(fin.platformFee());
+            o.setShopPayoutAmount(fin.payoutAmount());
+            o.setShopPayoutStatus(PAYOUT_STATUS_PAID);
+            o.setShopPayoutAt(now);
+            o.setShopPayoutNote(finalNote);
+            o.setShopPayoutTransferredBy(adminUser.getId());
+            totalPaid = totalPaid.add(fin.payoutAmount() != null ? fin.payoutAmount() : BigDecimal.ZERO);
+        }
+
+        orderRepository.saveAll(eligibleOrders);
+
+        log.info("Admin '{}' (ID #{}) đã xác nhận thanh toán toàn bộ cho Shop #{}. Số đơn: {}, Tổng tiền: {}",
+                adminUser.getUsername(), adminUser.getId(), shopId, eligibleOrders.size(), totalPaid);
+
+        if (messagingTemplate != null) {
+            Map<String, Object> event = new HashMap<>();
+            event.put(FIELD_EVENT, "SHOP_PAYOUT_CONFIRMED");
+            event.put("shopId", shopId);
+            event.put(FIELD_AMOUNT, totalPaid);
+            event.put("count", eligibleOrders.size());
+            event.put("message", "Admin đã thanh toán tổng cộng " + totalPaid + " VND cho " + eligibleOrders.size() + " đơn hàng của Shop!");
+            messagingTemplate.convertAndSend("/topic/shop-orders." + shopId, (Object) event);
+        }
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("shopId", shopId);
+        res.put("confirmedCount", eligibleOrders.size());
+        res.put("totalPaidAmount", totalPaid);
+        res.put("payoutAt", now);
+        return res;
+    }
+
+    @Override
+    @Transactional
     public ShopDetailResponse updateShopBankAccount(Long shopId, UpdateShopBankRequest request, String username) {
         verifyShopAccess(shopId, username);
         Shop shop = shopRepository.findById(shopId)

@@ -78,10 +78,20 @@ export const paymentApi = {
   },
 
   /**
-   * Admin: Xác nhận đã chuyển tiền cho Shop
+   * Admin: Xác nhận đã chuyển tiền cho Shop (theo từng đơn)
    */
   confirmShopPayout(orderId, payload = {}) {
     return request(`/api/v1/payment/payouts/${orderId}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  /**
+   * Admin: Xác nhận thanh toán toàn bộ cho một Cửa hàng
+   */
+  confirmShopAllPayout(shopId, payload = {}) {
+    return request(`/api/v1/payment/payouts/shop/${shopId}/confirm-all`, {
       method: 'POST',
       body: JSON.stringify(payload)
     });

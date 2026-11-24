@@ -46,6 +46,11 @@ public interface PayOSService {
     ShopPayoutItemResponse confirmShopPayout(Long orderId, String note, String transactionRef, String username);
 
     /**
+     * Admin xác nhận đã thanh toán toàn bộ cho một Cửa hàng
+     */
+    java.util.Map<String, Object> confirmShopAllPayout(Long shopId, String note, String transactionRef, String username);
+
+    /**
      * Cập nhật tài khoản ngân hàng nhận tiền của Shop
      */
     ShopDetailResponse updateShopBankAccount(Long shopId, UpdateShopBankRequest request, String username);

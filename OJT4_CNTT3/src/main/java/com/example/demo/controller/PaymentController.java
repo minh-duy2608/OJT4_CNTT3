@@ -131,6 +131,23 @@ public class PaymentController {
     }
 
     /**
+     * Admin: Xác nhận đã thanh toán toàn bộ cho một Cửa hàng (Shop Payout All)
+     */
+    @Operation(summary = "Admin: Xác nhận thanh toán toàn bộ cho Shop", description = "Quyết toán và chuyển tiền toàn bộ các đơn hàng sẵn sàng thanh toán của một Cửa hàng")
+    @PostMapping({"/payment/payouts/shop/{shopId}/confirm-all", "/api/v1/payment/payouts/shop/{shopId}/confirm-all"})
+    public ResponseEntity<ApiResponse<Map<String, Object>>> confirmShopAllPayout(
+            @PathVariable Long shopId,
+            @RequestBody(required = false) Map<String, String> body,
+            Principal principal
+    ) {
+        String username = principal != null ? principal.getName() : null;
+        String note = body != null ? body.get("note") : null;
+        String txRef = body != null ? body.get("transactionRef") : null;
+        Map<String, Object> response = payOSService.confirmShopAllPayout(shopId, note, txRef, username);
+        return ResponseEntity.ok(ApiResponse.success("Xác nhận thanh toán toàn bộ cho Shop thành công!", response));
+    }
+
+    /**
      * Shop: Cập nhật thông tin tài khoản ngân hàng nhận tiền
      */
     @Operation(summary = "Shop: Cập nhật tài khoản ngân hàng nhận tiền", description = "Chủ shop đăng ký/thay đổi số tài khoản ngân hàng để nhận tiền quyết toán từ Admin")
