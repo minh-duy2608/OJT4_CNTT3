@@ -191,6 +191,10 @@ public class RevenueServiceImpl implements RevenueService {
                 .totalOrders(shopOrders.size())
                 .totalRevenue(amounts.revenue())
                 .pendingRevenue(amounts.pendingRevenue())
+                .bankName(shop.getBankName())
+                .bankBin(shop.getBankBin())
+                .bankAccountNumber(shop.getBankAccountNumber())
+                .bankAccountName(shop.getBankAccountName())
                 .build();
     }
 

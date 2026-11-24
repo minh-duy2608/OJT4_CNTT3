@@ -85,6 +85,7 @@ import { AdminSystemHealthCard } from '../components/admin/AdminSystemHealthCard
 import { ShopDashboardTab } from '../components/admin/ShopDashboardTab';
 import { AdminPagination } from '../components/admin/AdminPagination';
 import { AdminPayoutsTab } from '../components/admin/AdminPayoutsTab';
+import { ShopPaymentModal } from '../components/admin/ShopPaymentModal';
 import { SellerChatPage } from './SellerChatPage';
 import './AdminPage.css';
 
@@ -2623,6 +2624,7 @@ export const AdminPage = () => {
   const [revenueShopFilter, setRevenueShopFilter] = useState('');
   const [revenueTimeFilter, setRevenueTimeFilter] = useState('all');
   const [recentOrderPage, setRecentOrderPage] = useState(0);
+  const [selectedShopForPaymentModal, setSelectedShopForPaymentModal] = useState(null);
   const recentOrderPageSize = 5;
 
   const fetchPlatformRevenue = useCallback(async () => {
@@ -4201,19 +4203,21 @@ export const AdminPage = () => {
                                   type="button"
                                   className="admin-btn-action-primary"
                                   style={{
-                                    padding: '5px 10px',
+                                    padding: '5px 12px',
                                     fontSize: '0.8rem',
                                     display: 'inline-flex',
                                     alignItems: 'center',
-                                    gap: '4px',
-                                    backgroundColor: '#0284c7',
+                                    gap: '5px',
+                                    backgroundColor: '#059669',
                                     color: '#fff',
                                     border: 'none',
                                     borderRadius: '6px',
-                                    cursor: 'pointer'
+                                    cursor: 'pointer',
+                                    fontWeight: 700,
+                                    boxShadow: '0 2px 4px rgba(5, 150, 105, 0.25)'
                                   }}
-                                  onClick={() => setActiveTab('payouts')}
-                                  title="Thanh toán chuyển khoản cho shop này"
+                                  onClick={() => setSelectedShopForPaymentModal(s)}
+                                  title="Bấm vào để hiện thông tin thanh toán của Cửa hàng này"
                                 >
                                   <CreditCard size={13} /> Thanh toán
                                 </button>
@@ -5420,6 +5424,20 @@ export const AdminPage = () => {
           <div className="admin-card-container">
             <AdminPayoutsTab />
           </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* MODAL THÔNG TIN THANH TOÁN & QUYẾT TOÁN CỬA HÀNG */}
+        {/* =================================================================== */}
+        {selectedShopForPaymentModal && (
+          <ShopPaymentModal
+            shop={selectedShopForPaymentModal}
+            onClose={() => setSelectedShopForPaymentModal(null)}
+            onSuccess={() => {
+              if (isAdminUser) fetchPlatformRevenue();
+            }}
+            showToast={triggerAlert}
+          />
         )}
 
         {/* =================================================================== */}

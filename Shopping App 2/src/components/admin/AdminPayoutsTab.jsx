@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { paymentApi } from '../../services/paymentApi';
 import { shopApi } from '../../services/shopApi';
+import { ShopPaymentModal } from './ShopPaymentModal';
 import { formatVND } from '../../data/products';
 import { useCart } from '../../context/CartContext';
 import './AdminPayoutsTab.css';
@@ -645,7 +646,7 @@ export const AdminPayoutsTab = ({ showToast: propShowToast }) => {
                                 title="Bấm vào để xem thông tin thanh toán của Shop và chuyển tiền"
                               >
                                 <CreditCard size={14} />
-                                <span>{hasReady ? 'Thanh toán' : 'Xem thanh toán'}</span>
+                                <span>Thanh toán</span>
                               </button>
 
                               {/* Nút thu gọn / mở rộng chi tiết các đơn hàng của shop */}
@@ -918,265 +919,14 @@ export const AdminPayoutsTab = ({ showToast: propShowToast }) => {
       {/* ============================================================================
        * 3. MODAL THANH TOÁN CHO CỬA HÀNG (KHI BẤM "THANH TOÁN" TRÊN SHOP LIST)
        * ============================================================================ */}
-      {selectedShopForPayment && (() => {
-        const shop = selectedShopForPayment;
-        const amountToPay = shop.readyToPayAmount > 0 ? shop.readyToPayAmount : shop.totalNetRevenue;
-        const vietQrUrl = shop.shopBankAccountNumber
-          ? `https://img.vietqr.io/image/${shop.shopBankBin || '970418'}-${shop.shopBankAccountNumber}-compact2.png?amount=${Math.round(amountToPay)}&addInfo=${encodeURIComponent(`CYBER QT SHOP ${shop.shopId}`)}&accountName=${encodeURIComponent(shop.shopBankAccountName || 'CHỦ SHOP')}`
-          : null;
-
-        return (
-          <div className="payout-modal-overlay" onClick={() => setSelectedShopForPayment(null)}>
-            <div className="payout-modal-card shop-payment-box" onClick={(e) => e.stopPropagation()}>
-              <div className="payout-modal-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ background: '#ecfdf5', color: '#047857', padding: '6px', borderRadius: '8px', display: 'flex' }}>
-                    <CreditCard size={20} />
-                  </div>
-                  <div>
-                    <h4 style={{ margin: 0, fontSize: '1.08rem', fontWeight: 800, color: '#0f172a' }}>
-                      Thông tin Thanh toán & Quyết toán: {shop.shopName}
-                    </h4>
-                    <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
-                      ID Shop: #{shop.shopId} • Số đơn hàng: {shop.orders.length} đơn
-                    </span>
-                  </div>
-                </div>
-                <button type="button" className="payout-modal-close" onClick={() => setSelectedShopForPayment(null)}>
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="shop-payment-modal-body">
-                {/* 1. MÃ VIETQR VÀ THÔNG TIN TÀI KHOẢN NGÂN HÀNG CỦA SHOP */}
-                <div className="shop-payment-grid">
-                  {/* Mã QR quét tự động */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                    {vietQrUrl ? (
-                      <>
-                        <img 
-                          src={vietQrUrl} 
-                          alt="VietQR Payout" 
-                          className="payout-qr-image"
-                          style={{ width: '210px', height: '210px' }}
-                        />
-                        <div style={{ fontSize: '0.74rem', color: '#059669', fontWeight: 600, marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <QrCode size={13} /> Quét mã bằng App Ngân hàng
-                        </div>
-                      </>
-                    ) : (
-                      <div style={{ padding: '2rem 1rem', background: '#fee2e2', color: '#dc2626', borderRadius: '10px', fontSize: '0.8rem' }}>
-                        ⚠️ Cửa hàng chưa cài đặt thông tin số tài khoản hợp lệ
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Thông tin tài khoản ngân hàng của Shop */}
-                  <div className="shop-bank-box">
-                    <div className="shop-bank-header">
-                      <Building size={16} color="#059669" />
-                      <span>Tài khoản thụ hưởng của Cửa hàng</span>
-                    </div>
-
-                    <div className="shop-bank-item">
-                      <span className="shop-bank-label">Ngân hàng thụ hưởng:</span>
-                      <span className="shop-bank-val" style={{ color: '#0f172a' }}>
-                        {shop.shopBankName}
-                      </span>
-                    </div>
-
-                    <div className="shop-bank-item">
-                      <span className="shop-bank-label">Số tài khoản nhận tiền:</span>
-                      <div className="shop-bank-val" style={{ color: '#2563eb', fontFamily: 'monospace', fontSize: '1.05rem' }}>
-                        <span>{shop.shopBankAccountNumber}</span>
-                        <button
-                          type="button"
-                          className="payout-mini-copy"
-                          onClick={() => handleCopy(shop.shopBankAccountNumber, 'modal_shop_stk')}
-                          title="Sao chép số tài khoản"
-                        >
-                          {copiedField === 'modal_shop_stk' ? <Check size={12} color="#059669" /> : <Copy size={12} />}
-                          <span style={{ fontSize: '0.7rem' }}>{copiedField === 'modal_shop_stk' ? 'Đã chép' : 'Chép STK'}</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="shop-bank-item">
-                      <span className="shop-bank-label">Chủ tài khoản thụ hưởng:</span>
-                      <span className="shop-bank-val" style={{ textTransform: 'uppercase', color: '#0f172a' }}>
-                        {shop.shopBankAccountName}
-                      </span>
-                    </div>
-
-                    <div className="shop-bank-item">
-                      <span className="shop-bank-label">Nội dung chuyển khoản (Memo):</span>
-                      <div className="shop-bank-val" style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                        <span>{`CYBER QT SHOP ${shop.shopId}`}</span>
-                        <button
-                          type="button"
-                          className="payout-mini-copy"
-                          onClick={() => handleCopy(`CYBER QT SHOP ${shop.shopId}`, 'modal_shop_memo')}
-                          title="Sao chép nội dung chuyển khoản"
-                        >
-                          {copiedField === 'modal_shop_memo' ? <Check size={12} color="#059669" /> : <Copy size={12} />}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. BẢNG TỔNG HỢP DOANH THU & SỐ TIỀN THỰC ADMIN PHẢI TRẢ CHO SHOP */}
-                <div className="shop-financial-card">
-                  <div className="shop-financial-grid">
-                    <div className="shop-financial-item">
-                      <div className="shop-financial-label">Doanh thu trước phí (Tiền hàng)</div>
-                      <div className="shop-financial-val">{formatVND(shop.totalGrossRevenue)}</div>
-                    </div>
-                    <div className="shop-financial-item">
-                      <div className="shop-financial-label">Khấu trừ phí sàn (2.5%)</div>
-                      <div className="shop-financial-val" style={{ color: '#059669' }}>
-                        -{formatVND(shop.totalPlatformFee)}
-                      </div>
-                    </div>
-                    <div className="shop-financial-item">
-                      <div className="shop-financial-label">Doanh thu sau phí (97.5%)</div>
-                      <div className="shop-financial-val" style={{ color: '#334155' }}>
-                        {formatVND(shop.totalNetRevenue)}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* SỐ TIỀN THỰC TẾ ADMIN PHẢI TRẢ CHO SHOP */}
-                  <div className="shop-highlight-payout">
-                    <div>
-                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#065f46', textTransform: 'uppercase' }}>
-                        💰 Số tiền thực Admin phải trả cho Shop:
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: '#047857', marginTop: '2px' }}>
-                        {shop.readyOrdersCount > 0 
-                          ? `(Quyết toán cho ${shop.readyOrdersCount} đơn hàng khách đã nhận thành công)`
-                          : `(Tất cả đơn hàng của Shop đã được thanh toán hoàn tất)`}
-                      </div>
-                    </div>
-                    <div className="shop-payout-amount-big">
-                      {formatVND(amountToPay)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. DANH SÁCH CÁC ĐƠN HÀNG CỦA SHOP TRONG ĐỢT THANH TOÁN */}
-                <div style={{ marginBottom: '1.25rem' }}>
-                  <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#1e293b', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Layers size={14} color="#059669" />
-                    <span>Chi tiết các đơn hàng của Cửa hàng ({shop.orders.length} đơn):</span>
-                  </div>
-
-                  <table className="shop-orders-collapsible-table">
-                    <thead>
-                      <tr>
-                        <th>Mã đơn</th>
-                        <th>Ngày đặt</th>
-                        <th style={{ textAlign: 'right' }}>Tiền hàng</th>
-                        <th style={{ textAlign: 'right' }}>Phí sàn (2.5%)</th>
-                        <th style={{ textAlign: 'right' }}>Thực nhận (97.5%)</th>
-                        <th style={{ textAlign: 'center' }}>Trạng thái</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {shop.orders.map(o => (
-                        <tr key={o.orderId}>
-                          <td style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0f172a' }}>
-                            #{o.orderCode || o.orderId}
-                          </td>
-                          <td style={{ fontSize: '0.74rem', color: '#64748b' }}>
-                            {o.createdAt ? new Date(o.createdAt).toLocaleDateString('vi-VN') : '-'}
-                          </td>
-                          <td style={{ textAlign: 'right' }}>{formatVND(o.productAmount || o.totalAmount)}</td>
-                          <td style={{ textAlign: 'right', color: '#059669' }}>-{formatVND(o.platformFee)}</td>
-                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#2563eb' }}>{formatVND(o.shopPayoutAmount)}</td>
-                          <td style={{ textAlign: 'center' }}>
-                            {o.shopPayoutStatus === 'READY_FOR_PAYOUT' && <span className="payout-status-badge ready">⚡ Chờ chuyển</span>}
-                            {o.shopPayoutStatus === 'HOLDING' && <span className="payout-status-badge holding">🛡️ Đang giữ</span>}
-                            {o.shopPayoutStatus === 'PAID_OUT' && <span className="payout-status-badge paid">✅ Đã chuyển</span>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* 4. FORM NHẬP THÔNG TIN XÁC NHẬN CHUYỂN TIỀN */}
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>
-                    Xác nhận chuyển khoản sau khi Admin đã thực hiện chuyển tiền:
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 600, color: '#475569', marginBottom: '3px' }}>
-                        Mã giao dịch ngân hàng / Ref
-                      </label>
-                      <input 
-                        type="text"
-                        className="payout-input"
-                        placeholder="Ví dụ: MB123456789"
-                        value={confirmTxRef}
-                        onChange={(e) => setConfirmTxRef(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 600, color: '#475569', marginBottom: '3px' }}>
-                        Ghi chú quyết toán cho Shop
-                      </label>
-                      <input 
-                        type="text"
-                        className="payout-input"
-                        placeholder="Ví dụ: Đã quyết toán kỳ ngày 19"
-                        value={confirmNote}
-                        onChange={(e) => setConfirmNote(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* FOOTER MODAL THANH TOÁN CHO SHOP */}
-              <div className="payout-modal-footer">
-                <button 
-                  type="button" 
-                  className="payout-btn-action-sec"
-                  onClick={() => setSelectedShopForPayment(null)}
-                  disabled={confirming}
-                >
-                  Đóng
-                </button>
-
-                <button
-                  type="button"
-                  className="payout-btn-action-pri"
-                  onClick={handleConfirmShopAllPayout}
-                  disabled={confirming || shop.readyOrdersCount === 0}
-                  style={{
-                    background: shop.readyOrdersCount > 0 ? '#059669' : '#94a3b8',
-                    cursor: shop.readyOrdersCount > 0 ? 'pointer' : 'not-allowed'
-                  }}
-                >
-                  {confirming ? (
-                    <>
-                      <RefreshCw size={14} className="animate-spin" /> Đang cập nhật...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 size={16} /> 
-                      <span>{shop.readyOrdersCount > 0 ? `Xác nhận đã chuyển ${formatVND(amountToPay)} cho Shop` : 'Tất cả đơn đã thanh toán xong'}</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {selectedShopForPayment && (
+        <ShopPaymentModal
+          shop={selectedShopForPayment}
+          onClose={() => setSelectedShopForPayment(null)}
+          onSuccess={() => fetchPayouts()}
+          showToast={showToast}
+        />
+      )}
 
       {/* MODAL QUÉT MÃ VIETQR CHUYỂN TIỀN CHO TỪNG ĐƠN (CHẾ ĐỘ ĐƠN HÀNG) */}
       {selectedPayoutForQR && (

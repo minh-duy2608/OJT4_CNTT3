@@ -41,6 +41,10 @@ public class AdminRevenueResponse {
         private long totalOrders;
         private BigDecimal totalRevenue;
         private BigDecimal pendingRevenue;
+        private String bankName;
+        private String bankBin;
+        private String bankAccountNumber;
+        private String bankAccountName;
     }
 
     @Data
