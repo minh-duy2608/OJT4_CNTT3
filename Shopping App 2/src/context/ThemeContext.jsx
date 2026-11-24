@@ -1,39 +1,29 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect } from 'react';
 
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(() => {
-    // 1. Kiểm tra localStorage trước
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark' || savedTheme === 'light') {
-      return savedTheme;
-    }
-    // 2. Mặc định theo cấu hình hệ điều hành
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'dark';
-    }
-    return 'light';
-  });
+  const theme = 'light';
+  const isDark = false;
+  const toggleTheme = () => {};
 
   useEffect(() => {
-    // Lưu vào localStorage
-    localStorage.setItem('theme', theme);
-
-    // Gắn / gỡ class dark-theme trên cả html và body để tương thích tối đa
-    const isDark = theme === 'dark';
-    document.documentElement.classList.toggle('dark-theme', isDark);
-    if (document.body) {
-      document.body.classList.toggle('dark-theme', isDark);
+    // Luôn giữ Light Mode, loại bỏ các class và attribute dark mode
+    try {
+      localStorage.setItem('theme', 'light');
+      document.documentElement.classList.remove('dark-theme', 'dark');
+      document.documentElement.removeAttribute('data-theme');
+      if (document.body) {
+        document.body.classList.remove('dark-theme', 'dark');
+        document.body.removeAttribute('data-theme');
+      }
+    } catch (e) {
+      // ignore
     }
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme((prevTheme) => (prevTheme === 'light' ? 'dark' : 'light'));
-  };
+  }, []);
 
   return (
-    <ThemeContext.Provider value={{ theme, isDark: theme === 'dark', toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, isDark, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -42,8 +32,7 @@ export const ThemeProvider = ({ children }) => {
 export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (!context) {
-    throw new Error('useTheme must be used within a ThemeProvider');
+    return { theme: 'light', isDark: false, toggleTheme: () => {} };
   }
   return context;
 };
-

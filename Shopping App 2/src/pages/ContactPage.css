@@ -197,27 +197,3 @@
   line-height: 1.5;
   max-width: 400px;
 }
-
-/* ---------------- CSS DARK MODE CHUẨN ---------------- */
-[data-theme='dark'] .contact-title,
-.dark .contact-title {
-  color: #ffffff;
-}
-
-[data-theme='dark'] .contact-desc,
-.dark .contact-desc {
-  color: #9ca3af;
-}
-
-[data-theme='dark'] .contact-form-card,
-.dark .contact-form-card {
-  border-color: #374151;
-}
-
-[data-theme='dark'] .contact-form-group input,
-[data-theme='dark'] .contact-form-group textarea,
-.dark .contact-form-group input,
-.dark .contact-form-group textarea {
-  border-color: #4b5563;
-  color: #ffffff;
-}

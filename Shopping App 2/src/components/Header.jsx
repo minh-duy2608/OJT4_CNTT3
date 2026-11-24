@@ -19,7 +19,6 @@ import { useChat } from '../context/ChatContext';
 import { productApi } from '../services/productApi';
 import { formatVND } from '../data/products';
 import { WishlistModal } from './WishlistModal';
-import { ThemeToggle } from './ThemeToggle';
 import { NotificationDropdown } from './NotificationDropdown';
 import './Header.css';
 
@@ -320,8 +319,6 @@ export const Header = () => {
 
           {/* Nhóm Icons tác vụ: Theme Toggle, Giỏ hàng, Tài khoản */}
           <div className="cyber-actions">
-            {/* Nút chuyển đổi Dark / Light mode */}
-            <ThemeToggle />
 
             {/* Thông báo nếu đã đăng nhập */}
             {isAuthenticated && <NotificationDropdown />}
