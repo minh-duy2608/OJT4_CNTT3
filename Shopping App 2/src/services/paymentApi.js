@@ -57,14 +57,6 @@ export const paymentApi = {
     });
   },
 
-  /**
-   * Giả lập thanh toán thành công (Test Demo)
-   */
-  simulateSuccess(orderId) {
-    return request(`/api/v1/payment/payos/simulate-success/${orderId}`, {
-      method: 'POST'
-    });
-  },
 
   /**
    * Admin: Lấy danh sách đối soát & chuyển tiền cho Shop (Escrow Payouts)

@@ -84,19 +84,6 @@ public class PaymentController {
         return ResponseEntity.ok(ApiResponse.success("Đã hủy thanh toán PayOS", response));
     }
 
-    /**
-     * Endpoint hỗ trợ Test Demo: Giả lập chuyển khoản thành công nhận tiền ngay
-     */
-    @Operation(summary = "Giả lập chuyển khoản thành công (Test Demo)", description = "Hỗ trợ kiểm thử hiệu ứng Animation nhận tiền thành công mà không cần chuyển tiền thật")
-    @PostMapping({"/payment/payos/simulate-success/{orderId}", "/api/v1/payment/payos/simulate-success/{orderId}"})
-    public ResponseEntity<ApiResponse<PayOSPaymentResponse>> simulateSuccess(
-            @PathVariable Long orderId,
-            Principal principal
-    ) {
-        String username = principal != null ? principal.getName() : null;
-        PayOSPaymentResponse response = payOSService.simulatePaymentSuccess(orderId, username);
-        return ResponseEntity.ok(ApiResponse.success("Giả lập thanh toán thành công!", response));
-    }
 
     /**
      * Admin: Lấy danh sách đối soát & chuyển tiền cho Shop (Escrow Payouts)

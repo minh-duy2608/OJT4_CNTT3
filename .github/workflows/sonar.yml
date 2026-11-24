@@ -48,11 +48,12 @@ jobs:
           retention-days: 7
 
       - name: Run SonarQube Analysis
-        if: env.SONAR_TOKEN != ''
+        if: ${{ secrets.SONAR_TOKEN != '' && secrets.SONAR_HOST_URL != '' }}
+        continue-on-error: true
         working-directory: ./OJT4_CNTT3
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL || 'http://localhost:9000' }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         run: |
           ./gradlew sonar \
             -Dsonar.host.url="${SONAR_HOST_URL}" \

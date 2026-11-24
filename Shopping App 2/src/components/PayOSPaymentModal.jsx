@@ -8,8 +8,6 @@ import {
   AlertTriangle, 
   QrCode, 
   ShieldCheck, 
-  CheckCircle2, 
-  Zap, 
   RefreshCw 
 } from 'lucide-react';
 import { Client } from '@stomp/stompjs';
@@ -32,8 +30,6 @@ export const PayOSPaymentModal = ({
   const [isSuccess, setIsSuccess] = useState(false);
   const [copiedField, setCopiedField] = useState(null);
   const [redirectCountdown, setRedirectCountdown] = useState(3);
-  const [simulating, setSimulating] = useState(false);
-  const [checkingStatus, setCheckingStatus] = useState(false);
 
   const stompClientRef = useRef(null);
   const pollingTimerRef = useRef(null);
@@ -210,7 +206,7 @@ export const PayOSPaymentModal = ({
       } catch (e) {
         // bỏ qua lỗi mạng tạm thời khi polling
       }
-    }, 2500);
+    }, 2000);
 
     return () => {
       if (pollingTimerRef.current) clearInterval(pollingTimerRef.current);
@@ -225,40 +221,6 @@ export const PayOSPaymentModal = ({
     setTimeout(() => {
       setCopiedField((curr) => (curr === fieldName ? null : curr));
     }, 2000);
-  };
-
-  // Nút giả lập chuyển khoản thành công (Test Demo)
-  const handleSimulateDemo = async () => {
-    try {
-      setSimulating(true);
-      await paymentApi.simulateSuccess(orderId);
-      handlePaymentConfirmed();
-    } catch (err) {
-      alert(err.message || 'Lỗi giả lập thanh toán');
-    } finally {
-      setSimulating(false);
-    }
-  };
-
-  // Nút người dùng chủ động bấm kiểm tra sau khi đã chuyển khoản
-  const handleManualCheck = async () => {
-    try {
-      setCheckingStatus(true);
-      const res = await paymentApi.getPayOSStatus(orderId);
-      if (res?.status === 'PAID') {
-        handlePaymentConfirmed();
-      } else {
-        // Fallback: nếu tiền đã vào tài khoản ngân hàng nhưng PayOS webhook bị trễ
-        await paymentApi.simulateSuccess(orderId);
-        handlePaymentConfirmed();
-      }
-    } catch (err) {
-      console.warn('Manual check error:', err);
-      // Vẫn hỗ trợ hoàn tất nếu đơn đã thanh toán
-      handlePaymentConfirmed();
-    } finally {
-      setCheckingStatus(false);
-    }
   };
 
   // Định dạng thời gian đếm ngược mm:ss
@@ -403,7 +365,14 @@ export const PayOSPaymentModal = ({
             {!isExpired && (
               <div className="payos-live-status">
                 <span className="payos-pulse-dot"></span>
-                <span>Hệ thống đang chờ nhận tiền chuyển khoản tự động 24/7...</span>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontWeight: 600, color: '#0f172a' }}>
+                    Hệ thống đang chờ nhận tiền chuyển khoản tự động 24/7...
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>
+                    Sau khi bạn chuyển tiền từ App ngân hàng, hệ thống sẽ tự động xác nhận và hiển thị dấu tích xanh thành công ngay lập tức!
+                  </div>
+                </div>
               </div>
             )}
 
@@ -471,30 +440,6 @@ export const PayOSPaymentModal = ({
 
             {/* Các nút bấm hành động */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', marginTop: '0.5rem' }}>
-              {!isExpired && (
-                <button
-                  type="button"
-                  className="payos-btn-action"
-                  onClick={handleManualCheck}
-                  disabled={checkingStatus}
-                  style={{
-                    background: '#16a34a',
-                    color: '#ffffff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    fontWeight: 600,
-                    boxShadow: '0 2px 8px rgba(22, 163, 74, 0.25)',
-                    border: 'none',
-                    cursor: checkingStatus ? 'wait' : 'pointer'
-                  }}
-                >
-                  <CheckCircle2 size={16} />
-                  {checkingStatus ? 'Đang kiểm tra giao dịch...' : 'Tôi đã chuyển khoản - Xác nhận ngay'}
-                </button>
-              )}
-
               {paymentData?.checkoutUrl && paymentData.checkoutUrl !== 'https://pay.payos.vn' && !isExpired && (
                 <a
                   href={paymentData.checkoutUrl}
@@ -523,22 +468,6 @@ export const PayOSPaymentModal = ({
                 >
                   Tôi sẽ thanh toán sau (Giữ đơn 5 phút)
                 </button>
-              )}
-
-              {/* Nút bấm Giả lập chuyển khoản thành công dành cho Test Demo */}
-              {!isExpired && (
-                <div style={{ textAlign: 'center' }}>
-                  <button
-                    type="button"
-                    className="payos-demo-trigger"
-                    onClick={handleSimulateDemo}
-                    disabled={simulating}
-                    title="Bấm vào đây để giả lập chuyển tiền thật và xem hiệu ứng nhận tiền thành công"
-                  >
-                    <Zap size={13} />
-                    {simulating ? 'Đang xác nhận...' : '⚡ Bấm để Test Demo: Nhận tiền thành công ngay'}
-                  </button>
-                </div>
               )}
             </div>
           </div>

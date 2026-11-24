@@ -29,10 +29,6 @@ public interface PayOSService {
      */
     PayOSPaymentResponse cancelPaymentLink(Long orderId, String username);
 
-    /**
-     * Giả lập thanh toán thành công (dành cho môi trường test/demo hoặc dev)
-     */
-    PayOSPaymentResponse simulatePaymentSuccess(Long orderId, String username);
 
     /**
      * Lấy danh sách và thống kê đối soát tiền chuyển cho Shop (Admin Escrow Payouts)

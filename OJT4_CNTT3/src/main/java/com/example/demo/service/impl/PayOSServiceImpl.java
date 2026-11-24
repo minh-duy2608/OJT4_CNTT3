@@ -427,13 +427,6 @@ public class PayOSServiceImpl implements PayOSService {
         return mapToResponse(order, STATUS_EXPIRED, null, null);
     }
 
-    @Override
-    @Transactional
-    public PayOSPaymentResponse simulatePaymentSuccess(Long orderId, String username) {
-        Order order = getOrderAndVerifyAccess(orderId, username);
-        confirmOrderPaid(order, "Giả lập thanh toán thành công (Test Demo)");
-        return mapToResponse(order, STATUS_PAID, null, null);
-    }
 
     @Override
     @Transactional(readOnly = true)

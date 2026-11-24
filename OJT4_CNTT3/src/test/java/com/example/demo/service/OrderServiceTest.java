@@ -458,6 +458,7 @@ class OrderServiceTest extends BaseUnitTest {
     @DisplayName("Kiểm tra hạn 3 ngày: Đơn hàng DELIVERED trong vòng 3 ngày (1 ngày trước) -> canReturn = true")
     void testGetOrderDetail_CanReturn_Within3Days_True() {
         order.setStatus(OrderStatus.DELIVERED);
+        order.setPaymentStatus(PaymentStatus.PAID);
         order.setDeliveredAt(LocalDateTime.now().minusDays(1));
         order.setBuyerConfirmedDelivery(true);
         order.setItems(new ArrayList<>());
