@@ -1,6 +1,5 @@
 /* ==========================================================================
    SellerChatPage.css — Giao diện 2 cột chuẩn Messenger/Shopee
-   Hỗ trợ Light Mode & Dark Mode hoàn chỉnh (.dark-theme / [data-theme='dark'])
    ========================================================================== */
 
 .seller-chat-container {
@@ -106,10 +105,6 @@
   background: rgba(0, 0, 0, 0.15);
   border-radius: 4px;
 }
-.dark-theme .seller-chat-rooms-list::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-}
-
 .chat-rooms-loading,
 .chat-rooms-empty {
   display: flex;
@@ -155,10 +150,6 @@
 
 .chat-room-item.active {
   background-color: rgba(37, 99, 235, 0.1);
-}
-
-.dark-theme .chat-room-item.active {
-  background-color: rgba(59, 130, 246, 0.18);
 }
 
 .room-avatar-wrapper {
@@ -345,10 +336,6 @@
   background: rgba(0, 0, 0, 0.12);
   border-radius: 4px;
 }
-.dark-theme .chat-main-messages::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-}
-
 .chat-messages-loading,
 .chat-messages-empty {
   flex: 1;
